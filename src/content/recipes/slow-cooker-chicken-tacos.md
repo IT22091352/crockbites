@@ -4,7 +4,7 @@ slug: slow-cooker-chicken-tacos
 description: "Make tender, flavorful chicken tacos with an easy slow cooker recipe for busy weeknights."
 category: slow-cooker-chicken
 tags: [slow cooker, chicken, tacos, easy dinner]
-image: "../../assets/recipes/slow-cooker-chicken-tacos.jpg"
+image: "../../assets/recipes/slow-cooker-chicken-tacos.svg"
 imageAlt: "Tender shredded chicken prepared for tacos"
 author: CrockBites
 pubDate: 2026-10-28
