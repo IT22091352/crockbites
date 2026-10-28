@@ -1,0 +1,16 @@
+---
+import { Mail } from '@lucide/astro';
+import TextPage from '../layouts/TextPage.astro';
+import { site } from '../config/site';
+---
+<TextPage title="Contact" path="/contact/" description="Contact CrockBites with recipe questions, corrections or feedback." lead="The easiest way to reach us is by email.">
+  <p><a class="btn" href={`mailto:${site.contactEmail}`}><Mail size={18} aria-hidden="true" /> Email {site.contactEmail}</a></p>
+  <p>There is no contact form on this site because no form service or backend is connected. Email goes straight to the address above.</p>
+  <h2>Helpful things to include</h2>
+  <ul>
+    <li>The name of the recipe and, if it is a correction, the step or ingredient involved.</li>
+    <li>The type and size of slow cooker you used, if you are asking about timing.</li>
+    <li>Any substitutions you made.</li>
+  </ul>
+  <p>For food safety concerns, rely on your own thermometer and on guidance from your local food safety authority.</p>
+</TextPage>

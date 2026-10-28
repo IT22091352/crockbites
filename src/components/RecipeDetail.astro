@@ -1,0 +1,252 @@
+---
+import { Image } from 'astro:assets';
+import { Clock, Users, Printer, Thermometer, Minus, Plus, ArrowDown, ListOrdered, TriangleAlert, Info } from '@lucide/astro';
+import Breadcrumbs from './Breadcrumbs.astro';
+import RecipeCard from './RecipeCard.astro';
+import AdSlot from './AdSlot.astro';
+import { categoryById, recipeUrl, totalMinutes, absoluteUrl, type Recipe } from '../utils/recipes';
+import { amountText, itemText } from '../utils/quantity';
+import { formatMinutes } from '../utils/time';
+import { rw } from '../utils/images';
+
+interface Props { recipe: Recipe; related: Recipe[] }
+const { recipe, related } = Astro.props;
+const d = recipe.data;
+const cat = categoryById(d.category);
+const total = totalMinutes(recipe);
+const fmtDate = (dt: Date) => dt.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+
+// Group ingredients under their optional headings, keeping the original order.
+const groups: { name?: string; items: typeof d.ingredients }[] = [];
+for (const ing of d.ingredients) {
+  const last = groups[groups.length - 1];
+  if (last && last.name === ing.group) last.items.push(ing);
+  else groups.push({ name: ing.group, items: [ing] });
+}
+const maxServings = Math.max(d.servings * 4, 24);
+const n = d.nutrition;
+const hasNutrition = Boolean(n && (n.calories || n.proteinGrams || n.carbsGrams || n.fatGrams));
+---
+<article>
+  <div class="container-page pb-6 pt-6" data-noprint>
+    <Breadcrumbs items={[{ name: 'Home', href: '/' }, { name: 'Recipes', href: '/recipes/' }, { name: cat!.name, href: `/category/${cat!.id}/` }, { name: d.title }]} />
+    <div class="mt-6 grid gap-8 lg:grid-cols-[1fr_1.05fr] lg:items-center lg:gap-12">
+      <div>
+        <a class="chip" href={`/category/${cat!.id}/`}>{cat!.name}</a>
+        <h1 class="mt-4">{d.title}</h1>
+        <p class="mt-4 max-w-xl text-lg text-ink-soft">{d.description}</p>
+        <p class="mt-4 text-sm text-ink-soft">
+          By {d.author} · Published <time datetime={d.pubDate.toISOString().slice(0, 10)}>{fmtDate(d.pubDate)}</time>
+          {d.updatedDate && <> · Updated <time datetime={d.updatedDate.toISOString().slice(0, 10)}>{fmtDate(d.updatedDate)}</time></>}
+        </p>
+        <div class="mt-6 flex flex-wrap gap-3">
+          <a class="btn" href="#recipe-card"><ArrowDown size={18} aria-hidden="true" />Jump to recipe</a>
+          <a class="btn btn-outline" href="#instructions"><ListOrdered size={18} aria-hidden="true" />Jump to instructions</a>
+          <button type="button" class="btn btn-outline" data-print><Printer size={18} aria-hidden="true" />Print recipe</button>
+        </div>
+      </div>
+      <div class="overflow-hidden rounded-[1.75rem] border border-line shadow-[var(--shadow-card)]">
+        <Image src={d.image} alt={d.imageAlt} {...rw(d.image, [640, 960, 1280, 1600])} sizes="(min-width: 1024px) 40rem, 100vw"
+          loading="eager" fetchpriority="high" decoding="async" class="aspect-[4/3] w-full object-cover" />
+      </div>
+    </div>
+
+    {d.reviewStatus === 'draft' && (
+      <div class="notice mt-8 flex gap-3" role="note">
+        <TriangleAlert class="mt-0.5 shrink-0 text-terracotta-deep" size={20} aria-hidden="true" />
+        <p><strong>Editorial draft.</strong> This recipe has not been cooked and tested by a person yet. Quantities and times are estimates, so use your judgment and a food thermometer. Images on this page are placeholder illustrations.</p>
+      </div>
+    )}
+
+    <dl class="mt-8 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-4">
+      <div class="bg-paper p-4"><dt class="flex items-center gap-1.5 text-sm font-semibold text-ink-soft"><Clock size={16} aria-hidden="true" />Prep</dt><dd class="mt-1 font-display text-xl font-semibold text-forest">{formatMinutes(d.prepMinutes)}</dd></div>
+      <div class="bg-paper p-4"><dt class="flex items-center gap-1.5 text-sm font-semibold text-ink-soft"><Clock size={16} aria-hidden="true" />Cook</dt><dd class="mt-1 font-display text-xl font-semibold text-forest">{formatMinutes(d.cookMinutes)}</dd></div>
+      <div class="bg-paper p-4"><dt class="flex items-center gap-1.5 text-sm font-semibold text-ink-soft"><Clock size={16} aria-hidden="true" />Total</dt><dd class="mt-1 font-display text-xl font-semibold text-forest">{formatMinutes(total)}</dd></div>
+      <div class="bg-paper p-4"><dt class="flex items-center gap-1.5 text-sm font-semibold text-ink-soft"><Users size={16} aria-hidden="true" />Serves</dt><dd class="mt-1 font-display text-xl font-semibold text-forest">{d.servings} {d.servingsLabel}</dd></div>
+    </dl>
+    {d.cookTimeNote && <p class="mt-3 text-[0.97rem] text-ink-soft">{d.cookTimeNote}. Times are estimates; slow cookers vary, so cook to temperature and tenderness.</p>}
+
+    <div class="prose-crock mt-10"><slot name="intro" /></div>
+    <AdSlot slot="recipeAfterIntro" />
+  </div>
+
+  <!-- The structured recipe card: also the only thing that prints. -->
+  <section id="recipe-card" aria-labelledby="recipe-card-title" class="container-page">
+    <div class="card recipe-card-print p-5 sm:p-8 lg:p-10" data-scaler data-base={d.servings} data-max={maxServings}>
+      <p class="print-only mb-3 text-sm">CrockBites · {absoluteUrl(recipeUrl(recipe))}</p>
+      <div class="flex flex-wrap items-start justify-between gap-4 border-b border-line pb-6">
+        <div>
+          <h2 id="recipe-card-title">{d.title}</h2>
+          <p class="mt-2 text-[0.97rem] text-ink-soft">Prep {formatMinutes(d.prepMinutes)} · Cook {formatMinutes(d.cookMinutes)} · Total {formatMinutes(total)}{d.cookTimeNote ? ` · ${d.cookTimeNote}` : ''}</p>
+        </div>
+        <button type="button" class="btn btn-outline btn-small" data-print data-noprint><Printer size={18} aria-hidden="true" />Print recipe</button>
+      </div>
+
+      <div class="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3" role="group" aria-labelledby="servings-label">
+        <p id="servings-label" class="font-semibold text-forest">Servings</p>
+        <div class="inline-flex items-center gap-1 rounded-full border border-forest-soft bg-cream p-1" data-noprint>
+          <button type="button" class="grid size-10 place-content-center rounded-full hover:bg-cream-deep disabled:opacity-40" data-dec aria-label="Decrease servings"><Minus size={18} aria-hidden="true" /></button>
+          <output class="min-w-[3.5rem] text-center font-display text-xl font-semibold text-forest" data-servings-out aria-live="polite">{d.servings}</output>
+          <button type="button" class="grid size-10 place-content-center rounded-full hover:bg-cream-deep disabled:opacity-40" data-inc aria-label="Increase servings"><Plus size={18} aria-hidden="true" /></button>
+        </div>
+        <span class="print-only">Makes <span data-servings-out>{d.servings}</span> {d.servingsLabel}</span>
+        <button type="button" class="link-text text-[0.95rem] font-semibold" data-reset hidden data-noprint>Reset to {d.servings}</button>
+      </div>
+      <p class="mt-3 text-sm text-ink-soft" data-scale-note hidden data-noprint role="status">
+        <Info size={14} class="mr-1 inline align-[-2px]" aria-hidden="true" />Only the ingredient amounts change. Cooking time does not scale in proportion, and a slow cooker should be about half to two-thirds full. Check temperature, not just time.
+      </p>
+
+      <div class="mt-8 grid gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-12 print:block">
+        <div>
+          <h3 class="font-display text-2xl">Ingredients</h3>
+          <p class="mt-1 text-sm text-ink-soft" data-noprint>Tick items off as you gather them.</p>
+          {groups.map((g) => (
+            <div class="mt-5">
+              {g.name && <h4 class="font-display text-lg font-semibold text-terracotta-deep">{g.name}</h4>}
+              <ul class="mt-1">
+                {g.items.map((ing) => (
+                  <li data-ing data-qty={ing.quantity ?? 0} data-unit={ing.unit ?? ''} data-item={ing.item} data-plural={ing.itemPlural ?? ''} data-scale={String(ing.scale)}>
+                    <label class="check-row">
+                      <input type="checkbox" />
+                      <span>
+                        {ing.quantity ? <strong class="font-semibold text-forest" data-amount>{amountText(ing)}</strong> : null}{' '}
+                        {ing.alt && <span class="text-ink-soft" data-alt>{ing.alt}</span>}{ing.alt ? ' ' : ''}
+                        <span data-name>{itemText(ing)}</span>{ing.note && <span class="text-ink-soft">, {ing.note}</span>}
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          {d.equipment.length > 0 && (
+            <div class="mt-8">
+              <h3 class="font-display text-xl">Equipment</h3>
+              <ul class="mt-2 list-disc space-y-1 pl-5 marker:text-terracotta-deep">{d.equipment.map((e) => <li>{e}</li>)}</ul>
+            </div>
+          )}
+        </div>
+
+        <div id="instructions" class="scroll-mt-24 print:mt-8">
+          <h3 class="font-display text-2xl">Instructions</h3>
+          <ol class="mt-4 space-y-6">
+            {d.instructions.map((s, i) => (
+              <li id={`step-${i + 1}`} class="step-row flex gap-4">
+                <span class="step-num" aria-hidden="true">{i + 1}</span>
+                <div>
+                  {s.title && <p class="font-display text-lg font-semibold text-forest"><span class="sr-only">Step {i + 1}: </span>{s.title}</p>}
+                  <p class="mt-1">{s.text}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+
+      {d.foodSafety.length > 0 && (
+        <div class="notice mt-10" role="note">
+          <p class="flex items-center gap-2 font-display text-lg font-semibold text-forest"><Thermometer size={20} class="text-terracotta-deep" aria-hidden="true" />Food safety</p>
+          <ul class="mt-2 list-disc space-y-1.5 pl-5 marker:text-terracotta-deep">{d.foodSafety.map((f) => <li>{f}</li>)}</ul>
+        </div>
+      )}
+      {hasNutrition && (
+        <div class="mt-6">
+          <h3 class="font-display text-lg">Nutrition (per serving)</h3>
+          <p class="mt-1 text-[0.97rem]">
+            {n!.calories != null && <>{n!.calories} calories</>}{n!.proteinGrams != null && <> · {n!.proteinGrams} g protein</>}{n!.carbsGrams != null && <> · {n!.carbsGrams} g carbs</>}{n!.fatGrams != null && <> · {n!.fatGrams} g fat</>}
+          </p>
+          {n!.source && <p class="mt-1 text-sm text-ink-soft">Source: {n!.source}</p>}
+        </div>
+      )}
+    </div>
+  </section>
+
+  <div class="container-page" data-noprint>
+    <AdSlot slot="recipeAfterCard" />
+    <div class="mt-14 grid gap-12 lg:grid-cols-2">
+      {d.servingSuggestions.length > 0 && (
+        <section aria-labelledby="serving-heading">
+          <h2 id="serving-heading" class="text-[1.6rem]">Serving suggestions</h2>
+          <ul class="prose-crock mt-4 list-disc space-y-2 pl-5 text-[1.05rem]">{d.servingSuggestions.map((s) => <li>{s}</li>)}</ul>
+        </section>
+      )}
+      {d.tips.length > 0 && (
+        <section aria-labelledby="tips-heading">
+          <h2 id="tips-heading" class="text-[1.6rem]">Tips for success</h2>
+          <ul class="prose-crock mt-4 list-disc space-y-2 pl-5 text-[1.05rem]">{d.tips.map((s) => <li>{s}</li>)}</ul>
+        </section>
+      )}
+      {d.substitutions.length > 0 && (
+        <section aria-labelledby="subs-heading">
+          <h2 id="subs-heading" class="text-[1.6rem]">Substitutions</h2>
+          <dl class="mt-4 space-y-4">{d.substitutions.map((s) => (
+            <div><dt class="font-semibold text-forest">{s.ingredient}</dt><dd class="text-ink-soft">{s.swap}</dd></div>
+          ))}</dl>
+        </section>
+      )}
+      {(d.storage.fridge || d.storage.freezer || d.storage.reheating) && (
+        <section aria-labelledby="storage-heading">
+          <h2 id="storage-heading" class="text-[1.6rem]">Storage and reheating</h2>
+          <dl class="mt-4 space-y-4">
+            {d.storage.fridge && <div><dt class="font-semibold text-forest">Refrigerator</dt><dd class="text-ink-soft">{d.storage.fridge}</dd></div>}
+            {d.storage.freezer && <div><dt class="font-semibold text-forest">Freezer</dt><dd class="text-ink-soft">{d.storage.freezer}</dd></div>}
+            {d.storage.reheating && <div><dt class="font-semibold text-forest">Reheating</dt><dd class="text-ink-soft">{d.storage.reheating}</dd></div>}
+          </dl>
+        </section>
+      )}
+    </div>
+
+    <section aria-labelledby="related-heading" class="mt-20">
+      <h2 id="related-heading">More recipes to try</h2>
+      <ul class="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {related.map((r) => <li><RecipeCard recipe={r} /></li>)}
+      </ul>
+    </section>
+  </div>
+</article>
+
+<script>
+  import { formatQuantity, unitLabel } from '../utils/quantity';
+
+  document.querySelectorAll('[data-print]').forEach((b) => b.addEventListener('click', () => window.print()));
+
+  const root = document.querySelector<HTMLElement>('[data-scaler]');
+  if (root) {
+    const base = Number(root.dataset.base);
+    const max = Number(root.dataset.max);
+    let servings = base;
+    const outs = document.querySelectorAll<HTMLElement>('[data-servings-out]');
+    const rows = root.querySelectorAll<HTMLElement>('[data-ing]');
+    const dec = root.querySelector<HTMLButtonElement>('[data-dec]')!;
+    const inc = root.querySelector<HTMLButtonElement>('[data-inc]')!;
+    const reset = root.querySelector<HTMLElement>('[data-reset]')!;
+    const note = root.querySelector<HTMLElement>('[data-scale-note]')!;
+
+    const render = () => {
+      const factor = servings / base;
+      rows.forEach((row) => {
+        const qty = Number(row.dataset.qty);
+        if (!qty) return;
+        const scalable = row.dataset.scale !== 'false';
+        const q = scalable ? qty * factor : qty;
+        const unit = row.dataset.unit;
+        const amountEl = row.querySelector<HTMLElement>('[data-amount]');
+        if (amountEl) amountEl.textContent = unit ? `${formatQuantity(q)} ${unitLabel(unit, q)}` : formatQuantity(q);
+        const alt = row.querySelector<HTMLElement>('[data-alt]');
+        if (alt) alt.hidden = scalable && factor !== 1; // metric hints are only valid at the original size
+        const nameEl = row.querySelector<HTMLElement>('[data-name]');
+        if (nameEl && !unit) nameEl.textContent = q > 1 && row.dataset.plural ? row.dataset.plural! : row.dataset.item!;
+      });
+      outs.forEach((o) => (o.textContent = String(servings)));
+      dec.disabled = servings <= 1;
+      inc.disabled = servings >= max;
+      const changed = servings !== base;
+      reset.hidden = !changed;
+      note.hidden = !changed;
+    };
+    dec.addEventListener('click', () => { if (servings > 1) { servings -= 1; render(); } });
+    inc.addEventListener('click', () => { if (servings < max) { servings += 1; render(); } });
+    reset.addEventListener('click', () => { servings = base; render(); });
+    render();
+  }
+</script>

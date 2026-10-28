@@ -1,0 +1,8 @@
+---
+import { Drumstick, Beef, Soup, Utensils, EggFried, Leaf, CakeSlice } from '@lucide/astro';
+interface Props { name: string; size?: number; class?: string }
+const { name, size = 24, class: className } = Astro.props;
+const map: Record<string, any> = { drumstick: Drumstick, beef: Beef, soup: Soup, utensils: Utensils, 'egg-fried': EggFried, leaf: Leaf, 'cake-slice': CakeSlice };
+const Icon = map[name] ?? Utensils;
+---
+<Icon size={size} class={className} aria-hidden="true" />

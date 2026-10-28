@@ -1,0 +1,28 @@
+---
+import TextPage from '../layouts/TextPage.astro';
+import { site } from '../config/site';
+const gaOn = Boolean(site.analytics.gaMeasurementId);
+const adsOn = Boolean(site.ads.enabled && site.ads.client);
+---
+<TextPage title="Cookies and Advertising" path="/cookies-and-advertising/" template description="How CrockBites uses cookies and advertising. Template for review before publication."
+  lead="What is, and is not, running on the site.">
+  <p><strong>Last updated:</strong> [add date when you finalize this page]</p>
+  <h2>Current status of this build</h2>
+  <ul>
+    <li><strong>Cookies set by CrockBites:</strong> none.</li>
+    <li><strong>Analytics:</strong> {gaOn ? 'Google Analytics is configured. Describe it below.' : 'not enabled.'}</li>
+    <li><strong>Advertising:</strong> {adsOn ? 'Google AdSense is configured. Describe it below.' : 'not enabled. No ads are shown.'}</li>
+  </ul>
+  <h2>If you turn on analytics or ads</h2>
+  <p>Replace the status above with accurate details. At a minimum, cover the points below.</p>
+  <ul>
+    <li>Which third parties are involved (for example Google) and what they collect, such as cookies, device identifiers and IP address.</li>
+    <li>Why it is collected: measuring traffic, showing ads, or personalizing ads.</li>
+    <li>How people can opt out. For Google’s ads, see Google’s ad settings and its page on how Google uses information from sites that use its services.</li>
+    <li>How consent is requested. Visitors in the EEA, the UK and Switzerland generally need to be asked before non-essential cookies are used, and Google requires a consent management platform for AdSense in those regions. Check Google’s current requirements before launch.</li>
+  </ul>
+  <h2>Advertising disclosure</h2>
+  <p>If ads are enabled later, they will be labelled “Advertisement” and kept separate from recipe content. Ads will not appear inside ingredient lists or instructions. [Add affiliate-link disclosures here if you ever use affiliate links.]</p>
+  <h2>Contact</h2>
+  <p>Questions: <a href={`mailto:${site.contactEmail}`}>{site.contactEmail}</a>.</p>
+</TextPage>

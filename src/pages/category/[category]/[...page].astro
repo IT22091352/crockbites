@@ -1,0 +1,54 @@
+---
+import type { GetStaticPaths } from 'astro';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import RecipeCard from '../../../components/RecipeCard.astro';
+import Breadcrumbs from '../../../components/Breadcrumbs.astro';
+import Pagination from '../../../components/Pagination.astro';
+import AdSlot from '../../../components/AdSlot.astro';
+import { getAllRecipes, listingPages } from '../../../utils/recipes';
+import { categories } from '../../../data/categories';
+import { site } from '../../../config/site';
+import { breadcrumbSchema } from '../../../utils/jsonld';
+
+export const getStaticPaths = (async ({ paginate }) => {
+  const all = await getAllRecipes();
+  return listingPages(all).flatMap((l) =>
+    paginate(l.recipes, { params: { category: l.slug }, props: { listing: { slug: l.slug, name: l.name, description: l.description, kind: l.kind } }, pageSize: site.recipesPerPage }));
+}) satisfies GetStaticPaths;
+
+const { page, listing } = Astro.props;
+const base = `/category/${listing.slug}/`;
+const path = page.currentPage === 1 ? base : `${base}${page.currentPage}/`;
+const empty = page.total === 0;
+const title = page.currentPage === 1 ? `${listing.name} Recipes` : `${listing.name} Recipes, page ${page.currentPage}`;
+---
+<BaseLayout title={title} path={path} description={listing.description} noindex={empty}
+  jsonLd={[breadcrumbSchema([{ name: 'Home', url: '/' }, { name: 'Recipes', url: '/recipes/' }, { name: listing.name, url: base }])]}>
+  <div class="container-page pt-8">
+    <Breadcrumbs items={[{ name: 'Home', href: '/' }, { name: 'Recipes', href: '/recipes/' }, { name: listing.name }]} />
+    <h1 class="mt-6">{listing.name}</h1>
+    <p class="mt-4 max-w-2xl text-lg text-ink-soft">{listing.description}</p>
+
+    {empty ? (
+      <div class="notice mt-10 max-w-2xl">
+        <p class="font-semibold text-forest">No recipes here yet.</p>
+        <p class="mt-1">This category is waiting for its first recipe. In the meantime, <a class="link-text" href="/recipes/">browse all recipes</a> or <a class="link-text" href="/search/">search</a> for something specific.</p>
+      </div>
+    ) : (
+      <>
+        <ul class="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {page.data.map((r, i) => <li><RecipeCard recipe={r} eager={i < 3} /></li>)}
+        </ul>
+        <AdSlot slot="listingMid" />
+        <Pagination current={page.currentPage} last={page.lastPage} base={base} />
+      </>
+    )}
+
+    <nav aria-label="Other categories" class="mt-16 border-t border-line pt-8">
+      <h2 class="text-xl">More categories</h2>
+      <ul class="mt-4 flex flex-wrap gap-2">
+        {categories.filter((c) => c.id !== listing.slug).map((c) => <li><a class="chip" href={`/category/${c.id}/`}>{c.name}</a></li>)}
+      </ul>
+    </nav>
+  </div>
+</BaseLayout>

@@ -1,0 +1,4 @@
+# TEMPLATE ONLY. Do not deploy as-is.
+# After AdSense approval, create public/ads.txt containing the line from your AdSense account:
+# google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0
+# Replace pub-0000000000000000 with your real publisher id.

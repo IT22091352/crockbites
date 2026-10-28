@@ -1,0 +1,16 @@
+---
+/**
+ * CrockBites logo. Uses the SVG files in /public/images (outlined wordmark, no fonts needed).
+ * variant "dark"  -> forest wordmark, for light backgrounds
+ * variant "light" -> cream wordmark, for the forest footer / mobile menu
+ * "compact" swaps in the icon-only mark below ~360px so the header never overflows.
+ */
+interface Props { variant?: 'dark' | 'light'; class?: string; compact?: boolean; priority?: boolean }
+const { variant = 'dark', class: className = '', compact = true } = Astro.props;
+const full = variant === 'light' ? '/images/crockbites-logo-light.svg' : '/images/crockbites-logo.svg';
+const icon = variant === 'light' ? '/images/crockbites-icon-light.svg' : '/images/crockbites-icon.svg';
+---
+<a href="/" class={`inline-flex items-center rounded-lg ${className}`} aria-label="CrockBites, home">
+  <img src={full} width="287" height="64" alt="" class:list={['h-9 w-auto sm:h-10', compact && 'max-[359px]:hidden']} decoding="async" />
+  {compact && <img src={icon} width="64" height="64" alt="" class="hidden h-10 w-10 max-[359px]:block" decoding="async" />}
+</a>

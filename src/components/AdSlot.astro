@@ -1,0 +1,24 @@
+---
+/**
+ * Disabled-by-default ad placement.
+ *
+ * Renders NOTHING unless all three are true (see src/config/site.ts):
+ *   1. site.ads.enabled === true
+ *   2. site.ads.client is a real AdSense publisher id (PUBLIC_ADSENSE_CLIENT)
+ *   3. site.ads.slots[slot] is a real ad unit id from your AdSense account
+ * Until then there is no markup, no placeholder box, and no fake ad.
+ */
+import { site } from '../config/site';
+interface Props { slot: keyof typeof site.ads.slots | string; format?: string }
+const { slot, format = 'auto' } = Astro.props;
+const slotId = site.ads.slots[slot as string];
+const active = Boolean(site.ads.enabled && site.ads.client && slotId);
+---
+{active && (
+  <aside class="ad-slot" aria-label="Advertisement" data-noprint>
+    <p class="ad-slot-label">Advertisement</p>
+    <ins class="adsbygoogle" style="display:block;min-height:250px" data-ad-client={site.ads.client} data-ad-slot={slotId}
+      data-ad-format={format} data-full-width-responsive="true"></ins>
+    <script is:inline>(window.adsbygoogle = window.adsbygoogle || []).push({});</script>
+  </aside>
+)}

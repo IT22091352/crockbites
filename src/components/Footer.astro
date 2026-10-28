@@ -1,0 +1,51 @@
+---
+import Logo from './Logo.astro';
+import Newsletter from './Newsletter.astro';
+import { categories } from '../data/categories';
+import { site } from '../config/site';
+const year = new Date().getFullYear();
+---
+<footer class="mt-24 bg-forest text-cream" data-noprint>
+  <div class="container-page grid gap-12 py-14 lg:grid-cols-[1.2fr_2fr]">
+    <div class="space-y-6">
+      <Logo variant="light" />
+      <p class="max-w-sm font-display text-xl text-cream/90">{site.tagline}</p>
+      <p class="max-w-sm text-[0.97rem] text-cream/80">Easy slow cooker recipes and everyday meals, written to be clear and practical.</p>
+      <Newsletter />
+    </div>
+    <div class="grid gap-10 sm:grid-cols-3">
+      <nav aria-labelledby="footer-recipes">
+        <h2 id="footer-recipes" class="font-display text-lg font-semibold text-cream">Recipes</h2>
+        <ul class="mt-4 space-y-2.5 text-[0.97rem]">
+          <li><a class="text-cream/85 hover:text-paper hover:underline" href="/recipes/">All recipes</a></li>
+          {categories.map((c) => <li><a class="text-cream/85 hover:text-paper hover:underline" href={`/category/${c.id}/`}>{c.name}</a></li>)}
+        </ul>
+      </nav>
+      <nav aria-labelledby="footer-site">
+        <h2 id="footer-site" class="font-display text-lg font-semibold text-cream">CrockBites</h2>
+        <ul class="mt-4 space-y-2.5 text-[0.97rem]">
+          <li><a class="text-cream/85 hover:text-paper hover:underline" href="/about/">About</a></li>
+          <li><a class="text-cream/85 hover:text-paper hover:underline" href="/contact/">Contact</a></li>
+          <li><a class="text-cream/85 hover:text-paper hover:underline" href="/guides/slow-cooker-basics/">Slow cooker basics</a></li>
+          <li><a class="text-cream/85 hover:text-paper hover:underline" href="/guides/slow-cooker-food-safety/">Slow cooker food safety</a></li>
+          <li><a class="text-cream/85 hover:text-paper hover:underline" href="/search/">Search</a></li>
+        </ul>
+        <p class="mt-5 text-[0.97rem] text-cream/85">Email: <a class="underline underline-offset-2 hover:text-paper" href={`mailto:${site.contactEmail}`}>{site.contactEmail}</a></p>
+      </nav>
+      <nav aria-labelledby="footer-legal">
+        <h2 id="footer-legal" class="font-display text-lg font-semibold text-cream">Policies</h2>
+        <ul class="mt-4 space-y-2.5 text-[0.97rem]">
+          <li><a class="text-cream/85 hover:text-paper hover:underline" href="/privacy-policy/">Privacy Policy</a></li>
+          <li><a class="text-cream/85 hover:text-paper hover:underline" href="/terms-of-use/">Terms of Use</a></li>
+          <li><a class="text-cream/85 hover:text-paper hover:underline" href="/cookies-and-advertising/">Cookies &amp; advertising</a></li>
+        </ul>
+      </nav>
+    </div>
+  </div>
+  <div class="border-t border-cream/15">
+    <div class="container-page flex flex-col gap-2 py-6 text-sm text-cream/75 sm:flex-row sm:justify-between">
+      <p>© <span data-year>{year}</span> {site.name}. All rights reserved.</p>
+      <p>Cooking times are estimates. Always check food with a thermometer.</p>
+    </div>
+  </div>
+</footer>

@@ -1,0 +1,32 @@
+---
+import type { GetStaticPaths } from 'astro';
+import { render } from 'astro:content';
+import { getImage } from 'astro:assets';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import RecipeDetail from '../../components/RecipeDetail.astro';
+import { getAllRecipes, relatedRecipes, categoryById, isIndexable, recipeSlug, recipeUrl } from '../../utils/recipes';
+import { recipeSchema, breadcrumbSchema } from '../../utils/jsonld';
+
+export const getStaticPaths = (async () => {
+  const all = await getAllRecipes();
+  return all.map((recipe) => ({ params: { slug: recipeSlug(recipe) }, props: { recipe, related: relatedRecipes(all, recipe, 3) } }));
+}) satisfies GetStaticPaths;
+
+const { recipe, related } = Astro.props;
+const { Content } = await render(recipe);
+const d = recipe.data;
+const cat = categoryById(d.category)!;
+// Social/structured-data image: a 1200px-wide, absolute URL.
+const og = await getImage({ src: d.image, width: 1200 });
+const path = recipeUrl(recipe);
+const jsonLd = [
+  recipeSchema(recipe, new URL(og.src, Astro.site).href, cat.name),
+  breadcrumbSchema([{ name: 'Home', url: '/' }, { name: 'Recipes', url: '/recipes/' }, { name: cat.name, url: `/category/${cat.id}/` }, { name: d.title, url: path }]),
+];
+---
+<BaseLayout title={d.title} description={d.description} path={path} image={og.src} imageAlt={d.imageAlt} type="article"
+  noindex={!isIndexable(recipe)} publishedTime={d.pubDate.toISOString()} modifiedTime={(d.updatedDate ?? d.pubDate).toISOString()} jsonLd={jsonLd}>
+  <RecipeDetail recipe={recipe} related={related}>
+    <Content slot="intro" />
+  </RecipeDetail>
+</BaseLayout>

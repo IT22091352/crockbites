@@ -1,0 +1,21 @@
+---
+import { ChevronLeft, ChevronRight } from '@lucide/astro';
+interface Props { current: number; last: number; base: string }
+const { current, last, base } = Astro.props;
+const href = (n: number) => (n === 1 ? base : `${base}${n}/`);
+const pages = Array.from({ length: last }, (_, i) => i + 1);
+---
+{last > 1 && (
+  <nav aria-label="Pagination" class="mt-12 flex flex-wrap items-center justify-center gap-2" data-noprint>
+    {current > 1 && <a class="btn btn-outline btn-small" href={href(current - 1)} rel="prev"><ChevronLeft size={18} aria-hidden="true" />Previous</a>}
+    <ul class="flex flex-wrap gap-2">
+      {pages.map((n) => (
+        <li>
+          <a href={href(n)} aria-current={n === current ? 'page' : undefined} aria-label={`Page ${n}`}
+             class="grid size-10 place-content-center rounded-full border border-line bg-paper font-semibold no-underline hover:border-forest aria-[current=page]:border-forest aria-[current=page]:bg-forest aria-[current=page]:text-cream">{n}</a>
+        </li>
+      ))}
+    </ul>
+    {current < last && <a class="btn btn-outline btn-small" href={href(current + 1)} rel="next">Next<ChevronRight size={18} aria-hidden="true" /></a>}
+  </nav>
+)}

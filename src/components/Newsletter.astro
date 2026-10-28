@@ -1,0 +1,25 @@
+---
+import { Mail } from '@lucide/astro';
+import { site } from '../config/site';
+const live = Boolean(site.newsletter.formAction);
+---
+<section aria-labelledby="newsletter-heading" class="rounded-2xl border border-cream/20 bg-forest-deep/60 p-5 sm:p-6">
+  <h2 id="newsletter-heading" class="font-display text-xl font-semibold text-cream">Recipe emails</h2>
+  {live ? (
+    <>
+      <p class="mt-2 text-[0.97rem] text-cream/85">Get new recipes by email. No spam; unsubscribe any time.</p>
+      <form action={site.newsletter.formAction} method="post" class="mt-4 flex flex-col gap-3 sm:flex-row">
+        <label for="newsletter-email" class="sr-only">Email address</label>
+        <input id="newsletter-email" name="email" type="email" required autocomplete="email" placeholder="you@example.com" class="field sm:flex-1" />
+        <button type="submit" class="btn btn-light">Subscribe</button>
+      </form>
+    </>
+  ) : (
+    <>
+      <p class="mt-2 text-[0.97rem] text-cream/85"><strong class="font-semibold text-cream">Not live yet.</strong> There is no email list connected to this site at the moment. Want a heads-up when one launches?</p>
+      <a class="btn btn-light btn-small mt-4" href={`mailto:${site.contactEmail}?subject=${encodeURIComponent('Notify me about CrockBites recipe emails')}`}>
+        <Mail size={18} aria-hidden="true" /> Email us to be notified
+      </a>
+    </>
+  )}
+</section>

@@ -1,0 +1,22 @@
+---
+import TextPage from '../layouts/TextPage.astro';
+import { site } from '../config/site';
+---
+<TextPage title="Terms of Use" path="/terms-of-use/" template description="Terms for using the CrockBites website. Template for review before publication."
+  lead="A starting draft of the rules for using this website.">
+  <p><strong>Last updated:</strong> [add date when you finalize this page]</p>
+  <h2>Using the site</h2>
+  <p>By using {site.name} you agree to these terms. If you do not agree, please do not use the site.</p>
+  <h2>Recipes and food safety</h2>
+  <p>Recipes are provided for general information. Cooking times and temperatures are estimates, and appliances vary. You are responsible for checking that food is cooked safely, for example with a food thermometer, for handling allergens, and for storing leftovers properly. Recipes marked as drafts have not been tested.</p>
+  <h2>Nutrition and dietary information</h2>
+  <p>Nutrition details, when shown, are estimates and are not medical or dietary advice. Speak to a qualified professional about medical or dietary needs and allergies.</p>
+  <h2>Content and copyright</h2>
+  <p>Text, recipes, images and the CrockBites name and logo belong to the site owner unless noted otherwise. You may share a link to any page. Please do not republish full recipes or images without permission. [Decide exactly what you allow, for example short excerpts with credit and a link.]</p>
+  <h2>Links to other sites</h2>
+  <p>The site may link to third-party websites. We do not control them and are not responsible for their content.</p>
+  <h2>No warranty and limitation of liability</h2>
+  <p>The site and its content are provided “as is”, without warranties of any kind. [Have a qualified professional write the liability wording that applies in your jurisdiction.]</p>
+  <h2>Changes and contact</h2>
+  <p>We may change these terms by updating this page. Questions: <a href={`mailto:${site.contactEmail}`}>{site.contactEmail}</a>.</p>
+</TextPage>

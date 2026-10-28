@@ -1,0 +1,26 @@
+---
+import TextPage from '../layouts/TextPage.astro';
+import { site } from '../config/site';
+---
+<TextPage title="Privacy Policy" path="/privacy-policy/" template description="How CrockBites handles information. Template for review before publication."
+  lead="A plain-language starting point. Edit it so it matches what the site really does.">
+  <p><strong>Last updated:</strong> [add date when you finalize this page]</p>
+  <h2>Summary</h2>
+  <p>As built, the CrockBites site is a static website. It has no user accounts, no comments, no contact form and no database. It does not set its own cookies. Recipe search runs entirely in your browser.</p>
+  <h2>Information you send us</h2>
+  <p>If you email <a href={`mailto:${site.contactEmail}`}>{site.contactEmail}</a>, we receive your email address and whatever you write. We use it to reply. [Add how long you keep emails and who can access them.]</p>
+  <h2>Hosting and server logs</h2>
+  <p>The site is intended to be hosted on Cloudflare Pages. Hosting providers typically process technical data such as IP address, browser type and requested pages to deliver the site and keep it secure. [Check Cloudflare’s current documentation and describe what applies.]</p>
+  <h2>Analytics and advertising (only if you enable them)</h2>
+  <p>The site can be connected to Google Analytics and Google AdSense later. These are <strong>not active</strong> unless you add the IDs in the site configuration. If you enable them, update this page to say so, list what is collected and why, and add a consent mechanism where the law requires one. See <a href="/cookies-and-advertising/">Cookies and advertising</a>.</p>
+  <h2>Newsletter (only if you connect a provider)</h2>
+  <p>There is no email list today. If you add one, name the provider, say what you collect (usually an email address), and explain how people unsubscribe.</p>
+  <h2>Your rights</h2>
+  <p>[Depending on where your readers live, laws such as the GDPR/UK GDPR, CCPA/CPRA and others may give people rights over their data. Describe the rights that apply and how to exercise them.]</p>
+  <h2>Children</h2>
+  <p>The site is not directed at children under 13, and we do not knowingly collect their personal information. [Confirm this fits your plans.]</p>
+  <h2>Changes</h2>
+  <p>We may update this policy and will change the date above when we do.</p>
+  <h2>Contact</h2>
+  <p>Questions about privacy: <a href={`mailto:${site.contactEmail}`}>{site.contactEmail}</a>.</p>
+</TextPage>

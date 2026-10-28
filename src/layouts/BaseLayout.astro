@@ -1,0 +1,53 @@
+---
+import '../styles/global.css';
+import Seo from '../components/Seo.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+
+interface Props {
+  title?: string;
+  description?: string;
+  path: string;
+  image?: string;
+  imageAlt?: string;
+  type?: 'website' | 'article';
+  noindex?: boolean;
+  publishedTime?: string;
+  modifiedTime?: string;
+  jsonLd?: unknown[];
+  rawTitle?: boolean;
+  /** Preload hint for the largest above-the-fold image. */
+  preloadImage?: string;
+}
+const { preloadImage, ...seo } = Astro.props;
+---
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <Seo {...seo} />
+    {preloadImage && <link rel="preload" as="image" href={preloadImage} fetchpriority="high" />}
+  </head>
+  <body>
+    <a href="#main" class="skip-link">Skip to content</a>
+    <Header />
+    <main id="main" tabindex="-1">
+      <slot />
+    </main>
+    <Footer />
+    <script>
+      // Keep the footer year current in the browser as well as at build time.
+      document.querySelectorAll('[data-year]').forEach((el) => (el.textContent = String(new Date().getFullYear())));
+      // "/" jumps to search (when not typing in a field).
+      document.addEventListener('keydown', (e) => {
+        const t = e.target as HTMLElement;
+        if (e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey && !/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) && !t.isContentEditable) {
+          const field = document.getElementById('search-input');
+          e.preventDefault();
+          if (field) field.focus(); else window.location.href = '/search/';
+        }
+      });
+    </script>
+  </body>
+</html>

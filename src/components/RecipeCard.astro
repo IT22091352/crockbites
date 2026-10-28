@@ -1,0 +1,50 @@
+---
+import { Image } from 'astro:assets';
+import { Clock } from '@lucide/astro';
+import { categoryById, recipeUrl, totalMinutes, type Recipe } from '../utils/recipes';
+import { formatMinutes } from '../utils/time';
+import { rw } from '../utils/images';
+
+interface Props {
+  recipe: Recipe;
+  /** Eager only for images that are visible without scrolling. */
+  eager?: boolean;
+  /** Horizontal list layout (used for "Latest recipes"). */
+  layout?: 'card' | 'row';
+}
+const { recipe, eager = false, layout = 'card' } = Astro.props;
+const d = recipe.data;
+const cat = categoryById(d.category);
+const isDraft = d.reviewStatus === 'draft';
+---
+{layout === 'card' ? (
+  <article class="recipe-card card h-full">
+    <a href={recipeUrl(recipe)} class="recipe-card-link group">
+      <div class="relative overflow-hidden">
+        <Image src={d.image} alt={d.imageAlt} {...rw(d.image, [360, 540, 720])} sizes="(min-width: 1024px) 24rem, (min-width: 640px) 45vw, 92vw"
+          loading={eager ? 'eager' : 'lazy'} decoding="async" class="aspect-[4/3] w-full object-cover" />
+        {isDraft && <span class="absolute left-3 top-3 rounded-full bg-paper/95 px-2.5 py-0.5 text-xs font-bold text-ink">Draft</span>}
+      </div>
+      <div class="p-5">
+        <p class="text-sm font-semibold text-terracotta-deep">{cat?.name}</p>
+        <h3 class="mt-1 text-[1.3rem] leading-snug transition-colors">{d.title}</h3>
+        <p class="mt-2 line-clamp-2 text-[0.97rem] text-ink-soft">{d.description}</p>
+        <p class="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-ink-soft"><Clock size={16} aria-hidden="true" /><span class="sr-only">Total time:</span>{formatMinutes(totalMinutes(recipe))}</p>
+      </div>
+    </a>
+  </article>
+) : (
+  <article class="recipe-card group border-b border-line py-5 first:pt-0 last:border-b-0">
+    <a href={recipeUrl(recipe)} class="recipe-card-link grid grid-cols-[6.5rem_1fr] items-center gap-4 sm:grid-cols-[9rem_1fr] sm:gap-6">
+      <div class="overflow-hidden rounded-xl">
+        <Image src={d.image} alt={d.imageAlt} {...rw(d.image, [216, 288, 432])} sizes="(min-width: 640px) 9rem, 6.5rem"
+          loading={eager ? 'eager' : 'lazy'} decoding="async" class="aspect-[4/3] w-full object-cover" />
+      </div>
+      <div>
+        <p class="text-sm font-semibold text-terracotta-deep">{cat?.name}{isDraft && <span class="ml-2 rounded-full border border-line px-2 py-0.5 text-xs font-bold text-ink-soft">Draft</span>}</p>
+        <h3 class="mt-0.5 text-[1.25rem] leading-snug transition-colors">{d.title}</h3>
+        <p class="mt-1 inline-flex items-center gap-1.5 text-sm font-semibold text-ink-soft"><Clock size={16} aria-hidden="true" /><span class="sr-only">Total time:</span>{formatMinutes(totalMinutes(recipe))}</p>
+      </div>
+    </a>
+  </article>
+)}

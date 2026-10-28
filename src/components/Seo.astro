@@ -1,0 +1,70 @@
+---
+import { site } from '../config/site';
+import { toJsonLd } from '../utils/jsonld';
+
+interface Props {
+  title?: string;
+  description?: string;
+  /** Path such as "/recipes/". Used for canonical + og:url. */
+  path: string;
+  image?: string;
+  imageAlt?: string;
+  type?: 'website' | 'article';
+  noindex?: boolean;
+  publishedTime?: string;
+  modifiedTime?: string;
+  jsonLd?: unknown[];
+  /** Use the exact title without appending the brand. */
+  rawTitle?: boolean;
+}
+const { title, description = site.description, path, image = site.defaultOgImage, imageAlt = `${site.name}: ${site.tagline}`,
+  type = 'website', noindex = false, publishedTime, modifiedTime, jsonLd = [], rawTitle = false } = Astro.props;
+
+const fullTitle = !title ? site.homeTitle : rawTitle ? title : `${title} | ${site.name}`;
+const canonical = new URL(path, site.url).href;
+const imageUrl = new URL(image, site.url).href;
+const { gaMeasurementId, gscVerification } = site.analytics;
+const adsOn = site.ads.enabled && site.ads.client;
+---
+<title>{fullTitle}</title>
+<meta name="description" content={description} />
+<link rel="canonical" href={canonical} />
+{noindex && <meta name="robots" content="noindex, follow" />}
+{!noindex && <meta name="robots" content="index, follow, max-image-preview:large" />}
+{gscVerification && <meta name="google-site-verification" content={gscVerification} />}
+
+<meta property="og:site_name" content={site.name} />
+<meta property="og:locale" content={site.locale} />
+<meta property="og:type" content={type} />
+<meta property="og:title" content={fullTitle} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={canonical} />
+<meta property="og:image" content={imageUrl} />
+<meta property="og:image:alt" content={imageAlt} />
+{publishedTime && <meta property="article:published_time" content={publishedTime} />}
+{modifiedTime && <meta property="article:modified_time" content={modifiedTime} />}
+
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={fullTitle} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={imageUrl} />
+<meta name="twitter:image:alt" content={imageAlt} />
+
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<link rel="manifest" href="/site.webmanifest" />
+<meta name="theme-color" content="#243A2D" />
+<link rel="sitemap" type="application/xml" href="/sitemap.xml" />
+
+{jsonLd.map((block) => <script type="application/ld+json" set:html={toJsonLd(block)} />)}
+
+{/* Optional integrations: rendered ONLY when real ids are configured (see src/config/site.ts and README). */}
+{gaMeasurementId && <script is:inline async src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}></script>}
+{gaMeasurementId && <script is:inline define:vars={{ gaMeasurementId }}>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', gaMeasurementId);
+</script>}
+{adsOn && <script is:inline async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${site.ads.client}`} crossorigin="anonymous"></script>}

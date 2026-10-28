@@ -1,0 +1,165 @@
+@import "tailwindcss";
+@import "@fontsource-variable/fraunces/opsz.css";
+@import "@fontsource-variable/figtree";
+
+/*
+  CrockBites design tokens.
+  Brand colors come straight from the brief. Terracotta (#C66A45) is only ~3.4:1 on cream, so it is used for
+  fills, icons and large display shapes. Terracotta-deep (#A4492A, ~5.2:1 on cream) is used for any small text.
+*/
+@theme {
+  --color-forest: #243A2D;
+  --color-forest-deep: #1A2B21;
+  --color-forest-soft: #3B5A47;
+  --color-cream: #F7F1E5;
+  --color-cream-deep: #EDE3CC;
+  --color-paper: #FFFEFA;
+  --color-terracotta: #C66A45;
+  --color-terracotta-deep: #A4492A;
+  --color-ink: #242822;
+  --color-ink-soft: #4B5148;
+  --color-line: #DDD2BA;
+
+  --font-display: "Fraunces Variable", Georgia, "Times New Roman", serif;
+  --font-sans: "Figtree Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --radius-card: 1.25rem;
+  --shadow-card: 0 1px 2px rgb(36 40 34 / 0.06), 0 8px 24px -12px rgb(36 40 34 / 0.18);
+}
+
+@layer base {
+  html { scroll-behavior: smooth; scroll-padding-top: 5.5rem; -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--color-cream); color: var(--color-ink);
+    font-family: var(--font-sans); font-size: 1.0625rem; line-height: 1.65;
+    text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-display); font-optical-sizing: auto; font-weight: 600;
+    line-height: 1.12; letter-spacing: -0.015em; color: var(--color-forest); text-wrap: balance;
+  }
+  h1 { font-size: clamp(2.25rem, 1.4rem + 3.6vw, 3.9rem); }
+  h2 { font-size: clamp(1.65rem, 1.2rem + 1.8vw, 2.4rem); }
+  h3 { font-size: 1.3rem; }
+  p { text-wrap: pretty; }
+  a { color: inherit; }
+  img, svg { max-width: 100%; }
+  :focus-visible { outline: 3px solid var(--color-terracotta-deep); outline-offset: 3px; border-radius: 4px; }
+  ::selection { background: var(--color-terracotta); color: var(--color-paper); }
+  [hidden] { display: none !important; }
+}
+
+@layer components {
+  .container-page { width: 100%; max-width: 76rem; margin-inline: auto; padding-inline: 1.25rem; }
+  @media (min-width: 768px) { .container-page { padding-inline: 2rem; } }
+  .container-narrow { width: 100%; max-width: 46rem; margin-inline: auto; padding-inline: 1.25rem; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+    min-height: 2.9rem; padding: .7rem 1.4rem; border-radius: 999px; font-weight: 650; font-size: 1rem; line-height: 1.2;
+    border: 2px solid var(--color-forest); background: var(--color-forest); color: var(--color-cream);
+    text-decoration: none; cursor: pointer; transition: background-color .18s, color .18s, border-color .18s;
+  }
+  .btn:hover { background: var(--color-forest-deep); border-color: var(--color-forest-deep); }
+  .btn-outline { background: transparent; color: var(--color-forest); }
+  .btn-outline:hover { background: var(--color-forest); color: var(--color-cream); }
+  .btn-light { background: var(--color-cream); color: var(--color-forest); border-color: var(--color-cream); }
+  .btn-light:hover { background: var(--color-paper); border-color: var(--color-paper); }
+  .btn-small { min-height: 2.5rem; padding: .45rem 1rem; font-size: .95rem; }
+
+  .link-text { color: var(--color-terracotta-deep); text-decoration: underline; text-underline-offset: .2em; text-decoration-thickness: 1.5px; }
+  .link-text:hover { color: var(--color-forest); }
+
+  .card {
+    background: var(--color-paper); border: 1px solid var(--color-line); border-radius: var(--radius-card);
+    overflow: hidden; box-shadow: var(--shadow-card);
+  }
+  .recipe-card-link { text-decoration: none; display: block; height: 100%; }
+  .recipe-card:hover h3 { color: var(--color-terracotta-deep); }
+  .recipe-card img { transition: transform .5s ease; }
+  .recipe-card:hover img { transform: scale(1.03); }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: .35rem; padding: .15rem .7rem; border-radius: 999px;
+    background: var(--color-cream); border: 1px solid var(--color-line); color: var(--color-ink-soft);
+    font-size: .85rem; font-weight: 600; text-decoration: none;
+  }
+  a.chip:hover { border-color: var(--color-forest); color: var(--color-forest); }
+
+  .field {
+    width: 100%; min-height: 3rem; padding: .65rem 1rem; border-radius: .85rem; border: 1.5px solid var(--color-forest-soft);
+    background: var(--color-paper); color: var(--color-ink); font: inherit;
+  }
+  .field:focus-visible { outline-offset: 2px; }
+
+  /* Long-form text (recipe intros, legal pages, guides) */
+  .prose-crock { max-width: 42rem; font-size: 1.125rem; line-height: 1.75; }
+  .prose-crock > * + * { margin-top: 1.1em; }
+  .prose-crock h2 { margin-top: 2.2em; font-size: 1.7rem; }
+  .prose-crock h3 { margin-top: 1.8em; font-size: 1.3rem; }
+  .prose-crock ul, .prose-crock ol { padding-left: 1.4rem; }
+  .prose-crock ul { list-style: disc; }
+  .prose-crock ol { list-style: decimal; }
+  .prose-crock li + li { margin-top: .4em; }
+  .prose-crock li::marker { color: var(--color-terracotta-deep); }
+  .prose-crock a { color: var(--color-terracotta-deep); text-decoration: underline; text-underline-offset: .2em; }
+  .prose-crock a:hover { color: var(--color-forest); }
+  .prose-crock strong { color: var(--color-forest); }
+  .prose-crock table { width: 100%; border-collapse: collapse; font-size: .98rem; }
+  .prose-crock th, .prose-crock td { text-align: left; padding: .6rem .5rem; border-bottom: 1px solid var(--color-line); vertical-align: top; }
+
+  .notice {
+    border: 1px solid var(--color-line); border-left: 5px solid var(--color-terracotta); background: var(--color-paper);
+    border-radius: .85rem; padding: .9rem 1.1rem; font-size: .98rem;
+  }
+
+  /* Ingredient checklist */
+  .check-row { display: flex; gap: .75rem; align-items: flex-start; padding: .55rem 0; border-bottom: 1px solid var(--color-line); cursor: pointer; }
+  .check-row input { appearance: none; flex: none; width: 1.35rem; height: 1.35rem; margin-top: .2rem; border: 2px solid var(--color-forest-soft);
+    border-radius: .4rem; background: var(--color-paper); display: grid; place-content: center; cursor: pointer; }
+  .check-row input::after { content: ""; width: .65rem; height: .35rem; border-left: 3px solid var(--color-cream); border-bottom: 3px solid var(--color-cream);
+    transform: rotate(-45deg) translate(1px,-1px); opacity: 0; }
+  .check-row input:checked { background: var(--color-forest); border-color: var(--color-forest); }
+  .check-row input:checked::after { opacity: 1; }
+  .check-row input:checked ~ span { color: var(--color-ink-soft); text-decoration: line-through; text-decoration-thickness: 1px; }
+
+  .step-num {
+    flex: none; width: 2.2rem; height: 2.2rem; border-radius: 999px; display: grid; place-content: center;
+    background: var(--color-forest); color: var(--color-cream); font-family: var(--font-display); font-weight: 650;
+  }
+
+  /* Ads are separated, labelled and never shown without a valid config */
+  .ad-slot { margin-block: 2rem; padding: .75rem; border: 1px solid var(--color-line); border-radius: .85rem; background: var(--color-paper); }
+  .ad-slot-label { font-size: .75rem; color: var(--color-ink-soft); margin-bottom: .35rem; }
+
+  .skip-link { position: absolute; left: .75rem; top: -4rem; z-index: 100; background: var(--color-forest); color: var(--color-cream);
+    padding: .7rem 1rem; border-radius: .6rem; font-weight: 650; transition: top .15s; }
+  .skip-link:focus { top: .75rem; }
+}
+
+/* A single, deliberate page-load moment: the hero steam. Everything else is user-triggered. */
+@keyframes steam-rise { 0% { opacity: 0; transform: translateY(10px); } 30% { opacity: .9; } 100% { opacity: 0; transform: translateY(-18px); } }
+.steam path { animation: steam-rise 4.5s ease-in-out infinite; }
+.steam path:nth-child(2) { animation-delay: 1.1s; }
+.steam path:nth-child(3) { animation-delay: 2.2s; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .steam path { animation: none; opacity: .8; }
+  *, *::before, *::after { transition-duration: .01ms !important; }
+}
+
+/* Printing: only the recipe card is printed on recipe pages. */
+.print-only { display: none; }
+@media print {
+  @page { margin: 1.5cm; }
+  html, body { background: #fff !important; color: #000 !important; font-size: 11.5pt; }
+  [data-noprint], header, footer, nav, .skip-link, .ad-slot { display: none !important; }
+  .print-only { display: block; }
+  .recipe-card-print { border: none !important; box-shadow: none !important; padding: 0 !important; background: #fff !important; }
+  .recipe-card-print * { color: #000 !important; }
+  .recipe-card-print img { max-width: 7cm; }
+  .check-row { border-color: #bbb; break-inside: avoid; }
+  .check-row input { border-color: #000; background: #fff; }
+  li, .step-row { break-inside: avoid; }
+  a { text-decoration: none; }
+}

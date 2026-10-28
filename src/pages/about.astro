@@ -1,0 +1,19 @@
+---
+import TextPage from '../layouts/TextPage.astro';
+import { site } from '../config/site';
+---
+<TextPage title="About CrockBites" path="/about/" description="CrockBites publishes easy slow cooker recipes and everyday meals, with clear steps and honest food safety guidance."
+  lead="Good Food. Less Fuss.">
+  <p>CrockBites is a recipe site focused on slow cooker meals and everyday cooking. The aim is practical recipes with clear ingredient lists, straightforward steps, and food safety guidance that treats cooking times as estimates rather than guarantees.</p>
+  <h2>Where the site is today</h2>
+  <p>CrockBites is new. The first recipes are editorial drafts: they have been written carefully, but they have not yet been cooked and checked by a person, and they are labelled as drafts on the page. Draft recipes use placeholder illustrations instead of photographs. A recipe loses the draft label only after it has been tested.</p>
+  <h2>How recipes are written</h2>
+  <ul>
+    <li>Ingredient amounts are listed in US customary units with approximate metric equivalents where useful.</li>
+    <li>Slow cooker times are given as ranges, because every cooker runs differently.</li>
+    <li>Meat, poultry and egg dishes include the internal temperature to look for, measured with a thermometer.</li>
+    <li>Nutrition information appears only when it comes from a real calculation, and the source is stated.</li>
+  </ul>
+  <h2>Get in touch</h2>
+  <p>Questions, corrections and suggestions are welcome. See the <a href="/contact/">contact page</a> or email <a href={`mailto:${site.contactEmail}`}>{site.contactEmail}</a>.</p>
+</TextPage>

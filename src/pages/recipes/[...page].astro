@@ -1,0 +1,41 @@
+---
+import type { GetStaticPaths } from 'astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import RecipeCard from '../../components/RecipeCard.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import Pagination from '../../components/Pagination.astro';
+import AdSlot from '../../components/AdSlot.astro';
+import CategoryIcon from '../../components/CategoryIcon.astro';
+import { getAllRecipes } from '../../utils/recipes';
+import { categories } from '../../data/categories';
+import { site } from '../../config/site';
+import { breadcrumbSchema } from '../../utils/jsonld';
+
+export const getStaticPaths = (async ({ paginate }) => {
+  const all = await getAllRecipes();
+  return paginate(all, { pageSize: site.recipesPerPage });
+}) satisfies GetStaticPaths;
+
+const { page } = Astro.props;
+const path = page.currentPage === 1 ? '/recipes/' : `/recipes/${page.currentPage}/`;
+const crumbs = [{ name: 'Home', href: '/' }, { name: 'Recipes', href: '/recipes/' }];
+const title = page.currentPage === 1 ? 'All Recipes' : `All Recipes, page ${page.currentPage}`;
+---
+<BaseLayout title={title} path={path} description="Browse every CrockBites recipe: easy slow cooker meals, soups, stews, breakfasts and everyday dinners."
+  jsonLd={[breadcrumbSchema([{ name: 'Home', url: '/' }, { name: 'Recipes', url: '/recipes/' }])]}>
+  <div class="container-page pt-8">
+    <Breadcrumbs items={crumbs} />
+    <h1 class="mt-6">All recipes</h1>
+    <p class="mt-4 max-w-2xl text-lg text-ink-soft">{page.total} {page.total === 1 ? 'recipe' : 'recipes'}, from easy slow cooker dinners to soups and breakfasts. <a class="link-text" href="/search/">Search recipes</a> to find something specific.</p>
+
+    <ul class="mt-8 flex flex-wrap gap-2" aria-label="Categories">
+      {categories.map((c) => <li><a class="chip" href={`/category/${c.id}/`}><CategoryIcon name={c.icon} size={14} />{c.name}</a></li>)}
+    </ul>
+
+    <ul class="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {page.data.map((r, i) => <li><RecipeCard recipe={r} eager={i < 3} /></li>)}
+    </ul>
+    <AdSlot slot="listingMid" />
+    <Pagination current={page.currentPage} last={page.lastPage} base="/recipes/" />
+  </div>
+</BaseLayout>

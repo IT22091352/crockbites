@@ -1,0 +1,146 @@
+---
+import { Image } from 'astro:assets';
+import { ArrowRight, Clock, Thermometer, BookOpen, Timer } from '@lucide/astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import RecipeCard from '../components/RecipeCard.astro';
+import CategoryIcon from '../components/CategoryIcon.astro';
+import AdSlot from '../components/AdSlot.astro';
+import hero from '../assets/hero.svg';
+import { getAllRecipes, popularRecipes, recipesForCategory, recipeUrl, totalMinutes } from '../utils/recipes';
+import { categories } from '../data/categories';
+import { formatMinutes } from '../utils/time';
+import { rw } from '../utils/images';
+import { homeGraph } from '../utils/jsonld';
+
+const all = await getAllRecipes();
+const featured = all.find((r) => r.data.featured) ?? all[0];
+const popular = popularRecipes(all, 4);
+const latest = all.slice(0, 6);
+const tips = [
+  { icon: Timer, title: 'Low or High? How to choose', text: 'What the two settings really do, and when each makes sense.', href: '/guides/slow-cooker-basics/#low-vs-high' },
+  { icon: Thermometer, title: 'Why a thermometer beats the clock', text: 'Safe internal temperatures for chicken, pork, beef and egg dishes.', href: '/guides/slow-cooker-food-safety/#thermometer' },
+  { icon: BookOpen, title: 'Cooking dried beans safely', text: 'The soak-and-boil step you should not skip before slow cooking.', href: '/guides/slow-cooker-food-safety/#beans' },
+];
+---
+<BaseLayout path="/" jsonLd={[homeGraph()]} imageAlt="CrockBites: Good Food. Less Fuss.">
+  <!-- Hero -->
+  <section class="overflow-hidden">
+    <div class="container-page grid items-center gap-10 pb-16 pt-10 lg:grid-cols-[1.15fr_0.85fr] lg:gap-16 lg:pb-24 lg:pt-16">
+      <div>
+        <h1 class="max-w-[12ch]">Good Food. Less Fuss.</h1>
+        <p class="mt-6 max-w-xl text-[1.2rem] leading-relaxed text-ink-soft">Discover easy slow cooker recipes and everyday meals made for real life.</p>
+        <div class="mt-8 flex flex-wrap gap-3">
+          <a class="btn" href="/recipes/">Explore Recipes <ArrowRight size={18} aria-hidden="true" /></a>
+          <a class="btn btn-outline" href="/category/slow-cooker/">Browse Slow Cooker Recipes</a>
+        </div>
+        <p class="mt-8 max-w-md text-sm text-ink-soft">New to CrockBites? Every recipe lists a safe internal temperature where it matters, because time alone never proves food is done.</p>
+      </div>
+      <div class="relative mx-auto w-full max-w-[26rem] pt-14 lg:ml-auto lg:mr-0">
+        <svg class="steam absolute left-1/2 top-0 h-16 w-24 -translate-x-1/2 text-terracotta" viewBox="0 0 96 64" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" aria-hidden="true">
+          <path d="M26 58q-9-8 0-16t0-16" /><path d="M48 58q-9-8 0-16t0-16t0-16" /><path d="M70 58q-9-8 0-16t0-16" />
+        </svg>
+        <div class="relative overflow-hidden rounded-t-[999px] rounded-b-[2rem] border-[6px] border-forest bg-forest shadow-[var(--shadow-card)]">
+          <Image src={hero} alt="Placeholder illustration: overhead view of a slow cooker full of beef stew with potatoes, carrots and peas."
+            {...rw(hero, [420, 640, 840])} sizes="(min-width: 1024px) 26rem, 90vw" loading="eager" fetchpriority="high" decoding="async" class="aspect-[4/5] w-full object-cover" />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Featured recipe -->
+  {featured && (
+    <section aria-labelledby="featured-heading" class="bg-forest text-cream">
+      <div class="container-page grid items-center gap-10 py-14 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16 lg:py-20">
+        <a href={recipeUrl(featured)} class="block overflow-hidden rounded-3xl" tabindex="-1" aria-hidden="true">
+          <Image src={featured.data.image} alt="" {...rw(featured.data.image, [480, 720, 960])} sizes="(min-width: 1024px) 40rem, 100vw" loading="lazy" decoding="async" class="aspect-[4/3] w-full object-cover" />
+        </a>
+        <div>
+          <p class="text-[0.97rem] font-semibold text-[#F0B79F]">Featured recipe</p>
+          <h2 id="featured-heading" class="mt-3 !text-cream"><a href={recipeUrl(featured)} class="no-underline hover:underline">{featured.data.title}</a></h2>
+          <p class="mt-4 max-w-lg text-[1.1rem] text-cream/85">{featured.data.description}</p>
+          <p class="mt-5 inline-flex items-center gap-2 text-[0.97rem] font-semibold text-cream"><Clock size={18} aria-hidden="true" /> {formatMinutes(totalMinutes(featured))} total · serves {featured.data.servings}</p>
+          <div class="mt-8"><a class="btn btn-light" href={recipeUrl(featured)}>View the recipe <ArrowRight size={18} aria-hidden="true" /></a></div>
+        </div>
+      </div>
+    </section>
+  )}
+
+  <!-- Categories -->
+  <section aria-labelledby="categories-heading" class="container-page pt-20">
+    <h2 id="categories-heading">Browse by category</h2>
+    <ul class="mt-8 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
+      {categories.map((c) => {
+        const count = recipesForCategory(all, c.id).length;
+        return (
+          <li>
+            <a href={`/category/${c.id}/`} class="group flex h-full items-center gap-3.5 rounded-2xl border border-line bg-paper p-3.5 no-underline transition-colors hover:border-forest sm:p-4">
+              <span class="grid size-11 shrink-0 place-content-center rounded-full bg-cream-deep text-forest group-hover:bg-forest group-hover:text-cream"><CategoryIcon name={c.icon} /></span>
+              <span class="min-w-0">
+                <span class="block font-display text-[1.05rem] font-semibold leading-tight text-forest">{c.name}</span>
+                <span class="block text-sm text-ink-soft">{count ? `${count} ${count === 1 ? 'recipe' : 'recipes'}` : 'Coming soon'}</span>
+              </span>
+            </a>
+          </li>
+        );
+      })}
+    </ul>
+  </section>
+
+  <!-- Popular -->
+  <section aria-labelledby="popular-heading" class="container-page pt-20">
+    <div class="flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <h2 id="popular-heading">Popular recipes</h2>
+        <p class="mt-2 text-ink-soft">The dishes people search for most.</p>
+      </div>
+      <a class="link-text font-semibold" href="/recipes/">See all recipes</a>
+    </div>
+    <ul class="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      {popular.map((r) => <li><RecipeCard recipe={r} /></li>)}
+    </ul>
+  </section>
+
+  <div class="container-page"><AdSlot slot="homeMid" /></div>
+
+  <!-- Latest -->
+  <section aria-labelledby="latest-heading" class="container-page pt-20">
+    <div class="grid gap-10 lg:grid-cols-[0.8fr_1.4fr] lg:gap-16">
+      <div>
+        <h2 id="latest-heading">Latest recipes</h2>
+        <p class="mt-3 max-w-sm text-ink-soft">Freshly added to the collection. New recipes are published as they are written and reviewed.</p>
+        <a class="btn btn-outline mt-6" href="/recipes/">Browse all recipes</a>
+      </div>
+      <ul>
+        {latest.map((r) => <li><RecipeCard recipe={r} layout="row" /></li>)}
+      </ul>
+    </div>
+  </section>
+
+  <!-- Tips -->
+  <section aria-labelledby="tips-heading" class="container-page pt-20">
+    <h2 id="tips-heading">Helpful cooking tips</h2>
+    <ul class="mt-8 grid gap-4 md:grid-cols-3">
+      {tips.map((t) => (
+        <li>
+          <a href={t.href} class="group flex h-full flex-col rounded-2xl border border-line bg-paper p-6 no-underline transition-colors hover:border-forest">
+            <t.icon size={26} class="text-terracotta-deep" aria-hidden="true" />
+            <span class="mt-4 font-display text-xl font-semibold text-forest group-hover:underline">{t.title}</span>
+            <span class="mt-2 text-[0.97rem] text-ink-soft">{t.text}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  <!-- About -->
+  <section aria-labelledby="about-heading" class="container-page pt-20">
+    <div class="grid gap-8 rounded-3xl border border-line bg-paper p-8 lg:grid-cols-[0.8fr_1.2fr] lg:gap-14 lg:p-12">
+      <h2 id="about-heading">About CrockBites</h2>
+      <div class="space-y-4 text-[1.08rem]">
+        <p>CrockBites is a new recipe site built around the slow cooker and everyday meals. The goal is simple: clear ingredient lists, straightforward steps, and honest food safety guidance, so cooking dinner takes less fuss.</p>
+        <p>The first recipes on the site are editorial drafts that are still waiting to be cooked and checked by a person. They are labelled that way on purpose, and the label comes off only when a recipe has been tested.</p>
+        <p><a class="link-text font-semibold" href="/about/">Read more about the site</a></p>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
