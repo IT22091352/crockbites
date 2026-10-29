@@ -86,11 +86,11 @@ const categories = [
       /* Image manager styles */
       .dropzone { border: 2px dashed rgba(36,58,45,0.25); border-radius: 16px; padding: 2rem 1.5rem; text-align: center; cursor: pointer; transition: border-color 0.2s, background-color 0.2s; background: rgba(255,255,255,0.6); }
       .dropzone.dragover { border-color: var(--terracotta); background: rgba(198,106,69,0.06); }
-      .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-top: 1.25rem; }
-      .image-card { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #fff; position: relative; box-shadow: 0 2px 6px rgba(0,0,0,0.03); display: flex; flex-direction: column; }
+      .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; margin-top: 1.25rem; }
+      .image-card { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #fff; position: relative; box-shadow: 0 2px 6px rgba(0,0,0,0.03); display: flex; flex-direction: column; max-width: 240px; }
       .image-card.is-primary { border: 2px solid var(--forest); box-shadow: 0 0 0 2px rgba(36,58,45,0.2); }
-      .image-thumb-wrap { width: 100%; aspect-ratio: 4/3; position: relative; overflow: hidden; background: #eee; }
-      .image-thumb-wrap img { width: 100%; height: 100%; object-fit: cover; }
+      .image-thumb-wrap { width: 100%; height: 140px; position: relative; overflow: hidden; background: #eee; }
+      .image-thumb-wrap img { width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: cover; display: block; }
       .primary-tag { position: absolute; top: 8px; left: 8px; background: var(--forest); color: #fff; font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
       .image-card-body { padding: 0.85rem; display: flex; flex-direction: column; gap: 0.5rem; flex: 1; }
       .image-card-actions { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 0.5rem; border-top: 1px solid var(--line); }
