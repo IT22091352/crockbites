@@ -36,7 +36,7 @@ const recipes = defineCollection({
       title: z.string(),
       /** URL slug. When omitted, the Markdown file name becomes the slug. */
       slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Use lowercase letters, numbers, and single hyphens only.').optional(),
-      description: z.string().max(200),
+      description: z.string(),
       category: z.enum([
         'slow-cooker-chicken', 'beef-pork', 'soups-stews', 'easy-dinners',
         'breakfast', 'vegetarian', 'desserts-baking',
