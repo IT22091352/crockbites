@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 const img = (p) => readFileSync(new URL(`../${p}`, import.meta.url));
 const out = (p) => new URL(`../public/${p}`, import.meta.url).pathname;
 
+
 const fav = img('public/favicon.svg');
 await sharp(fav, { density: 384 }).resize(32, 32).png().toFile(out('favicon-32.png'));
 await sharp(fav, { density: 384 }).resize(180, 180).png().toFile(out('apple-touch-icon.png'));
