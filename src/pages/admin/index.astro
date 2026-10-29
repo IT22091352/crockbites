@@ -1,0 +1,170 @@
+---
+export const prerender = false;
+
+import { getCollection } from 'astro:content';
+import { ADMIN_COOKIE_NAME, CSRF_COOKIE_NAME, createCsrfToken, getAdminSessionSecret, parseAdminSessionCookie, verifySessionCookie } from '../../lib/admin';
+
+const adminCookie = Astro.cookies.get(ADMIN_COOKIE_NAME)?.value ?? '';
+const session = parseAdminSessionCookie(adminCookie);
+const username = session?.username ?? '';
+const secret = getAdminSessionSecret();
+
+if (!secret || !session || !verifySessionCookie(adminCookie, secret)) {
+  Astro.cookies.delete(ADMIN_COOKIE_NAME, { path: '/' });
+  Astro.cookies.delete(CSRF_COOKIE_NAME, { path: '/' });
+  return Astro.redirect('/admin/login/?error=Session+expired');
+}
+
+const recipes = await getCollection('recipes');
+const totalRecipes = recipes.length;
+const published = recipes.filter((recipe) => recipe.data.reviewStatus === 'tested').length;
+const drafts = recipes.filter((recipe) => recipe.data.reviewStatus === 'draft').length;
+const recent = [...recipes].sort((a, b) => {
+  const aDate = a.data.updatedDate ?? a.data.pubDate;
+  const bDate = b.data.updatedDate ?? b.data.pubDate;
+  return Number(bDate) - Number(aDate);
+}).slice(0, 5);
+const recentWithSlugs = recent.map((recipe) => ({ ...recipe, slug: recipe.id.replace(/\.md$/, '') }));
+const csrfToken = createCsrfToken(secret, session.id);
+const isHttps = Astro.url.protocol === 'https:';
+Astro.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
+  httpOnly: false,
+  sameSite: 'lax',
+  secure: isHttps,
+  path: '/',
+  maxAge: 60 * 60 * 12,
+});
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CrockBites Admin Dashboard</title>
+    <style>
+      :root {
+        --forest: #243A2D;
+        --cream: #F7F1E5;
+        --terracotta: #C66A45;
+        --paper: #fffdf9;
+        --mist: #e8e2d5;
+        --muted: rgba(36,58,45,0.72);
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: system-ui, sans-serif; background: var(--cream); color: var(--forest); }
+      a { color: inherit; text-decoration: none; }
+      .shell { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+      .sidebar { background: var(--forest); color: #fff; padding: 1.5rem 1rem; }
+      .brand { display: flex; align-items: center; gap: 0.75rem; font-weight: 800; font-size: 1.1rem; }
+      .brand-mark { width: 2.2rem; height: 2.2rem; border-radius: 0.7rem; background: var(--terracotta); display: grid; place-items: center; color: white; }
+      nav { margin-top: 1.5rem; display: grid; gap: 0.5rem; }
+      nav a { display: block; padding: 0.85rem 0.9rem; border-radius: 10px; color: rgba(255,255,255,0.88); }
+      nav a.active, nav a:hover { background: rgba(255,255,255,0.08); }
+      .content { padding: 1.5rem; }
+      .topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
+      .title { font-size: clamp(1.7rem, 3vw, 2.5rem); margin: 0; }
+      .user-row { display: flex; align-items: center; gap: 0.9rem; }
+      .pill { border: 1px solid rgba(36,58,45,0.12); background: rgba(255,255,255,0.65); padding: 0.55rem 0.8rem; border-radius: 999px; }
+      .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+      .card { background: rgba(255,255,255,0.8); border: 1px solid rgba(36,58,45,0.08); border-radius: 18px; padding: 1.15rem; }
+      .label { color: var(--muted); font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.08em; }
+      .number { font-size: clamp(1.8rem, 3vw, 2.5rem); font-weight: 800; margin-top: 0.35rem; }
+      .muted { color: var(--muted); }
+      .grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 1rem; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { padding: 0.85rem 0.75rem; text-align: left; border-bottom: 1px solid rgba(36,58,45,0.09); }
+      .tag { display: inline-flex; padding: 0.25rem 0.6rem; border-radius: 999px; background: rgba(198,106,69,0.12); color: var(--forest); font-size: 0.75rem; font-weight: 700; }
+      .list { display: grid; gap: 0.75rem; }
+      .recipe-item { display: flex; justify-content: space-between; align-items: center; gap: 1rem; border: 1px solid rgba(36,58,45,0.08); border-radius: 14px; padding: 0.9rem 1rem; background: rgba(255,255,255,0.7); }
+      .actions { display: flex; gap: 0.5rem; }
+      .btn { border: none; border-radius: 10px; padding: 0.7rem 0.9rem; cursor: pointer; font-weight: 700; }
+      .btn-primary { background: var(--forest); color: white; }
+      .btn-subtle { background: rgba(36,58,45,0.08); color: var(--forest); }
+      .btn-ghost { background: rgba(198,106,69,0.1); color: var(--terracotta); }
+      @media (max-width: 900px) { .shell { grid-template-columns: 1fr; } .sidebar { padding-bottom: 0.5rem; } .grid { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">C</div>
+          <span>CrockBites Admin</span>
+        </div>
+        <nav>
+          <a class="active" href="/admin/">Overview</a>
+          <a href="/admin/recipes/">Recipes</a>
+          <a href="/admin/recipes/new/">New Recipe</a>
+          <a href="/admin/settings/">Settings</a>
+        </nav>
+      </aside>
+
+      <main class="content">
+        <div class="topbar">
+          <div>
+            <p class="muted" style="margin:0 0 0.5rem; font-size:0.8rem; letter-spacing:0.08em; text-transform:uppercase;">Dashboard</p>
+            <h1 class="title">Overview</h1>
+          </div>
+          <div class="user-row">
+            <span class="pill">Logged in as {username}</span>
+            <form method="POST" action="/api/admin/logout/">
+              <input type="hidden" name="csrfToken" value={csrfToken} />
+              <button class="btn btn-subtle" type="submit">Log out</button>
+            </form>
+          </div>
+        </div>
+
+        <section class="cards">
+          <article class="card">
+            <div class="label">Total recipes</div>
+            <div class="number">{totalRecipes}</div>
+          </article>
+          <article class="card">
+            <div class="label">Published</div>
+            <div class="number">{published}</div>
+          </article>
+          <article class="card">
+            <div class="label">Drafts</div>
+            <div class="number">{drafts}</div>
+          </article>
+          <article class="card">
+            <div class="label">Recently updated</div>
+            <div class="number">{recent.length}</div>
+          </article>
+        </section>
+
+        <section class="grid">
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center; gap:1rem; margin-bottom:1rem;">
+              <h2 style="margin:0;">Recent updates</h2>
+              <a class="btn btn-primary" href="/admin/recipes/new/">Create recipe</a>
+            </div>
+            <div class="list">
+              {recentWithSlugs.map((recipe) => (
+                <div class="recipe-item">
+                  <div>
+                    <strong>{recipe.data.title}</strong>
+                    <div class="muted">{recipe.data.reviewStatus === 'draft' ? 'Draft' : 'Published'}</div>
+                  </div>
+                  <div class="actions">
+                    <a class="btn btn-subtle" href={`/recipe/${recipe.slug}/`}>View</a>
+                    <a class="btn btn-ghost" href={`/admin/recipes/${recipe.slug}/`}>Edit</a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div class="card">
+            <h2 style="margin-top:0;">Quick actions</h2>
+            <div class="list">
+              <a class="recipe-item" href="/admin/recipes/"><span>Manage all recipes</span><span>→</span></a>
+              <a class="recipe-item" href="/admin/recipes/new/"><span>Write a new recipe</span><span>→</span></a>
+              <a class="recipe-item" href="/admin/settings/"><span>Review site settings</span><span>→</span></a>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,174 @@
+---
+export const prerender = false;
+
+import { ADMIN_COOKIE_NAME, CSRF_COOKIE_NAME, createCsrfToken, getAdminSessionSecret, parseAdminSessionCookie, verifySessionCookie } from '../../lib/admin';
+import { getGithubConfig } from '../../lib/github';
+import { getCloudinaryConfig } from '../../lib/cloudinary';
+
+const adminCookie = Astro.cookies.get(ADMIN_COOKIE_NAME)?.value ?? '';
+const session = parseAdminSessionCookie(adminCookie);
+const secret = getAdminSessionSecret();
+
+if (!secret || !session || !verifySessionCookie(adminCookie, secret)) {
+  Astro.cookies.delete(ADMIN_COOKIE_NAME, { path: '/' });
+  Astro.cookies.delete(CSRF_COOKIE_NAME, { path: '/' });
+  return Astro.redirect('/admin/login/?error=Session+expired');
+}
+
+const csrfToken = createCsrfToken(secret, session.id);
+const isHttps = Astro.url.protocol === 'https:';
+Astro.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
+  httpOnly: false,
+  sameSite: 'lax',
+  secure: isHttps,
+  path: '/',
+  maxAge: 60 * 60 * 12,
+});
+
+// Inspect Configurations
+const gh = getGithubConfig();
+const ghConfigured = Boolean(gh.token && gh.owner && gh.repo);
+const cl = getCloudinaryConfig();
+const clConfigured = cl.isConfigured;
+
+const isDev = import.meta.env.DEV;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin Settings &amp; Integrations | CrockBites</title>
+    <style>
+      :root {
+        --forest: #243A2D;
+        --cream: #F7F1E5;
+        --terracotta: #C66A45;
+        --paper: #fffdf8;
+        --line: rgba(36,58,45,0.12);
+        --green: #2e7d32;
+        --red: #c62828;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--cream); color: var(--forest); font-family: system-ui, sans-serif; }
+      .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+      .sidebar { background: var(--forest); color: #fff; padding: 1.5rem 1rem; }
+      .nav { display: grid; gap: 0.5rem; margin-top: 1.5rem; }
+      .nav a { color: rgba(255,255,255,0.9); text-decoration: none; display: block; padding: 0.8rem 0.85rem; border-radius: 10px; }
+      .nav a.active { background: rgba(255,255,255,0.1); font-weight: 700; }
+      .main { padding: 2rem; max-width: 1000px; }
+      .card { background: rgba(255,255,255,0.9); border: 1px solid var(--line); border-radius: 18px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 4px 12px rgba(36,58,45,0.04); }
+      .status-badge { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.75rem; border-radius: 999px; font-size: 0.82rem; font-weight: 700; }
+      .badge-ok { background: #e8f5e9; color: var(--green); }
+      .badge-missing { background: #ffebee; color: var(--red); }
+      .grid-params { display: grid; grid-template-columns: 240px 1fr; gap: 0.75rem; font-size: 0.95rem; margin-top: 1rem; padding: 1rem; background: var(--cream); border-radius: 12px; }
+      .param-name { font-family: monospace; font-weight: 700; }
+      .param-val { display: flex; align-items: center; gap: 0.5rem; }
+      .btn { border: none; border-radius: 10px; padding: 0.75rem 1.1rem; font-weight: 700; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; }
+      .btn-primary { background: var(--forest); color: #fff; }
+      .btn-subtle { background: rgba(36,58,45,0.08); color: var(--forest); }
+      .env-notice { font-size: 0.9rem; margin-top: 0.5rem; color: rgba(36,58,45,0.75); line-height: 1.5; }
+      @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } .grid-params { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <div style="font-weight: 800; font-size: 1.15rem; display: flex; align-items: center; gap: 0.6rem;">
+          <span style="background: var(--terracotta); border-radius: 8px; width: 2rem; height: 2rem; display: grid; place-items: center;">C</span>
+          CrockBites Admin
+        </div>
+        <nav class="nav">
+          <a href="/admin/">Overview</a>
+          <a href="/admin/recipes/">Recipes</a>
+          <a href="/admin/recipes/new/">New Recipe</a>
+          <a class="active" href="/admin/settings/">Settings</a>
+        </nav>
+      </aside>
+      <main class="main">
+        <h1 style="margin-top: 0; font-size: 2rem;">Settings &amp; Integrations</h1>
+        <p class="env-notice" style="margin-bottom: 1.5rem;">
+          Environment mode: <strong>{isDev ? 'Local Development (.env)' : 'Production / Cloudflare Worker'}</strong>.
+          Credentials and secrets are managed server-side and never exposed to client browsers.
+        </p>
+
+        <!-- GitHub Publishing Status -->
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <div>
+              <h2 style="margin: 0; font-size: 1.35rem;">GitHub Recipe Publishing</h2>
+              <p style="margin: 0.35rem 0 0; color: rgba(36,58,45,0.75); font-size: 0.95rem;">
+                Enables creating, editing, and deleting recipe Markdown files directly in your repository.
+              </p>
+            </div>
+            <div>
+              {ghConfigured ? (
+                <span class="status-badge badge-ok">✓ Configured</span>
+              ) : (
+                <span class="status-badge badge-missing">✕ Not Configured</span>
+              )}
+            </div>
+          </div>
+
+          <div class="grid-params">
+            <div class="param-name">ADMIN_GITHUB_TOKEN</div>
+            <div class="param-val">{gh.token ? '•••••••• (Set)' : 'Not set'}</div>
+
+            <div class="param-name">ADMIN_GITHUB_OWNER</div>
+            <div class="param-val">{gh.owner ? gh.owner : 'Not set'}</div>
+
+            <div class="param-name">ADMIN_GITHUB_REPO</div>
+            <div class="param-val">{gh.repo ? gh.repo : 'Not set'}</div>
+
+            <div class="param-name">ADMIN_GITHUB_BRANCH</div>
+            <div class="param-val">{gh.branch || 'main'}</div>
+          </div>
+          <p class="env-notice">
+            Required token permission: <code>contents:write</code> on the target repository.
+          </p>
+        </div>
+
+        <!-- Cloudinary Image Management Status -->
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <div>
+              <h2 style="margin: 0; font-size: 1.35rem;">Cloudinary Image Management</h2>
+              <p style="margin: 0.35rem 0 0; color: rgba(36,58,45,0.75); font-size: 0.95rem;">
+                Uploads recipe photos directly to Cloudinary with automatic WebP/AVIF format and responsive sizing.
+              </p>
+            </div>
+            <div>
+              {clConfigured ? (
+                <span class="status-badge badge-ok">✓ Configured</span>
+              ) : (
+                <span class="status-badge badge-missing">✕ Not Configured</span>
+              )}
+            </div>
+          </div>
+
+          <div class="grid-params">
+            <div class="param-name">CLOUDINARY_CLOUD_NAME</div>
+            <div class="param-val">{cl.cloudName ? cl.cloudName : 'Not set'}</div>
+
+            <div class="param-name">CLOUDINARY_API_KEY</div>
+            <div class="param-val">{cl.apiKey ? '•••••••• (Set)' : 'Not set'}</div>
+
+            <div class="param-name">CLOUDINARY_API_SECRET</div>
+            <div class="param-val">{cl.apiSecret ? '•••••••• (Set)' : 'Not set'}</div>
+          </div>
+          <p class="env-notice">
+            Uploaded images are placed into the <code>crockbites/recipes/</code> folder on Cloudinary.
+          </p>
+        </div>
+
+        <div style="display: flex; gap: 0.85rem; margin-top: 1.5rem;">
+          <a class="btn btn-primary" href="/admin/">Back to dashboard</a>
+          <form method="POST" action="/api/admin/logout/">
+            <input type="hidden" name="csrfToken" value={csrfToken} />
+            <button class="btn btn-subtle" type="submit">Log out</button>
+          </form>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

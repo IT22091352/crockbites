@@ -12,25 +12,30 @@
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",
-    "keywords": "python3 scripts/build-keyword-ideas.py",
-    "check:links": "python3 scripts/check-links.py",
-    "logo": "python3 scripts/build-logo.py && node scripts/build-icons.mjs",
-    "placeholders": "python3 scripts/build-placeholders.py",
-    "verify": "astro check && astro build && python3 scripts/check-links.py && node tests/dom-smoke.test.cjs",
-    "test:dom": "node tests/dom-smoke.test.cjs"
+    "keywords": "python scripts/build-keyword-ideas.py",
+    "check:links": "python scripts/check-links.py",
+    "logo": "python scripts/build-logo.py && node scripts/build-icons.mjs",
+    "placeholders": "python scripts/build-placeholders.py",
+    "verify": "astro check && astro build && python scripts/check-links.py && node tests/dom-smoke.test.cjs && node --experimental-strip-types tests/auth-security.test.mjs",
+    "test:dom": "node tests/dom-smoke.test.cjs",
+    "test:auth": "node --experimental-strip-types tests/auth-security.test.mjs"
   },
   "dependencies": {
+    "@astrojs/cloudflare": "^14.4.2",
     "@fontsource-variable/figtree": "^5.2.0",
     "@fontsource-variable/fraunces": "^5.2.0",
     "@lucide/astro": "^1.62.0",
     "@tailwindcss/vite": "^4.3.3",
     "astro": "^7.4.2",
+    "cloudinary": "^2.11.0",
     "sharp": "^0.35.5",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.4",
+    "@cloudflare/workers-types": "^5.20261028.1",
     "jsdom": "^30.1.3",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "yaml": "^2.9.1"
   }
 }

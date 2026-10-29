@@ -7,7 +7,7 @@ import AdSlot from './AdSlot.astro';
 import { categoryById, recipeUrl, totalMinutes, absoluteUrl, type Recipe } from '../utils/recipes';
 import { amountText, itemText } from '../utils/quantity';
 import { formatMinutes } from '../utils/time';
-import { rw } from '../utils/images';
+import { rw, isRemoteImage, getOptimizedCloudinaryUrl } from '../utils/images';
 
 interface Props { recipe: Recipe; related: Recipe[] }
 const { recipe, related } = Astro.props;
@@ -15,6 +15,9 @@ const d = recipe.data;
 const cat = categoryById(d.category);
 const total = totalMinutes(recipe);
 const fmtDate = (dt: Date) => dt.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+const isRemote = isRemoteImage(d.image);
+const imageUrl = typeof d.image === 'string' ? d.image : d.image.src;
+const gallery = (d as any).gallery as Array<{ url: string; alt: string; width?: number; height?: number }> | undefined;
 
 // Group ingredients under their optional headings, keeping the original order.
 const groups: { name?: string; items: typeof d.ingredients }[] = [];
@@ -46,8 +49,23 @@ const hasNutrition = Boolean(n && (n.calories || n.proteinGrams || n.carbsGrams 
         </div>
       </div>
       <div class="overflow-hidden rounded-[1.75rem] border border-line shadow-[var(--shadow-card)]">
-        <Image src={d.image} alt={d.imageAlt} {...rw(d.image, [640, 960, 1280, 1600])} sizes="(min-width: 1024px) 40rem, 100vw"
-          loading="eager" fetchpriority="high" decoding="async" class="aspect-[4/3] w-full object-cover" />
+        {isRemote ? (
+          <img
+            src={getOptimizedCloudinaryUrl(imageUrl, 1280)}
+            srcset={`${getOptimizedCloudinaryUrl(imageUrl, 640)} 640w, ${getOptimizedCloudinaryUrl(imageUrl, 960)} 960w, ${getOptimizedCloudinaryUrl(imageUrl, 1280)} 1280w, ${getOptimizedCloudinaryUrl(imageUrl, 1600)} 1600w`}
+            sizes="(min-width: 1024px) 40rem, 100vw"
+            alt={d.imageAlt}
+            width={1280}
+            height={960}
+            loading="eager"
+            fetchpriority="high"
+            decoding="async"
+            class="aspect-[4/3] w-full object-cover"
+          />
+        ) : (
+          <Image src={d.image as any} alt={d.imageAlt} {...rw(d.image as any, [640, 960, 1280, 1600])} sizes="(min-width: 1024px) 40rem, 100vw"
+            loading="eager" fetchpriority="high" decoding="async" class="aspect-[4/3] w-full object-cover" />
+        )}
       </div>
     </div>
 
@@ -67,6 +85,25 @@ const hasNutrition = Boolean(n && (n.calories || n.proteinGrams || n.carbsGrams 
     {d.cookTimeNote && <p class="mt-3 text-[0.97rem] text-ink-soft">{d.cookTimeNote}. Times are estimates; slow cookers vary, so cook to temperature and tenderness.</p>}
 
     <div class="prose-crock mt-10"><slot name="intro" /></div>
+    {gallery && gallery.length > 0 && (
+      <section aria-labelledby="gallery-heading" class="mt-12">
+        <h2 id="gallery-heading" class="text-[1.6rem]">Recipe Gallery</h2>
+        <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+          {gallery.map((img) => (
+            <figure class="overflow-hidden rounded-2xl border border-line bg-paper">
+              <img
+                src={getOptimizedCloudinaryUrl(img.url, 600)}
+                alt={img.alt}
+                loading="lazy"
+                decoding="async"
+                class="aspect-[4/3] w-full object-cover transition-transform duration-300 hover:scale-105"
+              />
+              {img.alt && <figcaption class="p-3 text-xs text-ink-soft">{img.alt}</figcaption>}
+            </figure>
+          ))}
+        </div>
+      </section>
+    )}
     <AdSlot slot="recipeAfterIntro" />
   </div>
 

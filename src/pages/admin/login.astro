@@ -1,0 +1,79 @@
+---
+export const prerender = false;
+
+import { ADMIN_COOKIE_NAME, CSRF_COOKIE_NAME, createCsrfToken, getAdminSessionSecret, parseAdminSessionCookie, verifySessionCookie } from '../../lib/admin';
+
+const loginError = Astro.url.searchParams.get('error') || '';
+const loggedOut = Astro.url.searchParams.get('logged_out') === '1';
+const secret = getAdminSessionSecret();
+const sessionCookie = Astro.cookies.get(ADMIN_COOKIE_NAME)?.value;
+const activeSession = secret && sessionCookie ? parseAdminSessionCookie(sessionCookie) : null;
+
+if (secret && activeSession && verifySessionCookie(sessionCookie, secret)) {
+  return Astro.redirect('/admin/');
+}
+
+// Clean up invalid or expired session cookie on login page
+if (sessionCookie && (!secret || !activeSession || !verifySessionCookie(sessionCookie, secret))) {
+  Astro.cookies.delete(ADMIN_COOKIE_NAME, { path: '/' });
+}
+
+// Login CSRF token must always be scoped to 'login'
+const csrfToken = secret ? createCsrfToken(secret, 'login') : '';
+if (secret) {
+  const isHttps = Astro.url.protocol === 'https:';
+  Astro.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
+    httpOnly: false,
+    sameSite: 'lax',
+    secure: isHttps,
+    path: '/',
+    maxAge: 60 * 60 * 12,
+  });
+}
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin Login | CrockBites</title>
+    <style>
+      :root {
+        --forest: #243A2D;
+        --cream: #F7F1E5;
+        --terracotta: #C66A45;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: system-ui, sans-serif; background: linear-gradient(135deg, #f5f0e6, #ede3d1); color: var(--forest); }
+      .wrap { min-height: 100vh; display: grid; place-items: center; padding: 2rem; }
+      .card { width: min(100%, 440px); background: rgba(255,255,255,0.9); border: 1px solid rgba(36,58,45,0.12); border-radius: 20px; padding: 2rem; box-shadow: 0 18px 40px rgba(36,58,45,0.14); }
+      h1 { margin: 0 0 0.5rem; font-size: clamp(2rem, 4vw, 2.3rem); }
+      label { display: block; font-weight: 700; margin-bottom: 0.5rem; }
+      input { width: 100%; box-sizing: border-box; padding: 0.8rem 0.9rem; border: 1px solid rgba(36,58,45,0.20); border-radius: 12px; margin-bottom: 1rem; font: inherit; }
+      button { width: 100%; border: none; background: var(--forest); color: white; padding: 0.9rem; border-radius: 12px; font-weight: 700; cursor: pointer; }
+      .error { margin: 0 0 1rem; padding: 0.75rem 0.85rem; border-radius: 10px; background: rgba(198,106,69,0.08); color: #7a341f; font-weight: 600; }
+      .success { margin: 0 0 1rem; padding: 0.75rem 0.85rem; border-radius: 10px; background: rgba(36,58,45,0.08); color: var(--forest); font-weight: 600; }
+      .help { font-size: 0.92rem; color: rgba(36,58,45,0.72); margin: 0 0 1rem; }
+      .tiny { margin-top: 1rem; font-size: 0.82rem; color: rgba(36,58,45,0.72); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <h1>Admin login</h1>
+        <p class="help">Sign in to manage CrockBites recipes and publishing.</p>
+        {loginError && <div class="error">{loginError}</div>}
+        {loggedOut && <div class="success">You have been signed out.</div>}
+        <form method="POST" action="/api/admin/login/">
+          <input type="hidden" name="csrfToken" value={csrfToken} />
+          <label for="username">Username</label>
+          <input id="username" name="username" type="text" autocomplete="username" required />
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required />
+          <button type="submit">Log in</button>
+        </form>
+        <div class="tiny">Secure access requires a valid Cloudflare secret-backed admin session.</div>
+      </div>
+    </div>
+  </body>
+</html>

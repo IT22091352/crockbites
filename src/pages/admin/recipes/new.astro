@@ -1,0 +1,596 @@
+---
+export const prerender = false;
+
+import { ADMIN_COOKIE_NAME, CSRF_COOKIE_NAME, createCsrfToken, getAdminSessionSecret, parseAdminSessionCookie, verifySessionCookie } from '../../../lib/admin';
+import { isCloudinaryConfigured } from '../../../lib/cloudinary';
+import { getGithubConfig } from '../../../lib/github';
+
+const adminCookie = Astro.cookies.get(ADMIN_COOKIE_NAME)?.value ?? '';
+const session = parseAdminSessionCookie(adminCookie);
+const secret = getAdminSessionSecret();
+
+if (!secret || !session || !verifySessionCookie(adminCookie, secret)) {
+  Astro.cookies.delete(ADMIN_COOKIE_NAME, { path: '/' });
+  Astro.cookies.delete(CSRF_COOKIE_NAME, { path: '/' });
+  return Astro.redirect('/admin/login/?error=Session+expired');
+}
+
+const csrfToken = createCsrfToken(secret, session.id);
+const isHttps = Astro.url.protocol === 'https:';
+Astro.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
+  httpOnly: false,
+  sameSite: 'lax',
+  secure: isHttps,
+  path: '/',
+  maxAge: 60 * 60 * 12,
+});
+
+const cloudinaryActive = isCloudinaryConfigured();
+const gh = getGithubConfig();
+const ghActive = Boolean(gh.token && gh.owner && gh.repo);
+
+const categories = [
+  ['slow-cooker-chicken', 'Slow Cooker Chicken'],
+  ['beef-pork', 'Beef & Pork'],
+  ['soups-stews', 'Soups & Stews'],
+  ['easy-dinners', 'Easy Dinners'],
+  ['breakfast', 'Breakfast'],
+  ['vegetarian', 'Vegetarian'],
+  ['desserts-baking', 'Desserts & Baking'],
+];
+---
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>New Recipe | CrockBites Admin</title>
+    <style>
+      :root {
+        --forest: #243A2D;
+        --cream: #F7F1E5;
+        --terracotta: #C66A45;
+        --paper: #fffdf8;
+        --line: rgba(36,58,45,0.12);
+        --focus: #1b5e20;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: var(--cream); color: var(--forest); }
+      .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+      .sidebar { background: var(--forest); color: #fff; padding: 1.5rem 1rem; }
+      .nav { display: grid; gap: 0.5rem; margin-top: 1.5rem; }
+      .nav a { color: rgba(255,255,255,0.9); text-decoration: none; display: block; padding: 0.8rem 0.85rem; border-radius: 10px; }
+      .nav a.active { background: rgba(255,255,255,0.1); font-weight: 700; }
+      .main { padding: 2rem; max-width: 1080px; }
+      .top { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+      .card { background: rgba(255,255,255,0.9); border: 1px solid var(--line); border-radius: 20px; padding: 1.75rem; box-shadow: 0 4px 14px rgba(36,58,45,0.04); }
+      .section-box { border: 1px solid var(--line); border-radius: 16px; padding: 1.35rem; background: var(--paper); margin-bottom: 1.5rem; }
+      .section-box h3 { margin: 0 0 1rem; font-size: 1.25rem; display: flex; align-items: center; justify-content: space-between; }
+      .grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 1.25rem; }
+      .stack { display: grid; gap: 1.25rem; }
+      label { display: grid; gap: 0.45rem; font-weight: 700; font-size: 0.95rem; }
+      input, textarea, select { width: 100%; border: 1px solid rgba(36,58,45,0.2); border-radius: 12px; padding: 0.85rem 1rem; font: inherit; background: #fff; color: var(--forest); }
+      input:focus, textarea:focus, select:focus { outline: 2px solid var(--terracotta); border-color: transparent; }
+      textarea { min-height: 110px; resize: vertical; }
+      .hint { font-size: 0.82rem; font-weight: normal; color: rgba(36,58,45,0.7); }
+      .item-row { display: grid; grid-template-columns: 100px 140px 1fr 1fr auto; gap: 0.75rem; align-items: center; margin-bottom: 0.75rem; background: #fff; padding: 0.65rem; border-radius: 12px; border: 1px solid var(--line); }
+      .step-row { display: grid; grid-template-columns: 180px 1fr auto; gap: 0.75rem; align-items: center; margin-bottom: 0.75rem; background: #fff; padding: 0.65rem; border-radius: 12px; border: 1px solid var(--line); }
+      .btn { border: none; border-radius: 10px; padding: 0.8rem 1.25rem; font-weight: 700; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; transition: all 0.15s ease; }
+      .btn-primary { background: var(--forest); color: #fff; }
+      .btn-primary:hover { background: #18281f; }
+      .btn-subtle { background: rgba(36,58,45,0.08); color: var(--forest); }
+      .btn-subtle:hover { background: rgba(36,58,45,0.14); }
+      .btn-danger { background: rgba(198,106,69,0.12); color: var(--terracotta); padding: 0.65rem 0.9rem; }
+      .btn-danger:hover { background: rgba(198,106,69,0.22); }
+      .btn-pill { border-radius: 999px; font-size: 0.8rem; padding: 0.35rem 0.75rem; }
+      
+      /* Image manager styles */
+      .dropzone { border: 2px dashed rgba(36,58,45,0.25); border-radius: 16px; padding: 2rem 1.5rem; text-align: center; cursor: pointer; transition: border-color 0.2s, background-color 0.2s; background: rgba(255,255,255,0.6); }
+      .dropzone.dragover { border-color: var(--terracotta); background: rgba(198,106,69,0.06); }
+      .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-top: 1.25rem; }
+      .image-card { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #fff; position: relative; box-shadow: 0 2px 6px rgba(0,0,0,0.03); display: flex; flex-direction: column; }
+      .image-card.is-primary { border: 2px solid var(--forest); box-shadow: 0 0 0 2px rgba(36,58,45,0.2); }
+      .image-thumb-wrap { width: 100%; aspect-ratio: 4/3; position: relative; overflow: hidden; background: #eee; }
+      .image-thumb-wrap img { width: 100%; height: 100%; object-fit: cover; }
+      .primary-tag { position: absolute; top: 8px; left: 8px; background: var(--forest); color: #fff; font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
+      .image-card-body { padding: 0.85rem; display: flex; flex-direction: column; gap: 0.5rem; flex: 1; }
+      .image-card-actions { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 0.5rem; border-top: 1px solid var(--line); }
+      .status { margin-top: 1.25rem; padding: 1rem 1.25rem; border-radius: 12px; display: none; font-weight: 600; }
+      .status.error { background: #ffebee; color: #c62828; display: block; border: 1px solid #ffcdd2; }
+      .status.success { background: #e8f5e9; color: #2e7d32; display: block; border: 1px solid #c8e6c9; }
+      .alert-banner { padding: 0.9rem 1.2rem; border-radius: 12px; margin-bottom: 1.5rem; font-size: 0.95rem; }
+      .alert-warning { background: #fff3e0; color: #e65100; border: 1px solid #ffe082; }
+
+      @media (max-width: 900px) {
+        .layout { grid-template-columns: 1fr; }
+        .grid { grid-template-columns: 1fr; }
+        .item-row, .step-row { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <div style="font-weight: 800; font-size: 1.15rem; display: flex; align-items: center; gap: 0.6rem;">
+          <span style="background: var(--terracotta); border-radius: 8px; width: 2rem; height: 2rem; display: grid; place-items: center;">C</span>
+          CrockBites Admin
+        </div>
+        <nav class="nav">
+          <a href="/admin/">Overview</a>
+          <a href="/admin/recipes/">Recipes</a>
+          <a class="active" href="/admin/recipes/new/">New Recipe</a>
+          <a href="/admin/settings/">Settings</a>
+        </nav>
+      </aside>
+
+      <main class="main">
+        <div class="top">
+          <div>
+            <p style="margin:0 0 0.3rem; text-transform:uppercase; letter-spacing:0.08em; opacity:0.7; font-size:0.8rem; font-weight: 700;">Workflow</p>
+            <h1 style="margin:0; font-size: 2.2rem;">Create Recipe</h1>
+          </div>
+          <a class="btn btn-subtle" href="/admin/recipes/">Back to recipes</a>
+        </div>
+
+        {!ghActive && (
+          <div class="alert-banner alert-warning">
+            ⚠️ <strong>GitHub publishing is not configured.</strong> Recipes cannot be committed to Git until repository secrets are set. Check <a href="/admin/settings/">Admin Settings</a> for instructions.
+          </div>
+        )}
+
+        <form id="recipe-form" class="card stack">
+          <input type="hidden" name="csrfToken" value={csrfToken} />
+
+          <!-- Core Details -->
+          <div class="section-box">
+            <h3>Recipe Overview</h3>
+            <div class="grid">
+              <label>
+                Title <span class="hint">(e.g. Slow Cooker Pulled Pork)</span>
+                <input name="title" id="titleInput" required placeholder="Juicy slow cooker dish..." />
+              </label>
+              <label>
+                Slug <span class="hint">(Unique URL identifier)</span>
+                <input name="slug" id="slugInput" placeholder="auto-generated-from-title" />
+              </label>
+            </div>
+
+            <div class="grid" style="margin-top: 1rem;">
+              <label>
+                Category
+                <select name="category">
+                  {categories.map(([value, label]) => <option value={value}>{label}</option>)}
+                </select>
+              </label>
+              <label>
+                Author
+                <input name="author" value="CrockBites" />
+              </label>
+            </div>
+
+            <div style="margin-top: 1rem;">
+              <label>
+                Description <span class="hint">(Max 200 chars for SEO summary)</span>
+                <textarea name="description" required placeholder="A mouthwatering description of this dish..."></textarea>
+              </label>
+            </div>
+
+            <div class="grid" style="margin-top: 1rem;">
+              <label>
+                Prep Minutes
+                <input name="prepMinutes" type="number" min="0" value="15" required />
+              </label>
+              <label>
+                Cook Minutes
+                <input name="cookMinutes" type="number" min="0" value="240" required />
+              </label>
+            </div>
+
+            <div class="grid" style="margin-top: 1rem;">
+              <label>
+                Servings
+                <input name="servings" type="number" min="1" value="6" required />
+              </label>
+              <label>
+                Review Status
+                <select name="reviewStatus">
+                  <option value="draft">Draft (Private / testing)</option>
+                  <option value="tested">Published / Tested</option>
+                </select>
+              </label>
+            </div>
+
+            <div style="margin-top: 1rem;">
+              <label>
+                Tags <span class="hint">(Comma-separated: slow cooker, chicken, easy)</span>
+                <input name="tags" placeholder="dinner, chicken, easy, comfort food" />
+              </label>
+            </div>
+          </div>
+
+          <!-- Cloudinary Image Manager -->
+          <div class="section-box">
+            <h3>
+              <span>Recipe Images &amp; Gallery</span>
+              <span class="hint" style="font-weight: normal;">Max 10 images · 8MB each</span>
+            </h3>
+
+            {!cloudinaryActive && (
+              <p style="color: #c66a45; font-size: 0.9rem; margin: 0 0 1rem;">
+                Cloudinary is not yet configured. You can still paste an image URL or local asset path below.
+              </p>
+            )}
+
+            <div class="dropzone" id="imageDropzone">
+              <input type="file" id="imageFileInput" accept="image/jpeg,image/png,image/webp,image/avif" multiple style="display: none;" />
+              <div style="font-size: 2rem; margin-bottom: 0.5rem;">📸</div>
+              <p style="margin: 0; font-weight: 700; font-size: 1.05rem;">Drag &amp; drop recipe photos here, or click to browse</p>
+              <p class="hint" style="margin: 0.35rem 0 0;">Supported formats: JPEG, PNG, WebP, AVIF (Max 8 MB per file)</p>
+              <div id="uploadProgress" style="display: none; margin-top: 1rem; font-weight: 700; color: var(--terracotta);">
+                Uploading images to Cloudinary...
+              </div>
+            </div>
+
+            <div class="gallery-grid" id="galleryContainer"></div>
+
+            <div style="margin-top: 1.25rem;">
+              <label>
+                Primary Image URL (Fallback / Manual override)
+                <input name="image" id="primaryImageUrl" value="../../assets/recipes/placeholder.svg" />
+              </label>
+              <label style="margin-top: 0.75rem;">
+                Primary Image Alt Text
+                <input name="imageAlt" id="primaryImageAlt" value="Illustrated CrockBites recipe" />
+              </label>
+            </div>
+          </div>
+
+          <!-- Ingredients -->
+          <div class="section-box">
+            <h3>
+              <span>Ingredients</span>
+              <button type="button" class="btn btn-subtle btn-pill" id="addIngredientBtn">+ Add Ingredient</button>
+            </h3>
+            <div id="ingredientList" class="stack"></div>
+          </div>
+
+          <!-- Instructions -->
+          <div class="section-box">
+            <h3>
+              <span>Instructions</span>
+              <button type="button" class="btn btn-subtle btn-pill" id="addInstructionBtn">+ Add Step</button>
+            </h3>
+            <div id="instructionList" class="stack"></div>
+          </div>
+
+          <!-- Submission Toolbar -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
+            <a class="btn btn-subtle" href="/admin/recipes/">Cancel</a>
+            <button class="btn btn-primary" type="submit" id="submitBtn">Create &amp; Publish to GitHub</button>
+          </div>
+
+          <div id="formStatus" class="status" aria-live="polite"></div>
+        </form>
+      </main>
+    </div>
+
+    <script>
+      // State
+      let images: Array<{
+        url: string;
+        publicId?: string;
+        alt: string;
+        width?: number;
+        height?: number;
+        isPrimary?: boolean;
+      }> = [];
+
+      const csrfInput = document.querySelector('input[name="csrfToken"]') as HTMLInputElement;
+      const csrfToken = csrfInput ? csrfInput.value : '';
+
+      // Elements
+      const dropzone = document.getElementById('imageDropzone')!;
+      const fileInput = document.getElementById('imageFileInput') as HTMLInputElement;
+      const progressEl = document.getElementById('uploadProgress')!;
+      const galleryEl = document.getElementById('galleryContainer')!;
+      const primaryUrlEl = document.getElementById('primaryImageUrl') as HTMLInputElement;
+      const primaryAltEl = document.getElementById('primaryImageAlt') as HTMLInputElement;
+      const titleInput = document.getElementById('titleInput') as HTMLInputElement;
+      const slugInput = document.getElementById('slugInput') as HTMLInputElement;
+      const form = document.getElementById('recipe-form') as HTMLFormElement;
+      const formStatus = document.getElementById('formStatus')!;
+      const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
+
+      // Auto-slugify title
+      titleInput.addEventListener('input', () => {
+        if (!slugInput.dataset.manual) {
+          slugInput.value = titleInput.value
+            .toLowerCase()
+            .trim()
+            .replace(/['’]/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+        }
+      });
+      slugInput.addEventListener('input', () => {
+        slugInput.dataset.manual = 'true';
+      });
+
+      // Gallery Rendering
+      function renderGallery() {
+        galleryEl.innerHTML = '';
+        if (images.length === 0) {
+          return;
+        }
+
+        // Ensure at least one image is primary
+        if (!images.some(img => img.isPrimary) && images.length > 0) {
+          images[0].isPrimary = true;
+        }
+
+        // Sync primary with top inputs
+        const primary = images.find(img => img.isPrimary);
+        if (primary) {
+          primaryUrlEl.value = primary.url;
+          if (primary.alt && primary.alt !== 'Recipe image') {
+            primaryAltEl.value = primary.alt;
+          }
+        }
+
+        images.forEach((img, index) => {
+          const card = document.createElement('div');
+          card.className = `image-card ${img.isPrimary ? 'is-primary' : ''}`;
+          card.innerHTML = `
+            <div class="image-thumb-wrap">
+              <img src="${img.url}" alt="${img.alt}" />
+              ${img.isPrimary ? '<span class="primary-tag">Primary</span>' : ''}
+            </div>
+            <div class="image-card-body">
+              <label style="font-size: 0.8rem; font-weight: 700;">Alt Text:
+                <input type="text" class="img-alt-input" value="${img.alt}" placeholder="Describe image" style="padding: 0.4rem 0.6rem; font-size: 0.85rem;" />
+              </label>
+              <div class="image-card-actions">
+                <div>
+                  <button type="button" class="btn btn-subtle btn-pill move-left-btn" ${index === 0 ? 'disabled' : ''} title="Move Earlier">←</button>
+                  <button type="button" class="btn btn-subtle btn-pill move-right-btn" ${index === images.length - 1 ? 'disabled' : ''} title="Move Later">→</button>
+                </div>
+                <div>
+                  ${!img.isPrimary ? '<button type="button" class="btn btn-subtle btn-pill set-primary-btn" style="color: var(--forest); font-weight: 700;">Set Cover</button>' : ''}
+                  <button type="button" class="btn btn-danger btn-pill remove-img-btn" title="Remove">✕</button>
+                </div>
+              </div>
+            </div>
+          `;
+
+          // Event Listeners for each card
+          const altInput = card.querySelector('.img-alt-input') as HTMLInputElement;
+          altInput.addEventListener('input', () => {
+            img.alt = altInput.value;
+            if (img.isPrimary) primaryAltEl.value = img.alt;
+          });
+
+          const moveLeftBtn = card.querySelector('.move-left-btn');
+          moveLeftBtn?.addEventListener('click', () => {
+            if (index > 0) {
+              const temp = images[index];
+              images[index] = images[index - 1];
+              images[index - 1] = temp;
+              renderGallery();
+            }
+          });
+
+          const moveRightBtn = card.querySelector('.move-right-btn');
+          moveRightBtn?.addEventListener('click', () => {
+            if (index < images.length - 1) {
+              const temp = images[index];
+              images[index] = images[index + 1];
+              images[index + 1] = temp;
+              renderGallery();
+            }
+          });
+
+          const setPrimaryBtn = card.querySelector('.set-primary-btn');
+          setPrimaryBtn?.addEventListener('click', () => {
+            images.forEach(item => item.isPrimary = false);
+            img.isPrimary = true;
+            renderGallery();
+          });
+
+          const removeBtn = card.querySelector('.remove-img-btn');
+          removeBtn?.addEventListener('click', () => {
+            images.splice(index, 1);
+            if (img.isPrimary && images.length > 0) {
+              images[0].isPrimary = true;
+            }
+            renderGallery();
+          });
+
+          galleryEl.appendChild(card);
+        });
+      }
+
+      // Drag and drop & upload logic
+      dropzone.addEventListener('click', () => fileInput.click());
+      dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropzone.classList.add('dragover');
+      });
+      dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+      dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+        if (e.dataTransfer?.files) {
+          uploadFiles(Array.from(e.dataTransfer.files));
+        }
+      });
+
+      fileInput.addEventListener('change', () => {
+        if (fileInput.files) {
+          uploadFiles(Array.from(fileInput.files));
+          fileInput.value = '';
+        }
+      });
+
+      async function uploadFiles(files: File[]) {
+        if (files.length === 0) return;
+        progressEl.style.display = 'block';
+
+        const formData = new FormData();
+        files.forEach(f => formData.append('images', f));
+
+        try {
+          const res = await fetch('/api/admin/images/upload/', {
+            method: 'POST',
+            headers: {
+              'x-csrf-token': csrfToken,
+            },
+            body: formData,
+          });
+
+          const json = await res.json();
+          if (!res.ok) {
+            alert(json.error || 'Failed to upload images to Cloudinary.');
+            return;
+          }
+
+          if (Array.isArray(json.images)) {
+            json.images.forEach((up: any) => {
+              images.push({
+                url: up.url,
+                publicId: up.publicId,
+                alt: up.originalName ? up.originalName.replace(/\.[^/.]+$/, '') : 'Recipe photo',
+                width: up.width,
+                height: up.height,
+                isPrimary: images.length === 0,
+              });
+            });
+            renderGallery();
+          }
+        } catch (err) {
+          alert('Upload failed: ' + (err instanceof Error ? err.message : String(err)));
+        } finally {
+          progressEl.style.display = 'none';
+        }
+      }
+
+      // Ingredients & Instructions builder
+      const ingredientList = document.getElementById('ingredientList')!;
+      const instructionList = document.getElementById('instructionList')!;
+
+      function createIngredientRow(data: any = {}) {
+        const row = document.createElement('div');
+        row.className = 'item-row';
+        row.innerHTML = `
+          <input type="number" step="0.25" placeholder="Qty" value="${data.quantity ?? ''}" class="ing-qty" />
+          <input type="text" placeholder="Unit (cup, lb)" value="${data.unit ?? ''}" class="ing-unit" />
+          <input type="text" placeholder="Ingredient *" value="${data.item ?? ''}" required class="ing-item" />
+          <input type="text" placeholder="Note (diced, etc.)" value="${data.note ?? ''}" class="ing-note" />
+          <button type="button" class="btn btn-danger btn-pill" onclick="this.closest('.item-row').remove()">✕</button>
+        `;
+        return row;
+      }
+
+      function createInstructionRow(data: any = {}) {
+        const row = document.createElement('div');
+        row.className = 'step-row';
+        row.innerHTML = `
+          <input type="text" placeholder="Step title (optional)" value="${data.title ?? ''}" class="step-title" />
+          <input type="text" placeholder="Instruction text *" value="${data.text ?? ''}" required class="step-text" />
+          <button type="button" class="btn btn-danger btn-pill" onclick="this.closest('.step-row').remove()">✕</button>
+        `;
+        return row;
+      }
+
+      document.getElementById('addIngredientBtn')?.addEventListener('click', () => {
+        ingredientList.appendChild(createIngredientRow());
+      });
+      document.getElementById('addInstructionBtn')?.addEventListener('click', () => {
+        instructionList.appendChild(createInstructionRow());
+      });
+
+      // Default rows
+      ingredientList.appendChild(createIngredientRow({ quantity: 2, unit: 'lb', item: 'chicken breast' }));
+      instructionList.appendChild(createInstructionRow({ text: 'Place all ingredients into the slow cooker and cook on low.' }));
+
+      // Form submission
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        submitBtn.disabled = true;
+        formStatus.className = 'status';
+        formStatus.style.display = 'block';
+        formStatus.textContent = 'Publishing recipe to GitHub...';
+
+        const ingredients = Array.from(ingredientList.querySelectorAll('.item-row')).map(row => {
+          const qty = (row.querySelector('.ing-qty') as HTMLInputElement).value;
+          const unit = (row.querySelector('.ing-unit') as HTMLInputElement).value.trim();
+          const item = (row.querySelector('.ing-item') as HTMLInputElement).value.trim();
+          const note = (row.querySelector('.ing-note') as HTMLInputElement).value.trim();
+          if (!item) return null;
+          return {
+            quantity: qty ? parseFloat(qty) : undefined,
+            unit: unit || undefined,
+            item,
+            note: note || undefined,
+          };
+        }).filter(Boolean);
+
+        const instructions = Array.from(instructionList.querySelectorAll('.step-row')).map(row => {
+          const title = (row.querySelector('.step-title') as HTMLInputElement).value.trim();
+          const text = (row.querySelector('.step-text') as HTMLInputElement).value.trim();
+          if (!text) return null;
+          return { title: title || undefined, text };
+        }).filter(Boolean);
+
+        const primaryImg = images.find(img => img.isPrimary);
+        const imageUrl = primaryImg ? primaryImg.url : primaryUrlEl.value.trim();
+        const imageAlt = primaryImg ? primaryImg.alt : primaryAltEl.value.trim();
+
+        const payload = {
+          title: (form.querySelector('[name="title"]') as HTMLInputElement).value.trim(),
+          slug: (form.querySelector('[name="slug"]') as HTMLInputElement).value.trim(),
+          description: (form.querySelector('[name="description"]') as HTMLTextAreaElement).value.trim(),
+          category: (form.querySelector('[name="category"]') as HTMLSelectElement).value,
+          author: (form.querySelector('[name="author"]') as HTMLInputElement).value.trim(),
+          prepMinutes: parseInt((form.querySelector('[name="prepMinutes"]') as HTMLInputElement).value) || 0,
+          cookMinutes: parseInt((form.querySelector('[name="cookMinutes"]') as HTMLInputElement).value) || 0,
+          servings: parseInt((form.querySelector('[name="servings"]') as HTMLInputElement).value) || 1,
+          reviewStatus: (form.querySelector('[name="reviewStatus"]') as HTMLSelectElement).value,
+          tags: (form.querySelector('[name="tags"]') as HTMLInputElement).value.split(',').map(s => s.trim()).filter(Boolean),
+          image: imageUrl,
+          imageAlt: imageAlt,
+          gallery: images,
+          ingredients,
+          instructions,
+        };
+
+        try {
+          const res = await fetch('/api/admin/recipes/', {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              'x-csrf-token': csrfToken,
+            },
+            body: JSON.stringify(payload),
+          });
+
+          const data = await res.json();
+          if (!res.ok) {
+            formStatus.className = 'status error';
+            formStatus.textContent = data.error || 'Failed to save recipe.';
+            submitBtn.disabled = false;
+            return;
+          }
+
+          formStatus.className = 'status success';
+          formStatus.textContent = '✓ Recipe successfully saved to GitHub repository! Redirecting...';
+          setTimeout(() => {
+            window.location.href = '/admin/recipes/';
+          }, 1000);
+        } catch (err) {
+          formStatus.className = 'status error';
+          formStatus.textContent = 'Network error: ' + (err instanceof Error ? err.message : String(err));
+          submitBtn.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

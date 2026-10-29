@@ -9,7 +9,7 @@ import hero from '../assets/hero.svg';
 import { getAllRecipes, popularRecipes, recipesForCategory, recipeUrl, totalMinutes } from '../utils/recipes';
 import { categories } from '../data/categories';
 import { formatMinutes } from '../utils/time';
-import { rw } from '../utils/images';
+import { rw, isRemoteImage, getOptimizedCloudinaryUrl } from '../utils/images';
 import { homeGraph } from '../utils/jsonld';
 
 const all = await getAllRecipes();
@@ -52,7 +52,19 @@ const tips = [
     <section aria-labelledby="featured-heading" class="bg-forest text-cream">
       <div class="container-page grid items-center gap-10 py-14 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16 lg:py-20">
         <a href={recipeUrl(featured)} class="block overflow-hidden rounded-3xl" tabindex="-1" aria-hidden="true">
-          <Image src={featured.data.image} alt="" {...rw(featured.data.image, [480, 720, 960])} sizes="(min-width: 1024px) 40rem, 100vw" loading="lazy" decoding="async" class="aspect-[4/3] w-full object-cover" />
+          {isRemoteImage(featured.data.image) ? (
+            <img
+              src={getOptimizedCloudinaryUrl(featured.data.image, 960)}
+              srcset={`${getOptimizedCloudinaryUrl(featured.data.image, 480)} 480w, ${getOptimizedCloudinaryUrl(featured.data.image, 720)} 720w, ${getOptimizedCloudinaryUrl(featured.data.image, 960)} 960w`}
+              sizes="(min-width: 1024px) 40rem, 100vw"
+              alt=""
+              loading="lazy"
+              decoding="async"
+              class="aspect-[4/3] w-full object-cover"
+            />
+          ) : (
+            <Image src={featured.data.image as any} alt="" {...rw(featured.data.image as any, [480, 720, 960])} sizes="(min-width: 1024px) 40rem, 100vw" loading="lazy" decoding="async" class="aspect-[4/3] w-full object-cover" />
+          )}
         </a>
         <div>
           <p class="text-[0.97rem] font-semibold text-[#F0B79F]">Featured recipe</p>

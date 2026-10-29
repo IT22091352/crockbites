@@ -1,0 +1,212 @@
+---
+export const prerender = false;
+
+import { getCollection } from 'astro:content';
+import { ADMIN_COOKIE_NAME, CSRF_COOKIE_NAME, createCsrfToken, getAdminSessionSecret, parseAdminSessionCookie, verifySessionCookie } from '../../../lib/admin';
+
+const adminCookie = Astro.cookies.get(ADMIN_COOKIE_NAME)?.value ?? '';
+const session = parseAdminSessionCookie(adminCookie);
+const secret = getAdminSessionSecret();
+
+if (!secret || !session || !verifySessionCookie(adminCookie, secret)) {
+  Astro.cookies.delete(ADMIN_COOKIE_NAME, { path: '/' });
+  Astro.cookies.delete(CSRF_COOKIE_NAME, { path: '/' });
+  return Astro.redirect('/admin/login/?error=Session+expired');
+}
+
+const recipes = await getCollection('recipes');
+const csrfToken = createCsrfToken(secret, session.id);
+const isHttps = Astro.url.protocol === 'https:';
+Astro.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
+  httpOnly: false,
+  sameSite: 'lax',
+  secure: isHttps,
+  path: '/',
+  maxAge: 60 * 60 * 12,
+});
+---
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Manage Recipes | CrockBites Admin</title>
+    <style>
+      :root { --forest: #243A2D; --cream: #F7F1E5; --terracotta: #C66A45; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--cream); color: var(--forest); font-family: system-ui, sans-serif; }
+      .layout { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+      .sidebar { background: var(--forest); color: white; padding: 1.4rem 1rem; }
+      .nav { display: grid; gap: 0.5rem; margin-top: 1.5rem; }
+      .nav a { color: rgba(255,255,255,0.9); text-decoration: none; display: block; padding: 0.8rem 0.75rem; border-radius: 10px; }
+      .nav a.active { background: rgba(255,255,255,0.08); }
+      .main { padding: 1.5rem; }
+      .top { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+      .card { background: rgba(255,255,255,0.82); border: 1px solid rgba(36,58,45,0.08); border-radius: 16px; padding: 1rem; }
+      .toolbar { display:flex; gap:0.75rem; flex-wrap:wrap; margin-bottom:1rem; }
+      .controls { display:flex; gap:0.75rem; flex-wrap:wrap; }
+      input, select { padding:0.75rem 0.85rem; border:1px solid rgba(36,58,45,0.18); border-radius:10px; font:inherit; }
+      table { width:100%; border-collapse: collapse; }
+      th, td { padding:0.8rem 0.7rem; border-bottom:1px solid rgba(36,58,45,0.08); text-align:left; }
+      .btn { border: none; border-radius: 10px; padding: 0.7rem 0.9rem; font-weight: 700; text-decoration: none; display: inline-block; cursor: pointer; }
+      .btn-primary { background: var(--forest); color: white; }
+      .btn-subtle { background: rgba(36,58,45,0.08); color: var(--forest); }
+      .btn-danger { background: rgba(198,106,69,0.12); color: var(--terracotta); }
+      .tag { background: rgba(198,106,69,0.12); color: var(--forest); border-radius: 999px; padding: 0.25rem 0.55rem; font-size: 0.72rem; font-weight: 700; }
+      .empty { padding:1rem; color: rgba(36,58,45,0.7); }
+      @media (max-width: 780px) { .layout { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <div style="font-weight:800;">CrockBites Admin</div>
+        <nav class="nav">
+          <a href="/admin/">Overview</a>
+          <a class="active" href="/admin/recipes/">Recipes</a>
+          <a href="/admin/recipes/new/">New Recipe</a>
+          <a href="/admin/settings/">Settings</a>
+        </nav>
+      </aside>
+
+      <main class="main">
+        <div class="top">
+          <div>
+            <p style="margin:0 0 0.3rem; text-transform:uppercase; letter-spacing:0.08em; opacity:0.7; font-size:0.8rem;">Content</p>
+            <h1 style="margin:0;">Recipe management</h1>
+          </div>
+          <a class="btn btn-primary" href="/admin/recipes/new/">Create recipe</a>
+        </div>
+
+        <div class="card">
+          <div class="toolbar">
+            <div class="controls">
+              <input id="searchInput" type="search" placeholder="Search recipes" aria-label="Search recipes" />
+              <select id="categoryFilter" aria-label="Filter by category">
+                <option value="all">All categories</option>
+                <option value="slow-cooker-chicken">Slow Cooker Chicken</option>
+                <option value="beef-pork">Beef &amp; Pork</option>
+                <option value="soups-stews">Soups &amp; Stews</option>
+                <option value="easy-dinners">Easy Dinners</option>
+                <option value="breakfast">Breakfast</option>
+                <option value="vegetarian">Vegetarian</option>
+                <option value="desserts-baking">Desserts &amp; Baking</option>
+              </select>
+              <select id="statusFilter" aria-label="Filter by status">
+                <option value="all">All status</option>
+                <option value="draft">Draft</option>
+                <option value="tested">Published</option>
+              </select>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Status</th>
+                <th>Category</th>
+                <th>Updated</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="recipeTableBody">
+              {recipes.map((recipe) => (
+                <tr data-title={recipe.data.title.toLowerCase()} data-category={recipe.data.category} data-status={recipe.data.reviewStatus}>
+                  <td><strong>{recipe.data.title}</strong></td>
+                  <td><span class="tag">{recipe.data.reviewStatus}</span></td>
+                  <td>{recipe.data.category}</td>
+                  <td>{recipe.data.updatedDate ? new Date(recipe.data.updatedDate).toLocaleDateString() : new Date(recipe.data.pubDate).toLocaleDateString()}</td>
+                  <td>
+                    <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                      <a class="btn btn-subtle" href={`/recipe/${recipe.id.replace(/\.md$/, '')}/`}>View</a>
+                      <a class="btn btn-subtle" href={`/admin/recipes/${recipe.id.replace(/\.md$/, '')}/`}>Edit</a>
+                      <button class="btn btn-danger" type="button" data-delete={recipe.id.replace(/\.md$/, '')}>Delete</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div id="emptyState" class="empty" hidden>No recipes match the current filters.</div>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      const tableBody = document.getElementById('recipeTableBody') as HTMLTableSectionElement | null;
+      const searchInput = document.getElementById('searchInput') as HTMLInputElement | null;
+      const categoryFilter = document.getElementById('categoryFilter') as HTMLSelectElement | null;
+      const statusFilter = document.getElementById('statusFilter') as HTMLSelectElement | null;
+      const emptyState = document.getElementById('emptyState') as HTMLDivElement | null;
+      const csrfToken = document.cookie
+        .split('; ')
+        .find((entry) => entry.startsWith('crockbites_admin_csrf='))
+        ?.split('=')[1] ?? '';
+
+      if (!tableBody || !searchInput || !categoryFilter || !statusFilter || !emptyState) {
+        throw new Error('Admin recipe table is missing.');
+      }
+
+      const safeTableBody = tableBody;
+      const safeSearchInput = searchInput;
+      const safeCategoryFilter = categoryFilter;
+      const safeStatusFilter = statusFilter;
+      const safeEmptyState = emptyState;
+
+      function applyFilters() {
+        const query = safeSearchInput.value.trim().toLowerCase();
+        const category = safeCategoryFilter.value;
+        const status = safeStatusFilter.value;
+        const rows = Array.from(safeTableBody.querySelectorAll('tr'));
+        let visible = 0;
+
+        rows.forEach((row) => {
+          const title = row.dataset.title || '';
+          const rowCategory = row.dataset.category || '';
+          const rowStatus = row.dataset.status || '';
+          const matchText = !query || title.includes(query);
+          const matchCategory = category === 'all' || rowCategory === category;
+          const matchStatus = status === 'all' || rowStatus === status;
+          const visibleRow = matchText && matchCategory && matchStatus;
+          row.hidden = !visibleRow;
+          if (visibleRow) visible += 1;
+        });
+
+        safeEmptyState.hidden = visible !== 0;
+      }
+
+      safeSearchInput.addEventListener('input', applyFilters);
+      safeCategoryFilter.addEventListener('change', applyFilters);
+      safeStatusFilter.addEventListener('change', applyFilters);
+
+      safeTableBody.querySelectorAll('[data-delete]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const slug = (button as HTMLElement).dataset.delete;
+          const confirmed = window.confirm('Delete this recipe? This cannot be undone.');
+          if (!confirmed || !slug) return;
+
+          try {
+            const response = await fetch(`/api/admin/recipes/${slug}/`, {
+              method: 'DELETE',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-csrf-token': csrfToken,
+              },
+            });
+
+            if (!response.ok) {
+              const data = await response.json().catch(() => ({}));
+              throw new Error(data.error || 'Delete failed.');
+            }
+
+            const row = (button as HTMLElement).closest('tr');
+            row?.remove();
+            applyFilters();
+          } catch (error) {
+            window.alert(error instanceof Error ? error.message : 'Delete failed.');
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

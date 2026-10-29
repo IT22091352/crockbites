@@ -1,7 +1,9 @@
 const { JSDOM } = require('jsdom');
 const fs = require('fs');
+const DIST_ROOT = fs.existsSync('dist/client') ? 'dist/client' : 'dist';
 function load(file, url) {
-  const html = fs.readFileSync(file, 'utf8');
+  const relativePath = file.replace(/^dist\/?/, '').replace(/^\//, '');
+  const html = fs.readFileSync(`${DIST_ROOT}/${relativePath}`, 'utf8');
   const dom = new JSDOM(html, { url, runScripts: 'outside-only', pretendToBeVisual: true });
   dom.window.print = () => { dom.window.__printed = true; };
   dom.window.matchMedia = dom.window.matchMedia || (() => ({ addEventListener() {}, matches: false }));
@@ -36,7 +38,7 @@ ok(d.querySelectorAll('.check-row input[type=checkbox]').length === 15, 'ingredi
 ok(d.querySelectorAll('ol > li[id^=step-]').length === 7, '7 numbered steps');
 
 // ---- Mobile menu ----
-const menu = d.getElementById('mobile-menu'), open = d.getElementById('menu-open'), close = d.getElementById('menu-close');
+const menu = d.getElementById('mobile-menu'), open = d.getElementById('menu-open');
 open.click(); ok(!menu.classList.contains('hidden') && open.getAttribute('aria-expanded') === 'true', 'menu opens');
 menu.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 ok(menu.classList.contains('hidden') && open.getAttribute('aria-expanded') === 'false', 'Escape closes menu');
@@ -48,8 +50,8 @@ function search(q, cat = '') {
   return { n: doc.querySelectorAll('#search-results li').length, empty: !doc.getElementById('search-empty').hidden,
            status: doc.getElementById('search-status').textContent, titles: [...doc.querySelectorAll('#search-results h3')].map((h) => h.textContent), doc, win: s.window };
 }
-let r = search(''); ok(r.n === 8, 'empty query lists all 8: ' + r.status);
-r = search('chicken'); ok(r.n === 3, `"chicken" => ${r.n} (${r.titles.join('; ')})`);
+let r = search(''); ok(r.n === 9, 'empty query lists all 9: ' + r.status);
+r = search('chicken'); ok(r.n === 4, `"chicken" => ${r.n} (${r.titles.join('; ')})`);
 r = search('soup'); ok(r.n === 4, `"soup" => ${r.n} ${r.titles.join('; ')}`);
 r = search('gravy'); ok(r.n === 2, `"gravy" => ${r.titles}`);
 r = search('pork', 'beef-pork'); ok(r.n === 1, '"pork" in Beef & Pork => 1');

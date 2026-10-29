@@ -20,6 +20,15 @@ const ingredient = z.object({
   scale: z.boolean().default(true),
 });
 
+const recipeImage = z.object({
+  url: z.string(),
+  publicId: z.string().optional(),
+  alt: z.string(),
+  width: z.number().optional(),
+  height: z.number().optional(),
+  isPrimary: z.boolean().default(false),
+});
+
 const recipes = defineCollection({
   loader: glob({ pattern: '**/*.md', base: './src/content/recipes' }),
   schema: ({ image }) =>
@@ -33,8 +42,9 @@ const recipes = defineCollection({
         'breakfast', 'vegetarian', 'desserts-baking',
       ]),
       tags: z.array(z.string()).default([]),
-      image: image(),
+      image: z.union([image(), z.string()]),
       imageAlt: z.string(),
+      gallery: z.array(recipeImage).default([]),
       author: z.string().default('CrockBites'),
       pubDate: z.coerce.date(),
       updatedDate: z.coerce.date().optional(),

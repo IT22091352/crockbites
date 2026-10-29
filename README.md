@@ -19,6 +19,57 @@ npm run check      # TypeScript / Astro diagnostics
 npm run verify     # check + build + link/SEO crawl + DOM smoke tests
 ```
 
+## Admin dashboard and secure setup
+
+The project includes a protected `/admin` area for recipe operations. The public site remains static and Markdown-driven, while admin auth and publishing are server-side only.
+
+Required runtime secrets for production (Cloudflare Pages project settings or local `.env`):
+
+```bash
+ADMIN_USERNAME=your-admin-username
+ADMIN_PASSWORD_HASH="scrypt$<salt>$<hexhash>"
+ADMIN_SESSION_SECRET="generate a 32+ byte random secret"
+ADMIN_GITHUB_TOKEN="ghp_xxx or fine-grained PAT with repo contents:write"
+ADMIN_GITHUB_OWNER=IT22091352
+ADMIN_GITHUB_REPO=crockbites
+ADMIN_GITHUB_BRANCH=main
+
+# Cloudinary image management
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-cloudinary-api-key
+CLOUDINARY_API_SECRET=your-cloudinary-api-secret
+```
+
+Generate a secure password hash locally:
+
+```bash
+node -e "const { scryptSync, randomBytes } = require('node:crypto'); const pw = 'replace-with-a-strong-password'; const salt = randomBytes(16).toString('hex'); const hash = scryptSync(pw, salt, 64).toString('hex'); console.log('scrypt$' + salt + '$' + hash);"
+```
+
+Generate a session secret:
+
+```bash
+node -e "const { randomBytes } = require('node:crypto'); console.log(randomBytes(32).toString('hex'));"
+```
+
+Local admin testing:
+
+```bash
+npm install
+npm run dev
+```
+
+Then open `http://localhost:4321/admin/login` and sign in with the runtime values above. The login requires a valid session cookie and CSRF token. No default admin credentials are included in the repository.
+
+Cloudflare Pages / GitHub setup:
+
+1. Add the same secrets in your Cloudflare Pages project environment.
+2. Use a GitHub token with repository contents read/write access only to the `IT22091352/crockbites` repo.
+3. Keep the token server-side only; never expose it in browser code or frontend bundles.
+4. Trigger deployments via the normal Cloudflare Pages build after a successful GitHub write.
+
+Important: live GitHub and Cloudflare credentials are external configuration, not something the project can invent locally.
+
 ## What is included
 
 | Area | Where |

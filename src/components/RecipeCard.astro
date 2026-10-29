@@ -3,7 +3,7 @@ import { Image } from 'astro:assets';
 import { Clock } from '@lucide/astro';
 import { categoryById, recipeUrl, totalMinutes, type Recipe } from '../utils/recipes';
 import { formatMinutes } from '../utils/time';
-import { rw } from '../utils/images';
+import { rw, isRemoteImage, getOptimizedCloudinaryUrl } from '../utils/images';
 
 interface Props {
   recipe: Recipe;
@@ -16,13 +16,29 @@ const { recipe, eager = false, layout = 'card' } = Astro.props;
 const d = recipe.data;
 const cat = categoryById(d.category);
 const isDraft = d.reviewStatus === 'draft';
+const isRemote = isRemoteImage(d.image);
+const imageUrl = typeof d.image === 'string' ? d.image : d.image.src;
 ---
 {layout === 'card' ? (
   <article class="recipe-card card h-full">
     <a href={recipeUrl(recipe)} class="recipe-card-link group">
       <div class="relative overflow-hidden">
-        <Image src={d.image} alt={d.imageAlt} {...rw(d.image, [360, 540, 720])} sizes="(min-width: 1024px) 24rem, (min-width: 640px) 45vw, 92vw"
-          loading={eager ? 'eager' : 'lazy'} decoding="async" class="aspect-[4/3] w-full object-cover" />
+        {isRemote ? (
+          <img
+            src={getOptimizedCloudinaryUrl(imageUrl, 720)}
+            srcset={`${getOptimizedCloudinaryUrl(imageUrl, 360)} 360w, ${getOptimizedCloudinaryUrl(imageUrl, 540)} 540w, ${getOptimizedCloudinaryUrl(imageUrl, 720)} 720w`}
+            sizes="(min-width: 1024px) 24rem, (min-width: 640px) 45vw, 92vw"
+            alt={d.imageAlt}
+            width={720}
+            height={540}
+            loading={eager ? 'eager' : 'lazy'}
+            decoding="async"
+            class="aspect-[4/3] w-full object-cover"
+          />
+        ) : (
+          <Image src={d.image as any} alt={d.imageAlt} {...rw(d.image as any, [360, 540, 720])} sizes="(min-width: 1024px) 24rem, (min-width: 640px) 45vw, 92vw"
+            loading={eager ? 'eager' : 'lazy'} decoding="async" class="aspect-[4/3] w-full object-cover" />
+        )}
         {isDraft && <span class="absolute left-3 top-3 rounded-full bg-paper/95 px-2.5 py-0.5 text-xs font-bold text-ink">Draft</span>}
       </div>
       <div class="p-5">
@@ -37,8 +53,22 @@ const isDraft = d.reviewStatus === 'draft';
   <article class="recipe-card group border-b border-line py-5 first:pt-0 last:border-b-0">
     <a href={recipeUrl(recipe)} class="recipe-card-link grid grid-cols-[6.5rem_1fr] items-center gap-4 sm:grid-cols-[9rem_1fr] sm:gap-6">
       <div class="overflow-hidden rounded-xl">
-        <Image src={d.image} alt={d.imageAlt} {...rw(d.image, [216, 288, 432])} sizes="(min-width: 640px) 9rem, 6.5rem"
-          loading={eager ? 'eager' : 'lazy'} decoding="async" class="aspect-[4/3] w-full object-cover" />
+        {isRemote ? (
+          <img
+            src={getOptimizedCloudinaryUrl(imageUrl, 432)}
+            srcset={`${getOptimizedCloudinaryUrl(imageUrl, 216)} 216w, ${getOptimizedCloudinaryUrl(imageUrl, 288)} 288w, ${getOptimizedCloudinaryUrl(imageUrl, 432)} 432w`}
+            sizes="(min-width: 640px) 9rem, 6.5rem"
+            alt={d.imageAlt}
+            width={288}
+            height={216}
+            loading={eager ? 'eager' : 'lazy'}
+            decoding="async"
+            class="aspect-[4/3] w-full object-cover"
+          />
+        ) : (
+          <Image src={d.image as any} alt={d.imageAlt} {...rw(d.image as any, [216, 288, 432])} sizes="(min-width: 640px) 9rem, 6.5rem"
+            loading={eager ? 'eager' : 'lazy'} decoding="async" class="aspect-[4/3] w-full object-cover" />
+        )}
       </div>
       <div>
         <p class="text-sm font-semibold text-terracotta-deep">{cat?.name}{isDraft && <span class="ml-2 rounded-full border border-line px-2 py-0.5 text-xs font-bold text-ink-soft">Draft</span>}</p>

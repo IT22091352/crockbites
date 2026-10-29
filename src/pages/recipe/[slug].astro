@@ -16,15 +16,23 @@ const { recipe, related } = Astro.props;
 const { Content } = await render(recipe);
 const d = recipe.data;
 const cat = categoryById(d.category)!;
+
 // Social/structured-data image: a 1200px-wide, absolute URL.
-const og = await getImage({ src: d.image, width: 1200 });
+let ogSrc: string;
+if (typeof d.image === 'string' && (d.image.startsWith('http://') || d.image.startsWith('https://'))) {
+  ogSrc = d.image;
+} else {
+  const og = await getImage({ src: d.image as any, width: 1200 });
+  ogSrc = og.src;
+}
+
 const path = recipeUrl(recipe);
 const jsonLd = [
-  recipeSchema(recipe, new URL(og.src, Astro.site).href, cat.name),
+  recipeSchema(recipe, new URL(ogSrc, Astro.site).href, cat.name),
   breadcrumbSchema([{ name: 'Home', url: '/' }, { name: 'Recipes', url: '/recipes/' }, { name: cat.name, url: `/category/${cat.id}/` }, { name: d.title, url: path }]),
 ];
 ---
-<BaseLayout title={d.title} description={d.description} path={path} image={og.src} imageAlt={d.imageAlt} type="article"
+<BaseLayout title={d.title} description={d.description} path={path} image={ogSrc} imageAlt={d.imageAlt} type="article"
   noindex={!isIndexable(recipe)} publishedTime={d.pubDate.toISOString()} modifiedTime={(d.updatedDate ?? d.pubDate).toISOString()} jsonLd={jsonLd}>
   <RecipeDetail recipe={recipe} related={related}>
     <Content slot="intro" />

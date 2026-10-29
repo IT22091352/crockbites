@@ -9,11 +9,17 @@ import { toJsonLd } from '../utils/jsonld';
 
 const all = await getAllRecipes();
 const index = await Promise.all(all.map(async (r) => {
-  const img = await getImage({ src: r.data.image, width: 360 });
+  let imgSrc = '';
+  if (typeof r.data.image === 'string' && (r.data.image.startsWith('http://') || r.data.image.startsWith('https://'))) {
+    imgSrc = r.data.image;
+  } else {
+    const img = await getImage({ src: r.data.image as any, width: 360 });
+    imgSrc = img.src;
+  }
   return {
     title: r.data.title, description: r.data.description, category: r.data.category,
     categoryName: categoryById(r.data.category)?.name ?? '', tags: r.data.tags,
-    url: recipeUrl(r), image: img.src, imageAlt: r.data.imageAlt, time: formatMinutes(totalMinutes(r)),
+    url: recipeUrl(r), image: imgSrc, imageAlt: r.data.imageAlt, time: formatMinutes(totalMinutes(r)),
     draft: r.data.reviewStatus === 'draft',
   };
 }));

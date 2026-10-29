@@ -2,7 +2,8 @@
 """Crawl dist/ and verify every internal href/src/srcset resolves to a built file, plus basic SEO sanity checks."""
 import os, re, sys, json, html
 from urllib.parse import urlparse, unquote
-ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'dist')
+DIST_BASE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'dist')
+ROOT = os.path.join(DIST_BASE, 'client') if os.path.isdir(os.path.join(DIST_BASE, 'client')) else DIST_BASE
 pages = []
 for d, _, fs in os.walk(ROOT):
     for f in fs:

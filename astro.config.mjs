@@ -1,11 +1,12 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
+import cloudflare from '@astrojs/cloudflare';
 import tailwindcss from '@tailwindcss/vite';
 
-// Static output: works on Cloudflare Pages (free plan) with no adapter, server or database.
 export default defineConfig({
   site: 'https://crockbites.com',
   output: 'static',
+  adapter: cloudflare(),
   trailingSlash: 'always',
   build: { format: 'directory' },
   prefetch: { prefetchAll: false, defaultStrategy: 'hover' },
