@@ -28,3 +28,4 @@ if (fs.existsSync(distServer) && fs.existsSync(distClient)) {
 
   console.log('✓ Successfully bundled Cloudflare Pages _worker.js into dist/client/');
 }
+
