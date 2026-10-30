@@ -103,5 +103,3 @@ instructions:
 featured: false
 reviewStatus: tested
 ---
-
-A traditional Sri Lankan pol sambol made with freshly grated coconut, red onions, chili, lime, and Maldive fish. A spicy and tangy side dish full of authentic island flavour.
