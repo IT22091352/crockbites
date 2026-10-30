@@ -20,7 +20,9 @@
     "test:dom": "node tests/dom-smoke.test.cjs",
     "test:auth": "node --experimental-strip-types tests/auth-security.test.mjs",
     "test:recipe": "node --experimental-strip-types tests/recipe-and-cloudinary.test.mjs",
-    "test:units": "node --experimental-strip-types tests/cooking-units.test.mjs"
+    "test:units": "node --experimental-strip-types tests/cooking-units.test.mjs",
+    "test:dietary": "node --experimental-strip-types tests/dietary-and-allergens.test.mjs",
+    "test": "npm run test:auth && npm run test:recipe && npm run test:units && npm run test:dietary && npm run test:dom"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.4.2",

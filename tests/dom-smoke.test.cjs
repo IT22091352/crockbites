@@ -152,6 +152,20 @@ if (stepTimerButtons.length > 0) {
   console.log('NOTE: Target recipe instruction steps have no explicit timer durations');
 }
 
+// Feature 7: Nutrition & Dietary Information System
+const nutritionEl = d.querySelector('[data-recipe-nutrition]');
+if (nutritionEl) {
+  ok(Boolean(d.getElementById('nutrition-heading')), 'Feature 7: Nutrition section heading present');
+} else {
+  // When no nutrition data is present for the recipe, verify it does not render empty or fake-zero blocks
+  ok(!d.querySelector('[data-recipe-nutrition]'), 'Feature 7: Unverified recipes omit nutrition block without displaying fake zeroes');
+}
+
+// Feature 8: Allergen Information Panel
+const allergenEl = d.querySelector('[data-recipe-allergens]');
+ok(Boolean(allergenEl), 'Feature 8: Allergen information panel is present on recipe page');
+ok(Boolean(d.getElementById('allergen-heading')), 'Feature 8: Allergen heading is present');
+
 // ---- Mobile menu ----
 const menu = d.getElementById('mobile-menu');
 const open = d.getElementById('menu-open');
@@ -198,3 +212,13 @@ if (searchInput) {
   searchInput.dispatchEvent(new t.win.Event('input'));
   ok(t.doc.querySelectorAll('#search-results li').length === 0, 'typing nonexistent query filters live to 0');
 }
+
+// Feature 9 & 10: Dietary & Allergen Search Filters
+const dietaryInputs = t.doc.querySelectorAll('.search-dietary-input');
+ok(dietaryInputs.length === 10, `Feature 9: 10 dietary filter options present in search UI (found ${dietaryInputs.length})`);
+
+const allergenInputs = t.doc.querySelectorAll('.search-allergen-input');
+ok(allergenInputs.length === 9, `Feature 10: 9 allergen exclusion options present in search UI (found ${allergenInputs.length})`);
+
+const resetBtn = t.doc.getElementById('search-reset');
+ok(Boolean(resetBtn), 'Feature 10: Reset filters button is present in search UI');

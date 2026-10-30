@@ -60,8 +60,12 @@ export function recipeSchema(recipe: Recipe, imageUrl: string, categoryName: str
           ...(n.proteinGrams != null ? { proteinContent: `${n.proteinGrams} g` } : {}),
           ...(n.carbsGrams != null ? { carbohydrateContent: `${n.carbsGrams} g` } : {}),
           ...(n.fatGrams != null ? { fatContent: `${n.fatGrams} g` } : {}),
+          ...(n.saturatedFatGrams != null ? { saturatedFatContent: `${n.saturatedFatGrams} g` } : {}),
+          ...(n.unsaturatedFatGrams != null ? { unsaturatedFatContent: `${n.unsaturatedFatGrams} g` } : {}),
           ...(n.fiberGrams != null ? { fiberContent: `${n.fiberGrams} g` } : {}),
+          ...(n.sugarGrams != null ? { sugarContent: `${n.sugarGrams} g` } : {}),
           ...(n.sodiumMilligrams != null ? { sodiumContent: `${n.sodiumMilligrams} mg` } : {}),
+          ...(n.cholesterolMilligrams != null ? { cholesterolContent: `${n.cholesterolMilligrams} mg` } : {}),
         },
       }
     : {};

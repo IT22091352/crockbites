@@ -65,6 +65,12 @@ const initialRecipe = {
   reviewStatus: recipe.data.reviewStatus,
   ingredients: recipe.data.ingredients,
   instructions: recipe.data.instructions,
+  nutrition: recipe.data.nutrition,
+  dietaryLabels: recipe.data.dietaryLabels || [],
+  dietaryVerified: Boolean(recipe.data.dietaryVerified),
+  allergens: recipe.data.allergens || [],
+  allergenReviewed: Boolean(recipe.data.allergenReviewed),
+  allergenNotes: recipe.data.allergenNotes || '',
 };
 ---
 <html lang="en">
@@ -293,6 +299,174 @@ const initialRecipe = {
               <button type="button" class="btn btn-subtle btn-pill" id="addInstructionBtn">+ Add Step</button>
             </h3>
             <div id="instructionList" class="stack"></div>
+          </div>
+
+          <!-- Nutrition Information -->
+          <div class="section-box">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
+              <h3 style="margin: 0;">Nutrition &amp; Dietary (Optional)</h3>
+              <span class="hint" style="font-weight: 600;">Per Serving &bull; Leave blank if unverified</span>
+            </div>
+            <p class="hint" style="margin-top: 0; margin-bottom: 1rem;">
+              Provide verified laboratory or USDA values. Unfilled fields will not display zeroes.
+            </p>
+            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem;">
+              <label>
+                Calories (kcal)
+                <input type="number" step="any" min="0" name="nutrition_calories" value={initialRecipe.nutrition?.calories ?? ''} placeholder="385" />
+              </label>
+              <label>
+                Protein (g)
+                <input type="number" step="any" min="0" name="nutrition_proteinGrams" value={initialRecipe.nutrition?.proteinGrams ?? ''} placeholder="34" />
+              </label>
+              <label>
+                Carbs (g)
+                <input type="number" step="any" min="0" name="nutrition_carbsGrams" value={initialRecipe.nutrition?.carbsGrams ?? ''} placeholder="12.5" />
+              </label>
+              <label>
+                Total Fat (g)
+                <input type="number" step="any" min="0" name="nutrition_fatGrams" value={initialRecipe.nutrition?.fatGrams ?? ''} placeholder="16" />
+              </label>
+              <label>
+                Sat. Fat (g)
+                <input type="number" step="any" min="0" name="nutrition_saturatedFatGrams" value={initialRecipe.nutrition?.saturatedFatGrams ?? ''} placeholder="4.5" />
+              </label>
+              <label>
+                Unsat. Fat (g)
+                <input type="number" step="any" min="0" name="nutrition_unsaturatedFatGrams" value={initialRecipe.nutrition?.unsaturatedFatGrams ?? ''} placeholder="8" />
+              </label>
+              <label>
+                Fiber (g)
+                <input type="number" step="any" min="0" name="nutrition_fiberGrams" value={initialRecipe.nutrition?.fiberGrams ?? ''} placeholder="3" />
+              </label>
+              <label>
+                Sugars (g)
+                <input type="number" step="any" min="0" name="nutrition_sugarGrams" value={initialRecipe.nutrition?.sugarGrams ?? ''} placeholder="5" />
+              </label>
+              <label>
+                Sodium (mg)
+                <input type="number" step="any" min="0" name="nutrition_sodiumMilligrams" value={initialRecipe.nutrition?.sodiumMilligrams ?? ''} placeholder="640" />
+              </label>
+              <label>
+                Cholesterol (mg)
+                <input type="number" step="any" min="0" name="nutrition_cholesterolMilligrams" value={initialRecipe.nutrition?.cholesterolMilligrams ?? ''} placeholder="85" />
+              </label>
+            </div>
+            <div class="grid" style="grid-template-columns: 2fr 1fr; gap: 0.75rem; margin-top: 0.75rem;">
+              <label>
+                Data Source / Reference
+                <input type="text" name="nutrition_source" value={initialRecipe.nutrition?.source ?? ''} placeholder="e.g. USDA FoodData Central #171057" />
+              </label>
+              <label>
+                Verification Date
+                <input type="date" name="nutrition_verifiedDate" value={initialRecipe.nutrition?.verifiedDate ?? ''} />
+              </label>
+            </div>
+          </div>
+
+          <!-- Dietary Labels -->
+          <div class="section-box">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
+              <h3 style="margin: 0;">Dietary Labels</h3>
+              <span class="hint" style="font-weight: 600;">Multi-select &bull; Verification required for public display</span>
+            </div>
+            <p class="hint" style="margin-top: 0; margin-bottom: 0.75rem;">
+              Select all dietary styles that suit this recipe. Labels will remain hidden from the public until verified.
+            </p>
+            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.5rem;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+                <input type="checkbox" name="dietaryLabels" value="vegetarian" checked={initialRecipe.dietaryLabels?.includes('vegetarian')} /> Vegetarian
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+                <input type="checkbox" name="dietaryLabels" value="vegan" checked={initialRecipe.dietaryLabels?.includes('vegan')} /> Vegan
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+                <input type="checkbox" name="dietaryLabels" value="gluten-free" checked={initialRecipe.dietaryLabels?.includes('gluten-free')} /> Gluten-Free
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+                <input type="checkbox" name="dietaryLabels" value="dairy-free" checked={initialRecipe.dietaryLabels?.includes('dairy-free')} /> Dairy-Free
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+                <input type="checkbox" name="dietaryLabels" value="nut-free" checked={initialRecipe.dietaryLabels?.includes('nut-free')} /> Nut-Free
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+                <input type="checkbox" name="dietaryLabels" value="low-carb" checked={initialRecipe.dietaryLabels?.includes('low-carb')} /> Low-Carb
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+                <input type="checkbox" name="dietaryLabels" value="keto-friendly" checked={initialRecipe.dietaryLabels?.includes('keto-friendly')} /> Keto-Friendly
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+                <input type="checkbox" name="dietaryLabels" value="high-protein" checked={initialRecipe.dietaryLabels?.includes('high-protein')} /> High-Protein
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+                <input type="checkbox" name="dietaryLabels" value="low-sodium" checked={initialRecipe.dietaryLabels?.includes('low-sodium')} /> Low-Sodium
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+                <input type="checkbox" name="dietaryLabels" value="pescatarian" checked={initialRecipe.dietaryLabels?.includes('pescatarian')} /> Pescatarian
+              </label>
+            </div>
+            <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--line);">
+              <label style="display: flex; align-items: center; gap: 0.6rem; font-weight: 600; cursor: pointer; color: var(--forest);">
+                <input type="checkbox" name="dietaryVerified" id="dietaryVerifiedInput" checked={initialRecipe.dietaryVerified} />
+                I have reviewed the ingredients and verified these dietary claims.
+              </label>
+              <p class="hint" style="margin: 0.25rem 0 0 1.6rem; font-size: 0.8rem;">
+                When unchecked, labels are saved in the CMS but hidden from public recipe pages and search filters.
+              </p>
+            </div>
+          </div>
+
+          <!-- Allergen Information -->
+          <div class="section-box">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
+              <h3 style="margin: 0;">FDA Big 9 Allergen Declaration</h3>
+              <span class="hint" style="font-weight: 600;">Check all allergens contained in recipe</span>
+            </div>
+            <p class="hint" style="margin-top: 0; margin-bottom: 0.75rem;">
+              Mark allergens present in any ingredient (including hidden packaged sauces or stocks).
+            </p>
+            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.5rem;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+                <input type="checkbox" name="allergens" value="milk" checked={initialRecipe.allergens?.includes('milk')} /> Milk
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+                <input type="checkbox" name="allergens" value="eggs" checked={initialRecipe.allergens?.includes('eggs')} /> Eggs
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+                <input type="checkbox" name="allergens" value="fish" checked={initialRecipe.allergens?.includes('fish')} /> Fish
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+                <input type="checkbox" name="allergens" value="crustacean-shellfish" checked={initialRecipe.allergens?.includes('crustacean-shellfish')} /> Crustacean Shellfish
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+                <input type="checkbox" name="allergens" value="tree-nuts" checked={initialRecipe.allergens?.includes('tree-nuts')} /> Tree Nuts
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+                <input type="checkbox" name="allergens" value="peanuts" checked={initialRecipe.allergens?.includes('peanuts')} /> Peanuts
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+                <input type="checkbox" name="allergens" value="wheat" checked={initialRecipe.allergens?.includes('wheat')} /> Wheat
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+                <input type="checkbox" name="allergens" value="soybeans" checked={initialRecipe.allergens?.includes('soybeans')} /> Soybeans
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
+                <input type="checkbox" name="allergens" value="sesame" checked={initialRecipe.allergens?.includes('sesame')} /> Sesame
+              </label>
+            </div>
+            <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--line);">
+              <label style="display: flex; align-items: center; gap: 0.6rem; font-weight: 600; cursor: pointer; color: var(--forest);">
+                <input type="checkbox" name="allergenReviewed" id="allergenReviewedInput" checked={initialRecipe.allergenReviewed} />
+                Allergen information reviewed.
+              </label>
+              <p class="hint" style="margin: 0.25rem 0 0 1.6rem; font-size: 0.8rem;">
+                When checked, confirms that ingredients have been explicitly reviewed for allergens.
+              </p>
+              <label style="margin-top: 0.75rem; display: block;">
+                Allergen Notes / Advisory (Optional)
+                <input type="text" name="allergenNotes" value={initialRecipe.allergenNotes || ''} placeholder="e.g. Soy sauce can be substituted with coconut aminos." />
+              </label>
+            </div>
           </div>
 
           <!-- Submission Toolbar -->
@@ -581,6 +755,34 @@ const initialRecipe = {
         const imageUrl = primaryImg ? primaryImg.url : primaryUrlEl.value.trim();
         const imageAlt = primaryImg ? primaryImg.alt : primaryAltEl.value.trim();
 
+        const getNutrVal = (n: string) => {
+          const el = form.querySelector(`[name="${n}"]`) as HTMLInputElement | null;
+          return el && el.value.trim() !== '' ? el.value.trim() : undefined;
+        };
+
+        const nutritionObj = {
+          calories: getNutrVal('nutrition_calories'),
+          proteinGrams: getNutrVal('nutrition_proteinGrams'),
+          carbsGrams: getNutrVal('nutrition_carbsGrams'),
+          fatGrams: getNutrVal('nutrition_fatGrams'),
+          saturatedFatGrams: getNutrVal('nutrition_saturatedFatGrams'),
+          unsaturatedFatGrams: getNutrVal('nutrition_unsaturatedFatGrams'),
+          fiberGrams: getNutrVal('nutrition_fiberGrams'),
+          sugarGrams: getNutrVal('nutrition_sugarGrams'),
+          sodiumMilligrams: getNutrVal('nutrition_sodiumMilligrams'),
+          cholesterolMilligrams: getNutrVal('nutrition_cholesterolMilligrams'),
+          source: getNutrVal('nutrition_source'),
+          verifiedDate: getNutrVal('nutrition_verifiedDate'),
+        };
+
+        const hasNutrition = Object.values(nutritionObj).some(v => v !== undefined);
+
+        const selectedDietaryLabels = Array.from(form.querySelectorAll('input[name="dietaryLabels"]:checked')).map(el => (el as HTMLInputElement).value);
+        const isDietaryVerified = (form.querySelector('input[name="dietaryVerified"]') as HTMLInputElement)?.checked ?? false;
+        const selectedAllergens = Array.from(form.querySelectorAll('input[name="allergens"]:checked')).map(el => (el as HTMLInputElement).value);
+        const isAllergenReviewed = (form.querySelector('input[name="allergenReviewed"]') as HTMLInputElement)?.checked ?? false;
+        const allergenNotesVal = (form.querySelector('input[name="allergenNotes"]') as HTMLInputElement)?.value.trim() || undefined;
+
         const payload = {
           title: (form.querySelector('[name="title"]') as HTMLInputElement).value.trim(),
           slug: (form.querySelector('[name="slug"]') as HTMLInputElement).value.trim() || initialRecipe.slug,
@@ -597,6 +799,12 @@ const initialRecipe = {
           gallery: images,
           ingredients,
           instructions,
+          dietaryLabels: selectedDietaryLabels,
+          dietaryVerified: isDietaryVerified,
+          allergens: selectedAllergens,
+          allergenReviewed: isAllergenReviewed,
+          allergenNotes: allergenNotesVal,
+          nutrition: hasNutrition ? nutritionObj : undefined,
         };
 
         try {

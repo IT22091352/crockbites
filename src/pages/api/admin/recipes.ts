@@ -11,7 +11,7 @@ import {
   verifySessionCookie,
   ensureCsrfToken,
 } from '../../../lib/admin';
-import { inferRecipeDraft, serializeRecipeToMarkdown } from '../../../lib/recipe-admin';
+import { inferRecipeDraft, normalizeDietaryLabels, normalizeAllergens, serializeRecipeToMarkdown } from '../../../lib/recipe-admin';
 import { repoRecipePath, writeRepoFile } from '../../../lib/github';
 
 const isAuthorized = async (request: Request, cookies: any) => {
@@ -115,6 +115,12 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     ? (() => { try { return JSON.parse(data.gallery); } catch { return []; } })()
     : [];
 
+  const nutrition = typeof data.nutrition === 'string'
+    ? (() => { try { return JSON.parse(data.nutrition); } catch { return undefined; } })()
+    : data.nutrition && typeof data.nutrition === 'object'
+    ? data.nutrition
+    : undefined;
+
   const payload = {
     title: String(data.title ?? ''),
     slug: String(data.slug ?? ''),
@@ -134,6 +140,12 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     ingredients: normalizeIngredients(data.ingredients),
     instructions: normalizeInstructions(data.instructions),
     tips: normalizeTags(data.tips),
+    dietaryLabels: normalizeDietaryLabels(data.dietaryLabels),
+    dietaryVerified: Boolean(data.dietaryVerified),
+    allergens: normalizeAllergens(data.allergens),
+    allergenReviewed: Boolean(data.allergenReviewed),
+    allergenNotes: data.allergenNotes ? String(data.allergenNotes).trim() : undefined,
+    nutrition,
     reviewStatus: String(data.reviewStatus ?? 'draft') as 'draft' | 'tested',
   };
 
@@ -173,6 +185,12 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     category: payload.category,
     description: payload.description,
     title: payload.title,
+    dietaryLabels: payload.dietaryLabels,
+    dietaryVerified: payload.dietaryVerified,
+    allergens: payload.allergens,
+    allergenReviewed: payload.allergenReviewed,
+    allergenNotes: payload.allergenNotes,
+    nutrition: payload.nutrition,
     prepMinutes: payload.prepMinutes,
     cookMinutes: payload.cookMinutes,
     servings: payload.servings,

@@ -17,37 +17,118 @@ const index = await Promise.all(all.map(async (r) => {
     imgSrc = img.src;
   }
   return {
-    title: r.data.title, description: r.data.description, category: r.data.category,
-    categoryName: categoryById(r.data.category)?.name ?? '', tags: r.data.tags,
-    url: recipeUrl(r), image: imgSrc, imageAlt: r.data.imageAlt, time: formatMinutes(totalMinutes(r)),
+    title: r.data.title,
+    description: r.data.description,
+    category: r.data.category,
+    categoryName: categoryById(r.data.category)?.name ?? '',
+    tags: r.data.tags,
+    url: recipeUrl(r),
+    image: imgSrc,
+    imageAlt: r.data.imageAlt,
+    time: formatMinutes(totalMinutes(r)),
     draft: r.data.reviewStatus === 'draft',
+    dietaryLabels: r.data.dietaryVerified ? (r.data.dietaryLabels || []) : [],
+    dietaryVerified: Boolean(r.data.dietaryVerified),
+    allergens: r.data.allergenReviewed ? (r.data.allergens || []) : [],
+    allergenReviewed: Boolean(r.data.allergenReviewed),
   };
 }));
+
+const dietaryOptions = [
+  { id: 'vegetarian', label: 'Vegetarian' },
+  { id: 'vegan', label: 'Vegan' },
+  { id: 'gluten-free', label: 'Gluten-Free' },
+  { id: 'dairy-free', label: 'Dairy-Free' },
+  { id: 'nut-free', label: 'Nut-Free' },
+  { id: 'low-carb', label: 'Low-Carb' },
+  { id: 'keto-friendly', label: 'Keto-Friendly' },
+  { id: 'high-protein', label: 'High-Protein' },
+  { id: 'low-sodium', label: 'Low-Sodium' },
+  { id: 'pescatarian', label: 'Pescatarian' },
+];
+
+const allergenOptions = [
+  { id: 'milk', label: 'Exclude Milk' },
+  { id: 'eggs', label: 'Exclude Eggs' },
+  { id: 'fish', label: 'Exclude Fish' },
+  { id: 'crustacean-shellfish', label: 'Exclude Crustacean Shellfish' },
+  { id: 'tree-nuts', label: 'Exclude Tree Nuts' },
+  { id: 'peanuts', label: 'Exclude Peanuts' },
+  { id: 'wheat', label: 'Exclude Wheat' },
+  { id: 'soybeans', label: 'Exclude Soybeans' },
+  { id: 'sesame', label: 'Exclude Sesame' },
+];
 ---
 <BaseLayout title="Search Recipes" path="/search/" description="Search CrockBites recipes by title, ingredient, category or tag." noindex>
   <div class="container-page pt-8">
     <Breadcrumbs items={[{ name: 'Home', href: '/' }, { name: 'Search' }]} />
     <h1 class="mt-6">Search recipes</h1>
-    <form id="search-form" role="search" class="mt-8 grid max-w-3xl gap-3 sm:grid-cols-[1fr_14rem_auto]" action="/search/" method="get">
-      <div>
-        <label for="search-input" class="mb-1.5 block font-semibold text-forest">Search</label>
-        <input id="search-input" name="q" type="search" class="field" placeholder="Try chicken, soup or pork" autocomplete="off" enterkeyhint="search" />
+
+    <form id="search-form" role="search" class="mt-8 max-w-4xl space-y-4" action="/search/" method="get">
+      <div class="grid gap-3 sm:grid-cols-[1fr_14rem_auto]">
+        <div>
+          <label for="search-input" class="mb-1.5 block font-semibold text-forest">Search</label>
+          <input id="search-input" name="q" type="search" class="field" placeholder="Try chicken, soup or pork" autocomplete="off" enterkeyhint="search" />
+        </div>
+        <div>
+          <label for="search-category" class="mb-1.5 block font-semibold text-forest">Category</label>
+          <select id="search-category" name="category" class="field">
+            <option value="">All categories</option>
+            {categories.map((c) => <option value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <div class="flex items-end gap-2">
+          <button type="submit" class="btn w-full sm:w-auto">Search</button>
+          <button type="button" id="search-reset" class="btn btn-outline w-full sm:w-auto">Reset</button>
+        </div>
       </div>
-      <div>
-        <label for="search-category" class="mb-1.5 block font-semibold text-forest">Category</label>
-        <select id="search-category" name="category" class="field">
-          <option value="">All categories</option>
-          {categories.map((c) => <option value={c.id}>{c.name}</option>)}
-        </select>
+
+      <!-- Dietary Filters -->
+      <div class="rounded-xl border border-line bg-paper p-4">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+          <span class="text-xs font-bold uppercase tracking-wider text-forest">Dietary Style (Verified Only)</span>
+          <span class="text-xs text-ink-soft">Matches all selected</span>
+        </div>
+        <div class="mt-2.5 flex flex-wrap gap-2" id="dietary-filter-group">
+          {dietaryOptions.map((opt) => (
+            <label class="cursor-pointer text-xs">
+              <input type="checkbox" name="dietary" value={opt.id} class="peer sr-only search-dietary-input" />
+              <span class="inline-flex items-center rounded-full border border-line bg-cream/70 px-3 py-1 font-semibold text-ink transition-colors peer-checked:border-forest peer-checked:bg-forest peer-checked:text-white">
+                {opt.label}
+              </span>
+            </label>
+          ))}
+        </div>
       </div>
-      <div class="flex items-end"><button type="submit" class="btn w-full sm:w-auto">Search</button></div>
+
+      <!-- Allergen Exclusion Filters -->
+      <div class="rounded-xl border border-line bg-paper p-4">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+          <span class="text-xs font-bold uppercase tracking-wider text-terracotta-deep">Allergen Exclusions (FDA Big 9)</span>
+          <span class="text-xs text-ink-soft">Excludes unreviewed recipes for safety</span>
+        </div>
+        <div class="mt-2.5 flex flex-wrap gap-2" id="allergen-filter-group">
+          {allergenOptions.map((opt) => (
+            <label class="cursor-pointer text-xs">
+              <input type="checkbox" name="excludeAllergens" value={opt.id} class="peer sr-only search-allergen-input" />
+              <span class="inline-flex items-center rounded-full border border-line bg-cream/70 px-3 py-1 font-semibold text-ink transition-colors peer-checked:border-terracotta-deep peer-checked:bg-terracotta-deep peer-checked:text-white">
+                {opt.label}
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <p class="text-xs italic text-ink-soft">
+        Notice: Dietary filters only match verified recipes. Allergen exclusions only match recipes with completed allergen reviews; unreviewed recipes are excluded for safety. Always inspect manufacturer ingredient labels.
+      </p>
     </form>
 
     <p id="search-status" class="mt-8 text-ink-soft" role="status" aria-live="polite"></p>
     <ul id="search-results" class="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3"></ul>
     <div id="search-empty" class="notice mt-6 max-w-2xl" hidden>
       <p class="font-semibold text-forest">No recipes match that search.</p>
-      <p class="mt-1">Check the spelling, try a shorter word like “chicken”, or <a class="link-text" href="/recipes/">browse all recipes</a>.</p>
+      <p class="mt-1">Check the spelling, try clearing some dietary or allergen filters, or <a class="link-text" href="/recipes/">browse all recipes</a>.</p>
     </div>
     <noscript><p class="notice mt-6">Search needs JavaScript. You can still <a class="link-text" href="/recipes/">browse all recipes</a>.</p></noscript>
     <script id="search-data" type="application/json" set:html={toJsonLd(index)}></script>
@@ -55,14 +136,34 @@ const index = await Promise.all(all.map(async (r) => {
 </BaseLayout>
 
 <script>
-  type Item = { title: string; description: string; category: string; categoryName: string; tags: string[]; url: string; image: string; imageAlt: string; time: string; draft: boolean };
+  type Item = {
+    title: string;
+    description: string;
+    category: string;
+    categoryName: string;
+    tags: string[];
+    url: string;
+    image: string;
+    imageAlt: string;
+    time: string;
+    draft: boolean;
+    dietaryLabels: string[];
+    dietaryVerified: boolean;
+    allergens: string[];
+    allergenReviewed: boolean;
+  };
+
   const data: Item[] = JSON.parse(document.getElementById('search-data')!.textContent || '[]');
   const form = document.getElementById('search-form') as HTMLFormElement;
   const input = document.getElementById('search-input') as HTMLInputElement;
   const select = document.getElementById('search-category') as HTMLSelectElement;
+  const resetBtn = document.getElementById('search-reset') as HTMLButtonElement;
   const status = document.getElementById('search-status')!;
   const list = document.getElementById('search-results')!;
   const empty = document.getElementById('search-empty')!;
+
+  const dietaryCheckboxes = Array.from(document.querySelectorAll('.search-dietary-input')) as HTMLInputElement[];
+  const allergenCheckboxes = Array.from(document.querySelectorAll('.search-allergen-input')) as HTMLInputElement[];
 
   const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const prepared = data.map((d) => ({ d, title: norm(d.title), hay: norm([d.title, d.description, d.categoryName, ...d.tags].join(' ')) }));
@@ -74,9 +175,36 @@ const index = await Promise.all(all.map(async (r) => {
   function run(updateUrl: boolean) {
     const q = input.value.trim();
     const cat = select.value;
+    const selectedDietary = dietaryCheckboxes.filter((cb) => cb.checked).map((cb) => cb.value);
+    const excludedAllergens = allergenCheckboxes.filter((cb) => cb.checked).map((cb) => cb.value);
+
     const tokens = norm(q).split(/\s+/).filter(Boolean);
+
     const results = prepared
-      .filter((p) => (!cat || p.d.category === cat) && tokens.every((t) => p.hay.includes(t)))
+      .filter(({ d, hay }) => {
+        // Category filter
+        if (cat && d.category !== cat) return false;
+
+        // Query search
+        if (tokens.length > 0 && !tokens.every((t) => hay.includes(t))) return false;
+
+        // Dietary check: MUST be dietaryVerified AND satisfy all selected dietary labels
+        if (selectedDietary.length > 0) {
+          if (!d.dietaryVerified) return false;
+          const matchesAll = selectedDietary.every((lbl) => d.dietaryLabels.includes(lbl));
+          if (!matchesAll) return false;
+        }
+
+        // Allergen check:
+        // When excluding allergens, recipes with unreviewed allergen status must be excluded as unsafe
+        if (excludedAllergens.length > 0) {
+          if (!d.allergenReviewed) return false;
+          const containsExcluded = excludedAllergens.some((allg) => d.allergens.includes(allg));
+          if (containsExcluded) return false;
+        }
+
+        return true;
+      })
       .map((p) => ({ p, score: tokens.reduce((s, t) => s + (p.title.includes(t) ? 3 : 1), 0) }))
       .sort((a, b) => b.score - a.score || a.p.d.title.localeCompare(b.p.d.title));
 
@@ -90,28 +218,79 @@ const index = await Promise.all(all.map(async (r) => {
       const img = el('img', 'aspect-[4/3] w-full object-cover'); img.src = d.image; img.alt = d.imageAlt; img.width = 360; img.height = 270; img.loading = 'lazy'; img.decoding = 'async';
       wrap.append(img);
       const body = el('div', 'p-5');
-      body.append(el('p', 'text-sm font-semibold text-terracotta-deep', d.categoryName), el('h3', 'mt-1 text-[1.3rem] leading-snug', d.title), el('p', 'mt-2 line-clamp-2 text-[0.97rem] text-ink-soft', d.description), el('p', 'mt-4 text-sm font-semibold text-ink-soft', `Total time: ${d.time}`));
+      body.append(el('p', 'text-sm font-semibold text-terracotta-deep', d.categoryName), el('h3', 'mt-1 text-[1.3rem] leading-snug', d.title));
+
+      if (d.dietaryVerified && d.dietaryLabels.length > 0) {
+        const badgeWrap = el('div', 'mt-2 flex flex-wrap gap-1');
+        for (const lbl of d.dietaryLabels.slice(0, 3)) {
+          badgeWrap.append(el('span', 'rounded bg-forest/10 px-1.5 py-0.5 text-[0.7rem] font-bold uppercase tracking-wider text-forest', lbl));
+        }
+        body.append(badgeWrap);
+      }
+
+      body.append(el('p', 'mt-2 line-clamp-2 text-[0.97rem] text-ink-soft', d.description), el('p', 'mt-4 text-sm font-semibold text-ink-soft', `Total time: ${d.time}`));
       a.append(wrap, body); card.append(a); li.append(card); list.append(li);
     }
+
     const label = cat ? select.options[select.selectedIndex].text : '';
-    status.textContent = q || cat
-      ? `${results.length} ${results.length === 1 ? 'recipe' : 'recipes'} found${q ? ` for “${q}”` : ''}${label ? ` in ${label}` : ''}.`
-      : `Showing all ${results.length} recipes. Type to narrow them down.`;
+    const filtersActive = q || cat || selectedDietary.length > 0 || excludedAllergens.length > 0;
+    
+    let statusText = '';
+    if (filtersActive) {
+      const parts: string[] = [];
+      if (q) parts.push(`for “${q}”`);
+      if (label) parts.push(`in ${label}`);
+      if (selectedDietary.length > 0) parts.push(`with [${selectedDietary.join(', ')}]`);
+      if (excludedAllergens.length > 0) parts.push(`excluding [${excludedAllergens.join(', ')}]`);
+      statusText = `${results.length} ${results.length === 1 ? 'recipe' : 'recipes'} found ${parts.join(' ')}.`;
+    } else {
+      statusText = `Showing all ${results.length} recipes. Type or select filters to narrow them down.`;
+    }
+    status.textContent = statusText;
     empty.hidden = results.length > 0;
 
     if (updateUrl) {
       const params = new URLSearchParams();
-      if (q) params.set('q', q); if (cat) params.set('category', cat);
+      if (q) params.set('q', q);
+      if (cat) params.set('category', cat);
+      if (selectedDietary.length > 0) params.set('dietary', selectedDietary.join(','));
+      if (excludedAllergens.length > 0) params.set('excludeAllergens', excludedAllergens.join(','));
       history.replaceState(null, '', params.toString() ? `?${params}` : location.pathname);
     }
   }
 
+  // Load URL params
   const params = new URLSearchParams(location.search);
   input.value = params.get('q') ?? '';
   select.value = params.get('category') ?? '';
+
+  const dietaryParams = (params.get('dietary') ?? '').split(',').filter(Boolean);
+  for (const cb of dietaryCheckboxes) {
+    cb.checked = dietaryParams.includes(cb.value);
+  }
+
+  const allergenParams = (params.get('excludeAllergens') ?? '').split(',').filter(Boolean);
+  for (const cb of allergenCheckboxes) {
+    cb.checked = allergenParams.includes(cb.value);
+  }
+
   form.addEventListener('submit', (e) => { e.preventDefault(); run(true); });
   input.addEventListener('input', () => run(true));
   select.addEventListener('change', () => run(true));
+
+  for (const cb of [...dietaryCheckboxes, ...allergenCheckboxes]) {
+    cb.addEventListener('change', () => run(true));
+  }
+
+  resetBtn.addEventListener('click', () => {
+    input.value = '';
+    select.value = '';
+    for (const cb of dietaryCheckboxes) cb.checked = false;
+    for (const cb of allergenCheckboxes) cb.checked = false;
+    run(true);
+    input.focus({ preventScroll: true });
+  });
+
   run(false);
   if (!input.value) input.focus({ preventScroll: true });
 </script>

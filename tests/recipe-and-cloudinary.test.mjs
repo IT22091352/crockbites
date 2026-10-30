@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { inferRecipeDraft, normalizeRecipePayload, serializeRecipeToMarkdown } from '../src/lib/recipe-admin.ts';
+import { inferRecipeDraft, normalizeNutrition, normalizeRecipePayload, serializeRecipeToMarkdown } from '../src/lib/recipe-admin.ts';
 import {
   getOptimizedCloudinaryUrl,
   isCloudinaryConfigured,
@@ -125,6 +125,75 @@ assert.ok(updatedToTested.includes('Simmer on low.'), 'preserves markdown body c
 
 const updatedToDraft = updateRecipeStatusInMarkdown(updatedToTested, 'draft');
 assert.ok(updatedToDraft.includes('reviewStatus: draft'), 'updates reviewStatus to draft');
+
+
+// 9. Nutrition & Dietary Information Normalization and Serialization
+const rawNutrition = {
+  calories: 450,
+  proteinGrams: 38.5,
+  carbsGrams: 14.2,
+  fatGrams: 18.0,
+  saturatedFatGrams: 5.25,
+  unsaturatedFatGrams: 10.5,
+  fiberGrams: 3.4,
+  sugarGrams: 4.1,
+  sodiumMilligrams: 680,
+  cholesterolMilligrams: 95,
+  source: 'USDA FoodData Central #171057',
+  verifiedDate: '2026-10-30',
+  negativeFieldIgnored: -10,
+};
+
+const normalizedNutrition = normalizeNutrition(rawNutrition);
+assert.ok(normalizedNutrition, 'normalized nutrition exists');
+assert.equal(normalizedNutrition.calories, 450, 'calories preserved');
+assert.equal(normalizedNutrition.proteinGrams, 38.5, 'protein preserved');
+assert.equal(normalizedNutrition.saturatedFatGrams, 5.25, 'saturated fat preserved');
+assert.equal(normalizedNutrition.unsaturatedFatGrams, 10.5, 'unsaturated fat preserved');
+assert.equal(normalizedNutrition.source, 'USDA FoodData Central #171057', 'source preserved');
+assert.equal(normalizedNutrition.verifiedDate, '2026-10-30', 'verifiedDate preserved');
+
+// Ensure negative and empty values are omitted, not zeroed
+const partialRaw = {
+  calories: -50,
+  proteinGrams: '',
+  carbsGrams: 20,
+  sodiumMilligrams: null,
+};
+const partialNormalized = normalizeNutrition(partialRaw);
+assert.ok(partialNormalized, 'partial normalized exists');
+assert.equal(partialNormalized.calories, undefined, 'negative calories rejected');
+assert.equal(partialNormalized.carbsGrams, 20, 'valid carbs kept');
+assert.equal(partialNormalized.proteinGrams, undefined, 'empty string omitted');
+assert.equal(partialNormalized.sodiumMilligrams, undefined, 'null omitted, never zeroed');
+
+// Ensure completely empty nutrition returns undefined
+assert.equal(normalizeNutrition({}), undefined, 'empty object normalizes to undefined');
+assert.equal(normalizeNutrition({ calories: '' }), undefined, 'empty values normalize to undefined');
+
+// Round-trip markdown serialization with nutrition
+const recipeWithNutrition = normalizeRecipePayload({
+  title: 'Healthy Chicken Stew',
+  description: 'Hearty nutrient-dense stew',
+  category: 'soups-stews',
+  image: 'https://res.cloudinary.com/demo/image/upload/sample.jpg',
+  imageAlt: 'Chicken stew',
+  prepMinutes: 15,
+  cookMinutes: 360,
+  servings: 6,
+  ingredients: [{ item: 'Chicken', quantity: 2, unit: 'lb' }],
+  instructions: [{ text: 'Cook slow.' }],
+  nutrition: normalizedNutrition,
+});
+
+const serializedMd = serializeRecipeToMarkdown(recipeWithNutrition);
+assert.ok(serializedMd.includes('nutrition:'), 'markdown includes nutrition header');
+assert.ok(serializedMd.includes('calories: 450'), 'markdown includes calories');
+assert.ok(serializedMd.includes('proteinGrams: 38.5'), 'markdown includes protein');
+assert.ok(serializedMd.includes('saturatedFatGrams: 5.25'), 'markdown includes saturated fat');
+assert.ok(serializedMd.includes('unsaturatedFatGrams: 10.5'), 'markdown includes unsaturated fat');
+assert.ok(serializedMd.includes('USDA FoodData Central #171057'), 'markdown includes nutrition source');
+assert.ok(!serializedMd.includes('undefined'), 'no undefined values in serialized markdown');
 
 console.log('recipe-and-cloudinary tests passed');
 

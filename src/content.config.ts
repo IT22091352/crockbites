@@ -67,16 +67,55 @@ const recipes = defineCollection({
       equipment: z.array(z.string()).default([]),
       /** Safe internal temperatures that apply to this recipe. */
       foodSafety: z.array(z.string()).default([]),
+      dietaryLabels: z
+        .array(
+          z.enum([
+            'vegetarian',
+            'vegan',
+            'gluten-free',
+            'dairy-free',
+            'nut-free',
+            'low-carb',
+            'keto-friendly',
+            'high-protein',
+            'low-sodium',
+            'pescatarian',
+          ])
+        )
+        .default([]),
+      dietaryVerified: z.boolean().default(false),
+      allergens: z
+        .array(
+          z.enum([
+            'milk',
+            'eggs',
+            'fish',
+            'crustacean-shellfish',
+            'tree-nuts',
+            'peanuts',
+            'wheat',
+            'soybeans',
+            'sesame',
+          ])
+        )
+        .default([]),
+      allergenReviewed: z.boolean().default(false),
+      allergenNotes: z.string().optional(),
       /** ONLY fill with real, measured or professionally calculated values. Leave out otherwise. */
       nutrition: z
         .object({
-          calories: z.number().optional(),
-          proteinGrams: z.number().optional(),
-          carbsGrams: z.number().optional(),
-          fatGrams: z.number().optional(),
-          fiberGrams: z.number().optional(),
-          sodiumMilligrams: z.number().optional(),
+          calories: z.number().nonnegative().optional(),
+          proteinGrams: z.number().nonnegative().optional(),
+          carbsGrams: z.number().nonnegative().optional(),
+          fatGrams: z.number().nonnegative().optional(),
+          saturatedFatGrams: z.number().nonnegative().optional(),
+          unsaturatedFatGrams: z.number().nonnegative().optional(),
+          fiberGrams: z.number().nonnegative().optional(),
+          sugarGrams: z.number().nonnegative().optional(),
+          sodiumMilligrams: z.number().nonnegative().optional(),
+          cholesterolMilligrams: z.number().nonnegative().optional(),
           source: z.string().optional(),
+          verifiedDate: z.string().optional(),
         })
         .optional(),
       featured: z.boolean().default(false),

@@ -10,6 +10,21 @@ export type RecipeImageItem = {
   isPrimary?: boolean;
 };
 
+export type RecipeNutrition = {
+  calories?: number;
+  proteinGrams?: number;
+  carbsGrams?: number;
+  fatGrams?: number;
+  saturatedFatGrams?: number;
+  unsaturatedFatGrams?: number;
+  fiberGrams?: number;
+  sugarGrams?: number;
+  sodiumMilligrams?: number;
+  cholesterolMilligrams?: number;
+  source?: string;
+  verifiedDate?: string;
+};
+
 export type FrontmatterRecipe = {
   title: string;
   slug?: string;
@@ -45,7 +60,12 @@ export type FrontmatterRecipe = {
   storage?: { fridge?: string; freezer?: string; reheating?: string };
   equipment?: string[];
   foodSafety?: string[];
-  nutrition?: Record<string, unknown>;
+  dietaryLabels?: DietaryLabel[];
+  dietaryVerified?: boolean;
+  allergens?: Allergen[];
+  allergenReviewed?: boolean;
+  allergenNotes?: string;
+  nutrition?: RecipeNutrition;
   featured?: boolean;
   related?: string[];
   reviewStatus?: 'draft' | 'tested';
@@ -60,6 +80,102 @@ export const allowedCategories = [
   'vegetarian',
   'desserts-baking',
 ];
+
+export const allowedDietaryLabels = [
+  'vegetarian',
+  'vegan',
+  'gluten-free',
+  'dairy-free',
+  'nut-free',
+  'low-carb',
+  'keto-friendly',
+  'high-protein',
+  'low-sodium',
+  'pescatarian',
+] as const;
+
+export type DietaryLabel = (typeof allowedDietaryLabels)[number];
+
+export const allowedAllergens = [
+  'milk',
+  'eggs',
+  'fish',
+  'crustacean-shellfish',
+  'tree-nuts',
+  'peanuts',
+  'wheat',
+  'soybeans',
+  'sesame',
+] as const;
+
+export type Allergen = (typeof allowedAllergens)[number];
+
+export function normalizeDietaryLabels(val: unknown): DietaryLabel[] {
+  if (!Array.isArray(val)) return [];
+  const valid = new Set<string>(allowedDietaryLabels);
+  return val
+    .map((item) => String(item).trim().toLowerCase())
+    .filter((item): item is DietaryLabel => valid.has(item));
+}
+
+export function normalizeAllergens(val: unknown): Allergen[] {
+  if (!Array.isArray(val)) return [];
+  const valid = new Set<string>(allowedAllergens);
+  return val
+    .map((item) => String(item).trim().toLowerCase())
+    .filter((item): item is Allergen => valid.has(item));
+}
+
+export function normalizeNutrition(data: unknown): RecipeNutrition | undefined {
+  if (!data || typeof data !== 'object') return undefined;
+  const raw = data as Record<string, unknown>;
+
+  const parseNonNegative = (val: unknown): number | undefined => {
+    if (val === '' || val == null) return undefined;
+    const num = Number(val);
+    return Number.isFinite(num) && num >= 0 ? Math.round(num * 100) / 100 : undefined;
+  };
+
+  const nutrition: RecipeNutrition = {};
+  const cal = parseNonNegative(raw.calories);
+  if (cal != null) nutrition.calories = cal;
+
+  const protein = parseNonNegative(raw.proteinGrams);
+  if (protein != null) nutrition.proteinGrams = protein;
+
+  const carbs = parseNonNegative(raw.carbsGrams);
+  if (carbs != null) nutrition.carbsGrams = carbs;
+
+  const fat = parseNonNegative(raw.fatGrams);
+  if (fat != null) nutrition.fatGrams = fat;
+
+  const satFat = parseNonNegative(raw.saturatedFatGrams);
+  if (satFat != null) nutrition.saturatedFatGrams = satFat;
+
+  const unsatFat = parseNonNegative(raw.unsaturatedFatGrams);
+  if (unsatFat != null) nutrition.unsaturatedFatGrams = unsatFat;
+
+  const fiber = parseNonNegative(raw.fiberGrams);
+  if (fiber != null) nutrition.fiberGrams = fiber;
+
+  const sugar = parseNonNegative(raw.sugarGrams);
+  if (sugar != null) nutrition.sugarGrams = sugar;
+
+  const sodium = parseNonNegative(raw.sodiumMilligrams);
+  if (sodium != null) nutrition.sodiumMilligrams = sodium;
+
+  const cholesterol = parseNonNegative(raw.cholesterolMilligrams);
+  if (cholesterol != null) nutrition.cholesterolMilligrams = cholesterol;
+
+  if (typeof raw.source === 'string' && raw.source.trim()) {
+    nutrition.source = raw.source.trim();
+  }
+  if (typeof raw.verifiedDate === 'string' && raw.verifiedDate.trim()) {
+    nutrition.verifiedDate = raw.verifiedDate.trim();
+  }
+
+  return Object.keys(nutrition).length > 0 ? nutrition : undefined;
+}
 
 export function inferRecipeDraft(data: Partial<FrontmatterRecipe>) {
   const title = (data.title ?? '').trim();
@@ -148,7 +264,12 @@ export function normalizeRecipePayload(data: Partial<FrontmatterRecipe>): Frontm
     } : {},
     equipment: Array.isArray(data.equipment) ? data.equipment.map((item) => sanitizeRecipeString(item)).filter(Boolean) : [],
     foodSafety: Array.isArray(data.foodSafety) ? data.foodSafety.map((item) => sanitizeRecipeString(item)).filter(Boolean) : [],
-    nutrition: data.nutrition && typeof data.nutrition === 'object' ? data.nutrition : undefined,
+    dietaryLabels: normalizeDietaryLabels(data.dietaryLabels),
+    dietaryVerified: Boolean(data.dietaryVerified),
+    allergens: normalizeAllergens(data.allergens),
+    allergenReviewed: Boolean(data.allergenReviewed),
+    allergenNotes: data.allergenNotes ? sanitizeRecipeString(data.allergenNotes) : undefined,
+    nutrition: normalizeNutrition(data.nutrition),
     featured: Boolean(data.featured),
     related: Array.isArray(data.related) ? data.related.map((item) => sanitizeRecipeString(item)).filter(Boolean) : [],
     reviewStatus: data.reviewStatus === 'tested' ? 'tested' : 'draft',
@@ -183,6 +304,15 @@ export function serializeRecipeToMarkdown(data: FrontmatterRecipe) {
     ...(normalized.storage && Object.keys(normalized.storage).length ? { storage: normalized.storage } : {}),
     ...(normalized.equipment?.length ? { equipment: normalized.equipment } : {}),
     ...(normalized.foodSafety?.length ? { foodSafety: normalized.foodSafety } : {}),
+    ...(normalized.dietaryLabels && normalized.dietaryLabels.length ? {
+      dietaryLabels: normalized.dietaryLabels,
+      dietaryVerified: Boolean(normalized.dietaryVerified),
+    } : (normalized.dietaryVerified ? { dietaryVerified: true } : {})),
+    ...(normalized.allergens && normalized.allergens.length ? {
+      allergens: normalized.allergens,
+    } : {}),
+    ...(normalized.allergenReviewed ? { allergenReviewed: true } : {}),
+    ...(normalized.allergenNotes ? { allergenNotes: normalized.allergenNotes } : {}),
     ...(normalized.nutrition ? { nutrition: normalized.nutrition } : {}),
     ...(normalized.featured !== undefined ? { featured: normalized.featured } : {}),
     ...(normalized.related?.length ? { related: normalized.related } : {}),

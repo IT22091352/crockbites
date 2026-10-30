@@ -44,6 +44,15 @@ const imageUrl = typeof d.image === 'string' ? d.image : d.image.src;
       <div class="p-5">
         <p class="text-sm font-semibold text-terracotta-deep">{cat?.name}</p>
         <h3 class="mt-1 text-[1.3rem] leading-snug transition-colors">{d.title}</h3>
+        {d.dietaryVerified && d.dietaryLabels && d.dietaryLabels.length > 0 && (
+          <div class="mt-2 flex flex-wrap gap-1">
+            {d.dietaryLabels.slice(0, 3).map((lbl: string) => (
+              <span class="rounded bg-forest/10 px-1.5 py-0.5 text-[0.7rem] font-bold uppercase tracking-wider text-forest">
+                {lbl}
+              </span>
+            ))}
+          </div>
+        )}
         <p class="mt-2 line-clamp-2 text-[0.97rem] text-ink-soft">{d.description}</p>
         <p class="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-ink-soft"><Clock size={16} aria-hidden="true" /><span class="sr-only">Total time:</span>{formatMinutes(totalMinutes(recipe))}</p>
       </div>

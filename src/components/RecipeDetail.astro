@@ -13,6 +13,8 @@ import {
   Info,
   ChefHat,
   Timer,
+  ShieldAlert,
+  ShieldCheck,
   X,
   ChevronLeft,
   ChevronRight,
@@ -45,7 +47,45 @@ for (const ing of d.ingredients) {
 }
 const maxServings = Math.max(d.servings * 4, 24);
 const n = d.nutrition;
-const hasNutrition = Boolean(n && (n.calories || n.proteinGrams || n.carbsGrams || n.fatGrams));
+const hasNutrition = Boolean(
+  n && (
+    n.calories != null ||
+    n.proteinGrams != null ||
+    n.carbsGrams != null ||
+    n.fatGrams != null ||
+    n.saturatedFatGrams != null ||
+    n.unsaturatedFatGrams != null ||
+    n.fiberGrams != null ||
+    n.sugarGrams != null ||
+    n.sodiumMilligrams != null ||
+    n.cholesterolMilligrams != null
+  )
+);
+
+const dietaryLabelNames: Record<string, string> = {
+  'vegetarian': 'Vegetarian',
+  'vegan': 'Vegan',
+  'gluten-free': 'Gluten-Free',
+  'dairy-free': 'Dairy-Free',
+  'nut-free': 'Nut-Free',
+  'low-carb': 'Low-Carb',
+  'keto-friendly': 'Keto-Friendly',
+  'high-protein': 'High-Protein',
+  'low-sodium': 'Low-Sodium',
+  'pescatarian': 'Pescatarian',
+};
+
+const allergenNames: Record<string, string> = {
+  'milk': 'Milk',
+  'eggs': 'Eggs',
+  'fish': 'Fish',
+  'crustacean-shellfish': 'Crustacean Shellfish',
+  'tree-nuts': 'Tree Nuts',
+  'peanuts': 'Peanuts',
+  'wheat': 'Wheat',
+  'soybeans': 'Soybeans',
+  'sesame': 'Sesame',
+};
 ---
 <article>
   <div class="container-page pb-6 pt-6" data-noprint>
@@ -53,6 +93,16 @@ const hasNutrition = Boolean(n && (n.calories || n.proteinGrams || n.carbsGrams 
     <div class="mt-6 grid gap-8 lg:grid-cols-[1fr_1.05fr] lg:items-center lg:gap-12">
       <div>
         <a class="chip" href={`/category/${cat!.id}/`}>{cat!.name}</a>
+        {d.dietaryVerified && d.dietaryLabels && d.dietaryLabels.length > 0 && (
+          <div class="mt-3 flex flex-wrap items-center gap-1.5" aria-label="Verified dietary suitability" data-dietary-badges>
+            {d.dietaryLabels.map((lbl: string) => (
+              <span class="inline-flex items-center gap-1 rounded-full border border-forest/20 bg-forest/10 px-2.5 py-0.5 text-xs font-semibold text-forest">
+                <ShieldCheck size={13} class="text-forest" aria-hidden="true" />
+                {dietaryLabelNames[lbl] || lbl}
+              </span>
+            ))}
+          </div>
+        )}
         <h1 class="mt-4">{d.title}</h1>
         <p class="mt-4 max-w-xl text-lg text-ink-soft">{d.description}</p>
         <p class="mt-4 text-sm text-ink-soft">
@@ -242,14 +292,152 @@ const hasNutrition = Boolean(n && (n.calories || n.proteinGrams || n.carbsGrams 
         </div>
       )}
       {hasNutrition && (
-        <div class="mt-6">
-          <h3 class="font-display text-lg">Nutrition (per serving)</h3>
-          <p class="mt-1 text-[0.97rem]">
-            {n!.calories != null && <>{n!.calories} calories</>}{n!.proteinGrams != null && <> · {n!.proteinGrams} g protein</>}{n!.carbsGrams != null && <> · {n!.carbsGrams} g carbs</>}{n!.fatGrams != null && <> · {n!.fatGrams} g fat</>}
-          </p>
-          {n!.source && <p class="mt-1 text-sm text-ink-soft">Source: {n!.source}</p>}
-        </div>
+        <section id="recipe-nutrition" aria-labelledby="nutrition-heading" class="mt-8 border-t border-line pt-6" data-recipe-nutrition>
+          <div class="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 id="nutrition-heading" class="font-display text-xl font-bold text-forest">Nutrition Information</h3>
+            <span class="text-xs font-semibold uppercase tracking-wider text-ink-soft">Per serving ({d.servingsLabel || 'serving'})</span>
+          </div>
+
+          <!-- Quick Macro Cards -->
+          <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {n!.calories != null && (
+              <div class="rounded-xl border border-line bg-cream p-3 text-center">
+                <span class="block text-xs font-semibold uppercase tracking-wider text-ink-soft">Calories</span>
+                <span class="mt-1 font-display text-xl font-bold text-forest">{n!.calories} <span class="text-xs font-normal text-ink-soft">kcal</span></span>
+              </div>
+            )}
+            {n!.proteinGrams != null && (
+              <div class="rounded-xl border border-line bg-cream p-3 text-center">
+                <span class="block text-xs font-semibold uppercase tracking-wider text-ink-soft">Protein</span>
+                <span class="mt-1 font-display text-xl font-bold text-forest">{n!.proteinGrams} <span class="text-xs font-normal text-ink-soft">g</span></span>
+              </div>
+            )}
+            {n!.carbsGrams != null && (
+              <div class="rounded-xl border border-line bg-cream p-3 text-center">
+                <span class="block text-xs font-semibold uppercase tracking-wider text-ink-soft">Carbs</span>
+                <span class="mt-1 font-display text-xl font-bold text-forest">{n!.carbsGrams} <span class="text-xs font-normal text-ink-soft">g</span></span>
+              </div>
+            )}
+            {n!.fatGrams != null && (
+              <div class="rounded-xl border border-line bg-cream p-3 text-center">
+                <span class="block text-xs font-semibold uppercase tracking-wider text-ink-soft">Total Fat</span>
+                <span class="mt-1 font-display text-xl font-bold text-forest">{n!.fatGrams} <span class="text-xs font-normal text-ink-soft">g</span></span>
+              </div>
+            )}
+          </div>
+
+          <!-- Detailed Verified Micronutrient Breakdown -->
+          <div class="mt-4 overflow-hidden rounded-xl border border-line bg-paper">
+            <dl class="divide-y divide-line text-sm">
+              {n!.fatGrams != null && (
+                <div class="flex justify-between px-4 py-2 font-medium">
+                  <dt class="text-forest">Total Fat</dt>
+                  <dd class="font-semibold text-ink">{n!.fatGrams} g</dd>
+                </div>
+              )}
+              {n!.saturatedFatGrams != null && (
+                <div class="flex justify-between px-4 py-2 pl-8 text-ink-soft">
+                  <dt>Saturated Fat</dt>
+                  <dd class="font-medium text-ink">{n!.saturatedFatGrams} g</dd>
+                </div>
+              )}
+              {n!.unsaturatedFatGrams != null && (
+                <div class="flex justify-between px-4 py-2 pl-8 text-ink-soft">
+                  <dt>Unsaturated Fat</dt>
+                  <dd class="font-medium text-ink">{n!.unsaturatedFatGrams} g</dd>
+                </div>
+              )}
+              {n!.cholesterolMilligrams != null && (
+                <div class="flex justify-between px-4 py-2 font-medium">
+                  <dt class="text-forest">Cholesterol</dt>
+                  <dd class="font-semibold text-ink">{n!.cholesterolMilligrams} mg</dd>
+                </div>
+              )}
+              {n!.sodiumMilligrams != null && (
+                <div class="flex justify-between px-4 py-2 font-medium">
+                  <dt class="text-forest">Sodium</dt>
+                  <dd class="font-semibold text-ink">{n!.sodiumMilligrams} mg</dd>
+                </div>
+              )}
+              {n!.carbsGrams != null && (
+                <div class="flex justify-between px-4 py-2 font-medium">
+                  <dt class="text-forest">Total Carbohydrates</dt>
+                  <dd class="font-semibold text-ink">{n!.carbsGrams} g</dd>
+                </div>
+              )}
+              {n!.fiberGrams != null && (
+                <div class="flex justify-between px-4 py-2 pl-8 text-ink-soft">
+                  <dt>Dietary Fiber</dt>
+                  <dd class="font-medium text-ink">{n!.fiberGrams} g</dd>
+                </div>
+              )}
+              {n!.sugarGrams != null && (
+                <div class="flex justify-between px-4 py-2 pl-8 text-ink-soft">
+                  <dt>Total Sugars</dt>
+                  <dd class="font-medium text-ink">{n!.sugarGrams} g</dd>
+                </div>
+              )}
+              {n!.proteinGrams != null && (
+                <div class="flex justify-between px-4 py-2 font-medium">
+                  <dt class="text-forest">Protein</dt>
+                  <dd class="font-semibold text-ink">{n!.proteinGrams} g</dd>
+                </div>
+              )}
+            </dl>
+          </div>
+
+          <!-- Metadata & Disclaimer Footer -->
+          <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-soft">
+            <div>
+              {n!.source && <span>Source: <strong class="text-forest">{n!.source}</strong></span>}
+              {n!.source && n!.verifiedDate && <span> · </span>}
+              {n!.verifiedDate && <span>Verified: <time datetime={n!.verifiedDate}>{n!.verifiedDate}</time></span>}
+            </div>
+            <p class="italic text-[0.75rem] text-ink-soft/80">Values are per serving and intended for general information only.</p>
+          </div>
+        </section>
       )}
+
+      <!-- Allergen Information Panel -->
+      <section id="recipe-allergens" aria-labelledby="allergen-heading" class="mt-8 border-t border-line pt-6" data-recipe-allergens>
+        <div class="rounded-xl border border-line bg-paper p-4 sm:p-5">
+          <div class="flex items-center gap-2">
+            <ShieldAlert size={20} class="text-terracotta-deep" aria-hidden="true" />
+            <h3 id="allergen-heading" class="font-display text-lg font-bold text-forest">Allergen Information</h3>
+          </div>
+
+          {d.allergenReviewed ? (
+            <div class="mt-3 text-sm">
+              {d.allergens && d.allergens.length > 0 ? (
+                <p class="font-medium text-ink">
+                  <strong class="text-terracotta-deep">Contains:</strong> {d.allergens.map((a: string) => allergenNames[a] || a).join(', ')}
+                </p>
+              ) : (
+                <p class="font-medium text-forest">
+                  <strong>Contains:</strong> No FDA Big 9 allergens declared for this recipe.
+                </p>
+              )}
+              {d.allergenNotes && (
+                <p class="mt-2 text-ink-soft">
+                  <strong class="text-forest">Notes:</strong> {d.allergenNotes}
+                </p>
+              )}
+              <p class="mt-3 text-xs italic text-ink-soft/90">
+                Always check packaged ingredient labels. Cross-contact may occur during food preparation.
+              </p>
+            </div>
+          ) : (
+            <div class="mt-3 text-sm text-ink-soft">
+              <p class="font-medium text-amber-900">
+                Allergen review pending for this recipe.
+              </p>
+              <p class="mt-1 text-xs italic text-ink-soft/90">
+                Ingredients have not yet undergone structured review against the FDA Big 9 allergens. Always check packaged ingredient labels for potential allergens and cross-contact.
+              </p>
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   </section>
 

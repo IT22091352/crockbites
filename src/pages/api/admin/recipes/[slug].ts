@@ -11,7 +11,7 @@ import {
   slugify,
   verifySessionCookie,
 } from '../../../../lib/admin';
-import { inferRecipeDraft, serializeRecipeToMarkdown } from '../../../../lib/recipe-admin';
+import { inferRecipeDraft, normalizeDietaryLabels, normalizeAllergens, serializeRecipeToMarkdown } from '../../../../lib/recipe-admin';
 import { deleteRepoFile, getRepoFile, repoRecipePath, writeRepoFile } from '../../../../lib/github';
 import { cleanupUnusedRecipeMedia } from '../../../../lib/cloudinary';
 
@@ -110,6 +110,12 @@ export const GET: APIRoute = async ({ params, request, cookies }) => {
     instructions: recipe.data.instructions,
     tips: recipe.data.tips,
     storage: recipe.data.storage,
+    dietaryLabels: recipe.data.dietaryLabels ?? [],
+    dietaryVerified: recipe.data.dietaryVerified ?? false,
+    allergens: recipe.data.allergens ?? [],
+    allergenReviewed: recipe.data.allergenReviewed ?? false,
+    allergenNotes: recipe.data.allergenNotes ?? '',
+    nutrition: recipe.data.nutrition ?? null,
     reviewStatus: recipe.data.reviewStatus,
   }), { headers: { 'content-type': 'application/json' } });
 };
@@ -127,6 +133,12 @@ export const PUT: APIRoute = async ({ params, request, cookies }) => {
     : typeof data.gallery === 'string'
     ? (() => { try { return JSON.parse(data.gallery); } catch { return []; } })()
     : [];
+
+  const nutrition = typeof data.nutrition === 'string'
+    ? (() => { try { return JSON.parse(data.nutrition); } catch { return undefined; } })()
+    : data.nutrition && typeof data.nutrition === 'object'
+    ? data.nutrition
+    : undefined;
 
   const title = String(data.title ?? '');
   const requestedSlug = String(data.slug ?? (currentSlug || title));
@@ -150,6 +162,12 @@ export const PUT: APIRoute = async ({ params, request, cookies }) => {
     ingredients: normalizeIngredients(data.ingredients),
     instructions: normalizeInstructions(data.instructions),
     tips: normalizeTags(data.tips),
+    dietaryLabels: normalizeDietaryLabels(data.dietaryLabels),
+    dietaryVerified: Boolean(data.dietaryVerified),
+    allergens: normalizeAllergens(data.allergens),
+    allergenReviewed: Boolean(data.allergenReviewed),
+    allergenNotes: data.allergenNotes ? String(data.allergenNotes).trim() : undefined,
+    nutrition,
     reviewStatus: String(data.reviewStatus ?? 'draft') as 'draft' | 'tested',
   };
 
@@ -174,6 +192,12 @@ export const PUT: APIRoute = async ({ params, request, cookies }) => {
       pubDate: payload.pubDate,
       category: payload.category,
       title: payload.title,
+      dietaryLabels: payload.dietaryLabels,
+      dietaryVerified: payload.dietaryVerified,
+      allergens: payload.allergens,
+      allergenReviewed: payload.allergenReviewed,
+      allergenNotes: payload.allergenNotes,
+      nutrition: payload.nutrition,
     });
     const response = await writeRepoFile(recipePath, markdown, `Update recipe: ${payload.title}`, prior.sha);
     return new Response(JSON.stringify({ message: 'Recipe updated', slug, sha: response.content?.sha ?? response.commit?.sha ?? null }), { status: 200, headers: { 'content-type': 'application/json' } });

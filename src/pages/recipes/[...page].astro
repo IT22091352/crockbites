@@ -32,6 +32,16 @@ const title = page.currentPage === 1 ? 'All Recipes' : `All Recipes, page ${page
       {categories.map((c) => <li><a class="chip" href={`/category/${c.id}/`}><CategoryIcon name={c.icon} size={14} />{c.name}</a></li>)}
     </ul>
 
+    <div class="mt-4 flex flex-wrap items-center gap-2 text-xs">
+      <span class="font-bold uppercase tracking-wider text-forest">Dietary:</span>
+      <a class="chip py-1 text-xs" href="/search/?dietary=vegetarian">Vegetarian</a>
+      <a class="chip py-1 text-xs" href="/search/?dietary=gluten-free">Gluten-Free</a>
+      <a class="chip py-1 text-xs" href="/search/?dietary=dairy-free">Dairy-Free</a>
+      <a class="chip py-1 text-xs" href="/search/?dietary=low-carb">Low-Carb</a>
+      <a class="chip py-1 text-xs" href="/search/?dietary=keto-friendly">Keto-Friendly</a>
+      <a class="chip py-1 text-xs" href="/search/?dietary=high-protein">High-Protein</a>
+    </div>
+
     <ul class="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
       {page.data.map((r, i) => <li><RecipeCard recipe={r} eager={i < 3} /></li>)}
     </ul>
