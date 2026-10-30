@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { listUserCollections, listUserFavorites } from '../../../lib/community';
+import { listUserFavorites } from '../../../lib/community';
 import { jsonResponse, resolveUserSession } from '../../../lib/community-server';
 
 export const prerender = false;
@@ -11,16 +11,11 @@ export const GET: APIRoute = async ({ cookies, locals, url }) => {
       authenticated: false,
       user: null,
       favoriteSlugs: [],
-      collections: [],
       csrfToken,
     });
   }
 
-  const targetRecipe = url.searchParams.get('recipeSlug') ?? undefined;
-  const [favorites, collections] = await Promise.all([
-    listUserFavorites(db, user.id),
-    listUserCollections(db, user.id, targetRecipe),
-  ]);
+  const favorites = await listUserFavorites(db, user.id);
 
   return jsonResponse({
     authenticated: true,
@@ -32,13 +27,6 @@ export const GET: APIRoute = async ({ cookies, locals, url }) => {
       emailVerified: user.emailVerified,
     },
     favoriteSlugs: favorites.map((f) => f.recipeSlug),
-    collections: collections.map((c) => ({
-      id: c.id,
-      name: c.name,
-      isPublic: c.isPublic,
-      recipeCount: c.recipeCount,
-      containsTargetRecipe: c.containsTargetRecipe,
-    })),
     csrfToken,
   });
 };

@@ -3,7 +3,7 @@ import type { SafeUser } from '../lib/user-auth';
 
 interface Props {
   user: SafeUser;
-  activeTab: 'overview' | 'profile' | 'favorites' | 'collections' | 'reviews';
+  activeTab: 'overview' | 'profile' | 'favorites' | 'reviews';
   csrfToken: string;
 }
 
@@ -28,7 +28,6 @@ const initials = (user.displayName || user.username || 'C').slice(0, 2).toUpperC
 const tabs = [
   { id: 'overview', label: 'Overview', href: '/account/' },
   { id: 'favorites', label: 'Saved Recipes', href: '/account/favorites/' },
-  { id: 'collections', label: 'Collections', href: '/account/collections/' },
   { id: 'reviews', label: 'My Reviews', href: '/account/reviews/' },
   { id: 'profile', label: 'Profile & Settings', href: '/account/profile/' },
 ] as const;

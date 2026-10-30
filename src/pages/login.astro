@@ -12,13 +12,13 @@ if (user) {
   return Astro.redirect(returnTo);
 }
 ---
-<BaseLayout title="Sign In" path="/login/" description="Sign in to your CrockBites community account to access saved recipes, collections, and reviews." noindex>
+<BaseLayout title="Sign In" path="/login/" description="Sign in to your CrockBites community account to access saved recipes and reviews." noindex>
   <div class="container-page py-12">
     <div class="mx-auto max-w-md rounded-3xl border border-line bg-paper p-6 shadow-[var(--shadow-card)] sm:p-10">
       <p class="text-xs font-bold uppercase tracking-widest text-terracotta-deep">Welcome Back</p>
       <h1 class="mt-2 text-3xl text-forest">Sign in to CrockBites</h1>
       <p class="mt-2 text-sm text-ink-soft">
-        Access your saved slow cooker favorites, custom collections, and recipe reviews.
+        Access your saved slow cooker favorites and recipe reviews.
       </p>
 
       <form id="login-form" class="mt-6 space-y-4" novalidate>

@@ -171,8 +171,6 @@ const headerAccountLink = d.querySelector('[data-header-account-link]');
 ok(Boolean(headerAccountLink), 'Phase 3: Header account / sign-in link exists');
 const saveBtn = d.querySelector(`[data-favorite-slug="${targetSlug}"]`);
 ok(Boolean(saveBtn), 'Phase 3: Save Recipe button exists on recipe detail page');
-const collectionBtn = d.getElementById('recipe-collection-btn');
-ok(Boolean(collectionBtn), 'Phase 3: Add to Collection button exists on recipe detail page');
 const ratingPill = d.getElementById('recipe-rating-summary-pill');
 ok(Boolean(ratingPill), 'Phase 3: Recipe header star rating summary pill exists');
 const reviewsSection = d.getElementById('recipe-reviews');

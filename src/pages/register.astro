@@ -15,13 +15,13 @@ if (user) {
 
 const d1Status = getD1BindingStatus(Astro.locals);
 ---
-<BaseLayout title="Create Account" path="/register/" description="Join the CrockBites community to save your favorite slow cooker recipes, build custom meal collections, and share reviews." noindex>
+<BaseLayout title="Create Account" path="/register/" description="Join the CrockBites community to save your favorite slow cooker recipes and share reviews." noindex>
   <div class="container-page py-12">
     <div class="mx-auto max-w-lg rounded-3xl border border-line bg-paper p-6 shadow-[var(--shadow-card)] sm:p-10">
       <p class="text-xs font-bold uppercase tracking-widest text-terracotta-deep">CrockBites Community</p>
       <h1 class="mt-2 text-3xl text-forest">Create your account</h1>
       <p class="mt-2 text-sm text-ink-soft">
-        Save recipes, organize weeknight meal collections, and rate dishes you have cooked.
+        Save your favorite slow cooker recipes and rate dishes you have cooked.
       </p>
 
       {d1Status.mode === 'unconfigured' && (
@@ -65,7 +65,7 @@ const d1Status = getD1BindingStatus(Astro.locals);
             placeholder="e.g. Sam Miller"
             class="field w-full"
           />
-          <p class="mt-1 text-xs text-ink-soft">Shown publicly on reviews and public collections you share.</p>
+          <p class="mt-1 text-xs text-ink-soft">Shown publicly on recipe reviews you share.</p>
         </div>
 
         <div>
