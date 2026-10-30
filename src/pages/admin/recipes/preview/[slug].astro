@@ -1,0 +1,126 @@
+---
+export const prerender = false;
+
+import { getCollection, render } from 'astro:content';
+import { getImage } from 'astro:assets';
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import RecipeDetail from '../../../../components/RecipeDetail.astro';
+import {
+  ADMIN_COOKIE_NAME,
+  getAdminSessionSecret,
+  parseAdminSessionCookie,
+  verifySessionCookie,
+} from '../../../../lib/admin';
+import {
+  categoryById,
+  recipeSlug,
+  recipeUrl,
+  relatedRecipes,
+} from '../../../../utils/recipes';
+import { breadcrumbSchema, recipeSchema } from '../../../../utils/jsonld';
+
+const adminCookie = Astro.cookies.get(ADMIN_COOKIE_NAME)?.value ?? '';
+const session = parseAdminSessionCookie(adminCookie);
+const secret = getAdminSessionSecret();
+
+if (!secret || !session || !verifySessionCookie(adminCookie, secret)) {
+  return Astro.redirect('/admin/login/?error=Please+log+in+to+preview+recipes');
+}
+
+const slug = String(Astro.params.slug ?? '').trim();
+const allRecipes = await getCollection('recipes');
+const recipe = allRecipes.find(
+  (entry) =>
+    entry.id.replace(/\.md$/, '') === slug ||
+    (entry.data.slug ?? '').toLowerCase() === slug.toLowerCase()
+);
+
+if (!recipe) {
+  return Astro.redirect('/admin/recipes/');
+}
+
+const { Content } = await render(recipe);
+const d = recipe.data;
+const cat = categoryById(d.category) ?? { id: d.category, name: d.category };
+const related = relatedRecipes(allRecipes as any, recipe as any, 3);
+
+const rawBody = (recipe.body ?? '').trim();
+const hasCustomIntro = Boolean(rawBody && rawBody !== (d.description ?? '').trim());
+
+let ogSrc: string;
+if (typeof d.image === 'string' && (d.image.startsWith('http://') || d.image.startsWith('https://'))) {
+  ogSrc = d.image;
+} else {
+  try {
+    const og = await getImage({ src: d.image as any, width: 1200 });
+    ogSrc = og.src;
+  } catch {
+    ogSrc = typeof d.image === 'string' ? d.image : '/placeholder.svg';
+  }
+}
+
+const path = recipeUrl(recipe as any);
+const jsonLd = [
+  recipeSchema(recipe as any, new URL(ogSrc, Astro.site ?? 'https://crockbites.com').href, cat.name),
+  breadcrumbSchema([
+    { name: 'Home', url: '/' },
+    { name: 'Recipes', url: '/recipes/' },
+    { name: cat.name, url: `/category/${cat.id}/` },
+    { name: d.title, url: path },
+  ]),
+];
+
+const isDraft = d.reviewStatus === 'draft';
+---
+
+<BaseLayout
+  title={`[Preview] ${d.title}`}
+  description={d.description}
+  path={path}
+  image={ogSrc}
+  imageAlt={d.imageAlt}
+  type="article"
+  noindex={true}
+  jsonLd={jsonLd}
+>
+  <!-- Admin Preview Notification Bar -->
+  <aside
+    style="background: #243A2D; color: #fff; padding: 0.85rem 1.5rem; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-bottom: 2px solid #C66A45;"
+    aria-label="Admin Preview Mode"
+  >
+    <div style="display: flex; align-items: center; gap: 0.85rem; font-size: 0.95rem;">
+      <span
+        style={`background: ${isDraft ? '#C66A45' : '#2e7d32'}; color: #fff; font-size: 0.75rem; font-weight: 800; padding: 4px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.05em;`}
+      >
+        {isDraft ? 'Draft Preview' : 'Published'}
+      </span>
+      <span>
+        {isDraft ? (
+          <><strong>Draft Mode:</strong> This recipe is currently hidden from public visitors.</>
+        ) : (
+          <><strong>Live Recipe:</strong> This recipe is currently live on the public website.</>
+        )}
+      </span>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 0.65rem;">
+      <a
+        href={`/admin/recipes/${recipe.id.replace(/\.md$/, '')}/`}
+        style="background: rgba(255,255,255,0.15); color: #fff; text-decoration: none; padding: 0.45rem 0.95rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; transition: background 0.15s;"
+      >
+        ✏️ Edit Recipe
+      </a>
+      <a
+        href="/admin/recipes/"
+        style="background: #C66A45; color: #fff; text-decoration: none; padding: 0.45rem 0.95rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; transition: background 0.15s;"
+      >
+        ← Back to Admin
+      </a>
+    </div>
+  </aside>
+
+  <!-- Recipe Details -->
+  <RecipeDetail recipe={recipe as any} related={related as any}>
+    {hasCustomIntro && <Content slot="intro" />}
+  </RecipeDetail>
+</BaseLayout>

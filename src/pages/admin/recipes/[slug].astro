@@ -153,7 +153,11 @@ const initialRecipe = {
             <h1 style="margin:0; font-size: 2.2rem;">Edit Recipe</h1>
           </div>
           <div style="display: flex; gap: 0.5rem;">
-            <a class="btn btn-subtle" href={`/recipe/${initialRecipe.slug}/`} target="_blank">View Live</a>
+            {initialRecipe.reviewStatus === 'tested' ? (
+              <a class="btn btn-subtle" href={`/recipe/${initialRecipe.slug}/`} target="_blank">View Live</a>
+            ) : (
+              <a class="btn btn-subtle" href={`/admin/recipes/preview/${initialRecipe.slug}/`} target="_blank" style="color: var(--terracotta); font-weight: 700;">Preview Draft</a>
+            )}
             <a class="btn btn-subtle" href="/admin/recipes/">Back to recipes</a>
           </div>
         </div>

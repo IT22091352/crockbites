@@ -121,7 +121,7 @@ Astro.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
                       {recipe.data.reviewStatus === 'tested' ? (
                         <a class="btn btn-subtle" href={`/recipe/${recipe.id.replace(/\.md$/, '')}/`} target="_blank">View</a>
                       ) : (
-                        <span class="btn btn-subtle" style="opacity: 0.5; cursor: not-allowed;" title="Drafts are hidden from the website">Draft</span>
+                        <a class="btn btn-subtle" href={`/admin/recipes/preview/${recipe.id.replace(/\.md$/, '')}/`} target="_blank" style="color: var(--terracotta); font-weight: 700;">Preview</a>
                       )}
                       <a class="btn btn-subtle" href={`/admin/recipes/${recipe.id.replace(/\.md$/, '')}/`}>Edit</a>
                       <button class="btn btn-danger" type="button" data-delete={recipe.id.replace(/\.md$/, '')}>Delete</button>
