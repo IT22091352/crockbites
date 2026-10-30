@@ -101,3 +101,4 @@ Pork loin is notoriously lean, meaning high heat quickly dries it out. By cookin
 ```
 Top-down angled food photograph of thick, tender slow-cooked pork loin chops nestled in a rustic stoneware serving dish, drenched in a glossy caramelized onion and Dijon herb gravy. Garnished with finely chopped fresh flat-leaf parsley and cracked black peppercorns. Alongside is a vintage serving fork, a cast-iron skillet with roasted baby carrots, and warm crusty artisan bread. Warm moody ambient kitchen light, authentic dark wood surface, highly detailed meat grain and appetizing sauce reflections. --ar 4:5 --style raw
 ```
+

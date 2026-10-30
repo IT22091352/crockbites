@@ -100,3 +100,4 @@ Slow cooking a whole chicken traps moisture so the breast meat stays tender inst
 ```
 Editorial food photography of a whole roasted golden-brown chicken just pulled from an oval matte black ceramic slow cooker, resting on a dark rustic wooden cutting board, garnished with fresh rosemary sprigs and roasted lemon wedges. Soft diffused natural morning window light from the left side, shallow depth of field (f/2.8, 50mm lens), subtle steam rising from the carved meat. In the background, a small ceramic bowl of savory chicken gravy, a linen kitchen towel, and scattered sea salt flakes. Ultra-realistic textures, warm earthy color palette, 4k food magazine quality. --ar 4:5 --style raw
 ```
+

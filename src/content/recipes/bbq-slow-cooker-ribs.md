@@ -100,3 +100,4 @@ Ribs require hours of low, moist heat to break down tough connective tissue betw
 ```
 Mouthwatering, rustic food photography of tender BBQ baby back ribs on brown butcher paper over a dark wooden barbecue table. The ribs are glazed with a glossy, caramelized deep red barbecue sauce with slightly charred smoky edges. A few bones are cut and stacked to show the juicy, pink smoke-ring meat texture. Accompanied by a metal ramekin of extra barbecue sauce, fresh chopped green onions, a slice of grilled corn on the cob, and crisp cabbage slaw in the background. Warm directional lighting, steam rising, commercial food ad quality, 50mm lens, f/2.8. --ar 4:5 --style raw
 ```
+

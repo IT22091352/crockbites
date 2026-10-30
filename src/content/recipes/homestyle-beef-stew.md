@@ -136,3 +136,4 @@ Chuck roast is loaded with connective collagen. Over 7 to 8 hours on low heat, t
 ```
 Warm, cozy close-up food photograph of a steaming bowl of homestyle beef stew, showcasing tender caramelized beef cubes, fork-tender baby yellow potatoes, vibrant carrots, and sweet green peas in a glossy mahogany brown gravy. Served in a handmade speckled clay bowl with a rustic antique silver spoon resting inside. A warm loaf of crusty torn sourdough bread on a dark oak wooden table alongside. Atmospheric chiaroscuro lighting, soft steam wisps, shallow depth of field, authentic home kitchen aesthetic. --ar 4:5 --style raw
 ```
+

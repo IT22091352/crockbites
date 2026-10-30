@@ -105,3 +105,4 @@ Whole turkeys often suffer from overcooked breast meat while waiting for the dar
 ```
 Professional food photography of sliced, juicy roasted turkey breast arranged fanned out on a white ceramic oval platter, showcasing succulent meat texture with golden-brown herb-crusted skin. Garnished with whole fresh sage leaves, rosemary twigs, and fresh cranberries. Alongside sits a classic ceramic gravy boat pouring hot velvety golden gravy. Soft Thanksgiving-inspired natural afternoon window light, dark textured linen tablecloth, high resolution, 85mm portrait lens, f/3.2. --ar 4:5 --style raw
 ```
+
