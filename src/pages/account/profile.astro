@@ -389,9 +389,9 @@ const PRESET_AVATARS = [
               },
               body: JSON.stringify(payload),
             });
-            const data = await res.json();
+            const data = await res.json().catch(() => ({}));
             if (!res.ok) {
-              showBanner(profileBanner, data.error || 'Could not update profile.', true);
+              showBanner(profileBanner, data.error || `Could not update profile (status ${res.status}).`, true);
             } else {
               showBanner(profileBanner, 'Profile updated! Refreshing...', false);
               setTimeout(() => window.location.reload(), 600);
@@ -432,9 +432,9 @@ const PRESET_AVATARS = [
               },
               body: JSON.stringify({ currentPassword, newPassword, csrfToken }),
             });
-            const data = await res.json();
+            const data = await res.json().catch(() => ({}));
             if (!res.ok) {
-              showBanner(passwordBanner, data.error || 'Could not change password.', true);
+              showBanner(passwordBanner, data.error || `Could not change password (status ${res.status}).`, true);
             } else {
               passwordForm.reset();
               showBanner(passwordBanner, data.message || 'Password updated and session rotated!', false);
@@ -524,10 +524,10 @@ const PRESET_AVATARS = [
               },
               body: JSON.stringify({ password, csrfToken }),
             });
-            const data = await res.json();
+            const data = await res.json().catch(() => ({}));
             if (!res.ok) {
               if (deleteBanner) {
-                deleteBanner.textContent = data.error || 'Failed to delete account.';
+                deleteBanner.textContent = data.error || `Failed to delete account (status ${res.status}).`;
                 deleteBanner.classList.remove('hidden');
               }
             } else {

@@ -56,14 +56,40 @@ const isCurrent = (href: string) => (href === '/' ? path === '/' : path.startsWi
     </button>
   </div>
   <nav aria-label="Mobile" class="px-5 pb-10 pt-4">
-    <ul class="divide-y divide-cream/15">
-      {nav.map((n) => (
-        <li><a href={n.href} class="block py-4 font-display text-2xl font-semibold text-cream no-underline" aria-current={isCurrent(n.href) ? 'page' : undefined}>{n.label}</a></li>
-      ))}
-      <li><a href="/search/" class="block py-4 font-display text-2xl font-semibold text-cream no-underline">Search</a></li>
-      <li><a href="/login/" data-mobile-account-link class="block py-4 font-display text-2xl font-semibold text-cream no-underline">Sign In / Register</a></li>
-    </ul>
-    <p class="mt-8 font-display text-lg text-cream/80">Good Food. Less Fuss.</p>
+    <div class="mb-6">
+      <a href="/search/" class="flex min-h-12 items-center gap-3 rounded-xl border border-cream/20 bg-forest-deep/60 px-4 py-3 text-base font-semibold text-cream no-underline transition-colors hover:border-cream/50">
+        <Search size={20} class="text-terracotta-soft" aria-hidden="true" />
+        <span>Search all recipes...</span>
+      </a>
+    </div>
+
+    <div class="space-y-6">
+      <div>
+        <p class="mb-2 text-xs font-bold uppercase tracking-wider text-cream/60">Explore Recipes</p>
+        <ul class="space-y-1">
+          {nav.map((n) => (
+            <li>
+              <a href={n.href} class="block rounded-lg px-3 py-2.5 font-display text-xl font-semibold text-cream no-underline transition-colors hover:bg-white/10" aria-current={isCurrent(n.href) ? 'page' : undefined}>
+                {n.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div class="border-t border-cream/15 pt-5">
+        <p class="mb-2 text-xs font-bold uppercase tracking-wider text-cream/60">My Kitchen</p>
+        <ul class="space-y-1">
+          <li>
+            <a href="/login/" data-mobile-account-link class="block rounded-lg px-3 py-2.5 font-display text-xl font-semibold text-cream no-underline transition-colors hover:bg-white/10">
+              Sign In / Register
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="mt-8 font-display text-sm text-cream/70">Good Food. Less Fuss. — CrockBites</p>
   </nav>
 </div>
 

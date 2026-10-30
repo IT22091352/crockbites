@@ -1,98 +1,255 @@
 ---
 import { Image } from 'astro:assets';
-import { ArrowRight, Clock, Thermometer, BookOpen, Timer } from '@lucide/astro';
+import { ArrowRight, Clock, Thermometer, BookOpen, Timer, Sparkles, Search, Compass, ChefHat } from '@lucide/astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import RecipeCard from '../components/RecipeCard.astro';
 import CategoryIcon from '../components/CategoryIcon.astro';
 import AdSlot from '../components/AdSlot.astro';
-import hero from '../assets/hero.svg';
-import { getAllRecipes, popularRecipes, recipesForCategory, recipeUrl, totalMinutes } from '../utils/recipes';
-import { categories } from '../data/categories';
+import hero from '../assets/hero.jpg';
+import { getAllRecipes, popularRecipes, recipesForCategory, recipeSlug, recipeUrl, totalMinutes } from '../utils/recipes';
+import { categories, hubs } from '../data/categories';
 import { formatMinutes } from '../utils/time';
 import { rw, isRemoteImage, getOptimizedCloudinaryUrl } from '../utils/images';
 import { homeGraph } from '../utils/jsonld';
 
 const all = await getAllRecipes();
 const featured = all.find((r) => r.data.featured) ?? all[0];
-const popular = popularRecipes(all, 4);
-const latest = all.slice(0, 6);
+
+// Deduplicate: Exclude featured recipe from popular if there are enough recipes
+const nonFeatured = all.filter((r) => r !== featured);
+const popularPool = nonFeatured.length > 0 ? nonFeatured : all;
+const popular = popularRecipes(popularPool, 4);
+
+// Find distinct recipes for latest that have not already been showcased
+const shownSlugs = new Set([
+  featured ? recipeSlug(featured) : '',
+  ...popular.map((r) => recipeSlug(r)),
+]);
+const remainingForLatest = all.filter((r) => !shownSlugs.has(recipeSlug(r)));
+const latest = remainingForLatest.length > 0 ? remainingForLatest.slice(0, 6) : [];
+
+// Responsive grid columns that never leave blank columns on desktop
+const popularGridClass =
+  popular.length === 1
+    ? 'grid max-w-md gap-6 mx-auto lg:mx-0'
+    : popular.length === 2
+    ? 'grid max-w-3xl gap-6 sm:grid-cols-2'
+    : popular.length === 3
+    ? 'grid gap-6 sm:grid-cols-2 lg:grid-cols-3'
+    : 'grid gap-6 sm:grid-cols-2 lg:grid-cols-4';
+
 const tips = [
-  { icon: Timer, title: 'Low or High? How to choose', text: 'What the two settings really do, and when each makes sense.', href: '/guides/slow-cooker-basics/#low-vs-high' },
-  { icon: Thermometer, title: 'Why a thermometer beats the clock', text: 'Safe internal temperatures for chicken, pork, beef and egg dishes.', href: '/guides/slow-cooker-food-safety/#thermometer' },
-  { icon: BookOpen, title: 'Cooking dried beans safely', text: 'The soak-and-boil step you should not skip before slow cooking.', href: '/guides/slow-cooker-food-safety/#beans' },
+  { icon: Timer, title: 'Low or High? How to choose', text: 'What the two settings really do, and when each heat level makes sense.', href: '/guides/slow-cooker-basics/#low-vs-high' },
+  { icon: Thermometer, title: 'Why a thermometer beats the clock', text: 'Safe internal temperatures for poultry, pork, beef and slow-cooked dishes.', href: '/guides/slow-cooker-food-safety/#thermometer' },
+  { icon: BookOpen, title: 'Cooking dried beans safely', text: 'The essential soak-and-boil step you should never skip before slow cooking.', href: '/guides/slow-cooker-food-safety/#beans' },
 ];
 ---
-<BaseLayout path="/" jsonLd={[homeGraph()]} imageAlt="CrockBites: Good Food. Less Fuss.">
-  <!-- Hero -->
-  <section class="overflow-hidden">
-    <div class="container-page grid items-center gap-10 pb-16 pt-10 lg:grid-cols-[1.15fr_0.85fr] lg:gap-16 lg:pb-24 lg:pt-16">
+<BaseLayout path="/" jsonLd={[homeGraph()]} imageAlt="CrockBites: Good Food. Less Fuss. Authentic slow cooker recipes and everyday meals.">
+  <!-- Hero Section -->
+  <section class="overflow-hidden bg-cream-deep/30 border-b border-line/60">
+    <div class="container-page grid items-center gap-12 pb-16 pt-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16 lg:pb-24 lg:pt-16">
       <div>
-        <h1 class="max-w-[12ch]">Good Food. Less Fuss.</h1>
-        <p class="mt-6 max-w-xl text-[1.2rem] leading-relaxed text-ink-soft">Discover easy slow cooker recipes and everyday meals made for real life.</p>
-        <div class="mt-8 flex flex-wrap gap-3">
-          <a class="btn" href="/recipes/">Explore Recipes <ArrowRight size={18} aria-hidden="true" /></a>
-          <a class="btn btn-outline" href="/category/slow-cooker/">Browse Slow Cooker Recipes</a>
+        <div class="inline-flex items-center gap-2 rounded-full border border-forest/20 bg-forest/8 px-3.5 py-1 text-xs font-bold uppercase tracking-wider text-forest mb-5">
+          <Sparkles size={14} class="text-terracotta-deep" aria-hidden="true" />
+          <span>Slow Cooker &amp; Everyday Meals</span>
         </div>
-        <p class="mt-8 max-w-md text-sm text-ink-soft">New to CrockBites? Meat, poultry, and slow-cooked dishes include safe internal temperature targets where they apply, because time alone never proves food is done.</p>
+        <h1 class="max-w-[14ch] text-forest font-semibold leading-tight">
+          Good Food.<br /><span class="italic font-normal text-terracotta-deep">Less Fuss.</span>
+        </h1>
+        <p class="mt-6 max-w-xl text-[1.15rem] leading-relaxed text-ink-soft sm:text-[1.22rem]">
+          Tested, trustworthy slow cooker recipes and simple dinners designed for busy everyday home cooks. Real ingredients, verified cooking times, and zero fuss.
+        </p>
+
+        <div class="mt-8 flex flex-wrap items-center gap-3.5">
+          <a class="btn shadow-sm hover:shadow-md" href="/recipes/">
+            Explore Recipes <ArrowRight size={18} aria-hidden="true" />
+          </a>
+          <a class="btn btn-outline" href="/category/slow-cooker/">
+            Slow Cooker Hub
+          </a>
+          <a class="inline-flex items-center gap-1.5 text-sm font-semibold text-terracotta-deep hover:text-forest transition-colors ml-1" href="/search/">
+            <Search size={16} aria-hidden="true" /> Search ingredients &rarr;
+          </a>
+        </div>
+
+        <!-- Trust Signals & Features -->
+        <div class="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-3 pt-6 border-t border-line/80">
+          <div class="flex items-center gap-2.5">
+            <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-forest/10 text-forest text-xs font-bold">✓</span>
+            <span class="text-xs font-semibold text-ink-soft">Kitchen-Tested Recipes</span>
+          </div>
+          <div class="flex items-center gap-2.5">
+            <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-forest/10 text-forest text-xs font-bold">⏱</span>
+            <span class="text-xs font-semibold text-ink-soft">Built-in cooking timers</span>
+          </div>
+          <div class="flex items-center gap-2.5">
+            <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-forest/10 text-forest text-xs font-bold">🌡</span>
+            <span class="text-xs font-semibold text-ink-soft">Food Safety Temperature Guides</span>
+          </div>
+        </div>
       </div>
-      <div class="relative mx-auto w-full max-w-[26rem] pt-14 lg:ml-auto lg:mr-0">
-        <svg class="steam absolute left-1/2 top-0 h-16 w-24 -translate-x-1/2 text-terracotta" viewBox="0 0 96 64" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" aria-hidden="true">
+
+      <!-- Hero Photography Arch -->
+      <div class="relative mx-auto w-full max-w-[26rem] pt-12 lg:ml-auto lg:mr-0">
+        <svg class="steam absolute left-1/2 top-0 h-14 w-20 -translate-x-1/2 text-terracotta-deep opacity-80" viewBox="0 0 96 64" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" aria-hidden="true">
           <path d="M26 58q-9-8 0-16t0-16" /><path d="M48 58q-9-8 0-16t0-16t0-16" /><path d="M70 58q-9-8 0-16t0-16" />
         </svg>
-        <div class="relative overflow-hidden rounded-t-[999px] rounded-b-[2rem] border-[6px] border-forest bg-forest shadow-[var(--shadow-card)]">
-          <Image src={hero} alt="Placeholder illustration: overhead view of a slow cooker full of beef stew with potatoes, carrots and peas."
-            {...rw(hero, [420, 640, 840])} sizes="(min-width: 1024px) 26rem, 90vw" loading="eager" fetchpriority="high" decoding="async" class="aspect-[4/5] w-full object-cover" />
+        <div class="relative overflow-hidden rounded-t-[999px] rounded-b-[2.5rem] border-[6px] border-forest bg-forest shadow-[var(--shadow-card)]">
+          <Image
+            src={hero}
+            alt="Warm, savory slow-cooked beef stew simmering with tender potatoes, carrots, and garden herbs in a ceramic slow cooker"
+            width={840}
+            height={1050}
+            {...rw(hero, [420, 640, 840])}
+            sizes="(min-width: 1024px) 26rem, 90vw"
+            loading="eager"
+            fetchpriority="high"
+            decoding="async"
+            class="aspect-[4/5] w-full object-cover transition-transform duration-700 hover:scale-103"
+          />
+        </div>
+        <div class="mt-3 text-center">
+          <span class="text-xs font-semibold text-ink-soft italic">
+            Slow-cooked beef stew with fresh aromatics &amp; garden vegetables
+          </span>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Featured recipe -->
+  <!-- Featured recipe showcase -->
   {featured && (
     <section aria-labelledby="featured-heading" class="bg-forest text-cream">
       <div class="container-page grid items-center gap-10 py-14 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16 lg:py-20">
-        <a href={recipeUrl(featured)} class="block overflow-hidden rounded-3xl" tabindex="-1" aria-hidden="true">
+        <a href={recipeUrl(featured)} class="group block overflow-hidden rounded-3xl border border-white/10 shadow-lg" tabindex="-1" aria-hidden="true">
           {isRemoteImage(featured.data.image) ? (
             <img
               src={getOptimizedCloudinaryUrl(featured.data.image, 960)}
               srcset={`${getOptimizedCloudinaryUrl(featured.data.image, 480)} 480w, ${getOptimizedCloudinaryUrl(featured.data.image, 720)} 720w, ${getOptimizedCloudinaryUrl(featured.data.image, 960)} 960w`}
               sizes="(min-width: 1024px) 40rem, 100vw"
-              alt=""
+              alt={featured.data.imageAlt || featured.data.title}
               width={960}
               height={720}
               loading="lazy"
               decoding="async"
-              class="aspect-[4/3] w-full object-cover"
+              class="aspect-[4/3] w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
             />
           ) : (
-            <Image src={featured.data.image as any} alt="" {...rw(featured.data.image as any, [480, 720, 960])} sizes="(min-width: 1024px) 40rem, 100vw" loading="lazy" decoding="async" class="aspect-[4/3] w-full object-cover" />
+            <Image
+              src={featured.data.image as any}
+              alt={featured.data.imageAlt || featured.data.title}
+              width={960}
+              height={720}
+              {...rw(featured.data.image as any, [480, 720, 960])}
+              sizes="(min-width: 1024px) 40rem, 100vw"
+              loading="lazy"
+              decoding="async"
+              class="aspect-[4/3] w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+            />
           )}
         </a>
         <div>
-          <p class="text-[0.97rem] font-semibold text-[#F0B79F]">Featured recipe</p>
-          <h2 id="featured-heading" class="mt-3 !text-cream"><a href={recipeUrl(featured)} class="no-underline hover:underline">{featured.data.title}</a></h2>
-          <p class="mt-4 max-w-lg text-[1.1rem] text-cream/85">{featured.data.description}</p>
-          <p class="mt-5 inline-flex items-center gap-2 text-[0.97rem] font-semibold text-cream"><Clock size={18} aria-hidden="true" /> {formatMinutes(totalMinutes(featured))} total · serves {featured.data.servings}</p>
-          <div class="mt-8"><a class="btn btn-light" href={recipeUrl(featured)}>View the recipe <ArrowRight size={18} aria-hidden="true" /></a></div>
+          <div class="inline-flex items-center gap-2 rounded-full bg-terracotta/25 px-3 py-1 text-xs font-bold uppercase tracking-wider text-[#F0B79F]">
+            ★ Featured Kitchen Selection
+          </div>
+          <h2 id="featured-heading" class="mt-4 !text-cream text-3xl sm:text-4xl">
+            <a href={recipeUrl(featured)} class="no-underline hover:text-[#F0B79F] transition-colors">
+              {featured.data.title}
+            </a>
+          </h2>
+          <p class="mt-4 max-w-lg text-[1.1rem] leading-relaxed text-cream/85">
+            {featured.data.description}
+          </p>
+          <div class="mt-6 flex flex-wrap items-center gap-4 text-sm font-semibold text-cream">
+            <span class="inline-flex items-center gap-1.5">
+              <Clock size={17} class="text-[#F0B79F]" aria-hidden="true" />
+              <span>{formatMinutes(totalMinutes(featured))} total</span>
+            </span>
+            <span>•</span>
+            <span>Serves {featured.data.servings}</span>
+          </div>
+          <div class="mt-8">
+            <a class="btn btn-light shadow-sm" href={recipeUrl(featured)}>
+              View the Recipe <ArrowRight size={18} aria-hidden="true" />
+            </a>
+          </div>
         </div>
       </div>
     </section>
   )}
 
-  <!-- Categories -->
+  <!-- Browse by Category & Navigation Hubs -->
   <section aria-labelledby="categories-heading" class="container-page pt-20">
-    <h2 id="categories-heading">Browse by category</h2>
-    <ul class="mt-8 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
+    <div class="flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <h2 id="categories-heading">Browse by category</h2>
+        <p class="mt-2 text-ink-soft">Explore slow-cooked comfort food by dish style or protein.</p>
+      </div>
+      <a class="link-text font-semibold" href="/recipes/">View all recipe collections &rarr;</a>
+    </div>
+
+    <!-- Curated Hubs -->
+    <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {hubs.map((h) => {
+        return (
+          <a href={`/category/${h.slug}/`} class="group relative overflow-hidden rounded-2xl border border-line bg-paper p-5 transition-all hover:border-forest hover:shadow-md">
+            <div class="flex items-start justify-between">
+              <div>
+                <span class="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-terracotta-deep">
+                  <Compass size={14} aria-hidden="true" /> Curated Hub
+                </span>
+                <h3 class="mt-1 font-display text-xl font-semibold text-forest group-hover:text-terracotta-deep transition-colors">
+                  {h.name}
+                </h3>
+                <p class="mt-1.5 text-sm text-ink-soft line-clamp-2 max-w-md">
+                  {h.description}
+                </p>
+              </div>
+              <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-cream-deep text-forest transition-transform group-hover:translate-x-1">
+                <ArrowRight size={18} aria-hidden="true" />
+              </span>
+            </div>
+          </a>
+        );
+      })}
+    </div>
+
+    <!-- Category Grid -->
+    <ul class="mt-4 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
       {categories.map((c) => {
         const count = recipesForCategory(all, c.id).length;
+        const hasRecipes = count > 0;
         return (
           <li>
-            <a href={`/category/${c.id}/`} class="group flex h-full items-center gap-3.5 rounded-2xl border border-line bg-paper p-3.5 no-underline transition-colors hover:border-forest sm:p-4">
-              <span class="grid size-11 shrink-0 place-content-center rounded-full bg-cream-deep text-forest group-hover:bg-forest group-hover:text-cream"><CategoryIcon name={c.icon} /></span>
-              <span class="min-w-0">
-                <span class="block font-display text-[1.05rem] font-semibold leading-tight text-forest">{c.name}</span>
-                <span class="block text-sm text-ink-soft">{count ? `${count} ${count === 1 ? 'recipe' : 'recipes'}` : 'Coming soon'}</span>
-              </span>
+            <a
+              href={`/category/${c.id}/`}
+              class={`group flex h-full flex-col justify-between rounded-2xl border p-4 no-underline transition-all hover:shadow-sm ${
+                hasRecipes ? 'border-line bg-paper hover:border-forest' : 'border-line/70 bg-cream/40 hover:border-line hover:bg-paper'
+              }`}
+            >
+              <div class="flex items-center gap-3">
+                <span class={`grid size-11 shrink-0 place-content-center rounded-xl transition-colors ${
+                  hasRecipes
+                    ? 'bg-cream-deep text-forest group-hover:bg-forest group-hover:text-cream'
+                    : 'bg-cream-deep/70 text-forest/70 group-hover:bg-cream-deep'
+                }`}>
+                  <CategoryIcon name={c.icon} />
+                </span>
+                <div class="min-w-0">
+                  <span class="block font-display text-[1.02rem] font-semibold leading-tight text-forest group-hover:text-terracotta-deep transition-colors">
+                    {c.name}
+                  </span>
+                  {hasRecipes ? (
+                    <span class="mt-1 inline-flex items-center rounded-full bg-forest/8 px-2 py-0.5 text-xs font-semibold text-forest">
+                      {count} {count === 1 ? 'recipe' : 'recipes'}
+                    </span>
+                  ) : (
+                    <span class="mt-1 inline-flex items-center gap-1 text-xs text-ink-soft/80 italic">
+                      <ChefHat size={12} class="text-terracotta" aria-hidden="true" /> In test kitchen
+                    </span>
+                  )}
+                </div>
+              </div>
             </a>
           </li>
         );
@@ -100,60 +257,127 @@ const tips = [
     </ul>
   </section>
 
-  <!-- Popular -->
-  <section aria-labelledby="popular-heading" class="container-page pt-20">
+  <!-- Popular Recipes (No blank columns, deduplicated) -->
+  {popular.length > 0 && (
+    <section aria-labelledby="popular-heading" class="container-page pt-20">
+      <div class="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h2 id="popular-heading">Popular recipes</h2>
+          <p class="mt-2 text-ink-soft">Reader favorites tested and loved by home cooks.</p>
+        </div>
+        <a class="link-text font-semibold" href="/recipes/">See all recipes &rarr;</a>
+      </div>
+      <ul class={`mt-8 ${popularGridClass}`}>
+        {popular.map((r) => <li><RecipeCard recipe={r} /></li>)}
+      </ul>
+    </section>
+  )}
+
+  <div class="container-page pt-8"><AdSlot slot="homeMid" /></div>
+
+  <!-- Latest Recipes (Shown if there are distinct recipes remaining) -->
+  {latest.length > 0 ? (
+    <section aria-labelledby="latest-heading" class="container-page pt-20">
+      <div class="grid gap-10 lg:grid-cols-[0.8fr_1.4fr] lg:gap-16">
+        <div>
+          <h2 id="latest-heading">Latest recipes</h2>
+          <p class="mt-3 max-w-sm text-ink-soft">
+            Freshly tested recipes added to the collection.
+          </p>
+          <a class="btn btn-outline mt-6" href="/recipes/">Browse all recipes</a>
+        </div>
+        <ul class="space-y-2">
+          {latest.map((r) => <li><RecipeCard recipe={r} layout="row" /></li>)}
+        </ul>
+      </div>
+    </section>
+  ) : (
+    <section aria-labelledby="kitchen-standards-heading" class="container-page pt-16">
+      <div class="rounded-3xl border border-line bg-paper p-8 lg:p-12 shadow-sm">
+        <div class="grid gap-8 lg:grid-cols-[1fr_1.2fr] lg:gap-14 items-center">
+          <div>
+            <span class="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-terracotta-deep">
+              The CrockBites Standard
+            </span>
+            <h2 id="kitchen-standards-heading" class="mt-2 text-2xl sm:text-3xl">
+              Why our recipes work every single time
+            </h2>
+            <p class="mt-3 text-ink-soft leading-relaxed">
+              Every recipe published on CrockBites undergoes hands-on kitchen testing. We record realistic preparation times, specify thermometer doneness targets, and provide instant serving scaling and metric conversions.
+            </p>
+            <div class="mt-6 flex flex-wrap gap-3">
+              <a href="/guides/slow-cooker-basics/" class="btn btn-small">Slow Cooker Basics</a>
+              <a href="/guides/slow-cooker-food-safety/" class="btn btn-small btn-outline">Food Safety Guide</a>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="rounded-2xl border border-line/80 bg-cream/40 p-5">
+              <div class="text-terracotta-deep font-display font-semibold text-lg">Instant Servings Scaler</div>
+              <p class="mt-1.5 text-xs text-ink-soft leading-relaxed">
+                Adjust servings from 1 to 50 with proportional ingredient calculations and automatic unit pluralization.
+              </p>
+            </div>
+            <div class="rounded-2xl border border-line/80 bg-cream/40 p-5">
+              <div class="text-terracotta-deep font-display font-semibold text-lg">US &amp; Metric Switcher</div>
+              <p class="mt-1.5 text-xs text-ink-soft leading-relaxed">
+                One-click switching between cups/pounds and grams/millilitres for international home cooks.
+              </p>
+            </div>
+            <div class="rounded-2xl border border-line/80 bg-cream/40 p-5">
+              <div class="text-terracotta-deep font-display font-semibold text-lg">Interactive Cooking Mode</div>
+              <p class="mt-1.5 text-xs text-ink-soft leading-relaxed">
+                Distraction-free step tracking with integrated countdown kitchen timers that keep you on schedule.
+              </p>
+            </div>
+            <div class="rounded-2xl border border-line/80 bg-cream/40 p-5">
+              <div class="text-terracotta-deep font-display font-semibold text-lg">Major Allergen Information</div>
+              <p class="mt-1.5 text-xs text-ink-soft leading-relaxed">
+                Clear allergen disclosures on every recipe so you can feed family and guests with confidence.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )}
+
+  <!-- Cooking Guides & Tips -->
+  <section aria-labelledby="tips-heading" class="container-page pt-20">
     <div class="flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h2 id="popular-heading">Popular recipes</h2>
-        <p class="mt-2 text-ink-soft">The dishes people search for most.</p>
+        <h2 id="tips-heading">Helpful cooking tips</h2>
+        <p class="mt-2 text-ink-soft">Practical slow cooking know-how to get dinner right.</p>
       </div>
-      <a class="link-text font-semibold" href="/recipes/">See all recipes</a>
+      <a class="link-text font-semibold" href="/guides/slow-cooker-basics/">Read all guides &rarr;</a>
     </div>
-    <ul class="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-      {popular.map((r) => <li><RecipeCard recipe={r} /></li>)}
-    </ul>
-  </section>
-
-  <div class="container-page"><AdSlot slot="homeMid" /></div>
-
-  <!-- Latest -->
-  <section aria-labelledby="latest-heading" class="container-page pt-20">
-    <div class="grid gap-10 lg:grid-cols-[0.8fr_1.4fr] lg:gap-16">
-      <div>
-        <h2 id="latest-heading">Latest recipes</h2>
-        <p class="mt-3 max-w-sm text-ink-soft">Freshly added to the collection. New recipes are published as they are written and reviewed.</p>
-        <a class="btn btn-outline mt-6" href="/recipes/">Browse all recipes</a>
-      </div>
-      <ul>
-        {latest.map((r) => <li><RecipeCard recipe={r} layout="row" /></li>)}
-      </ul>
-    </div>
-  </section>
-
-  <!-- Tips -->
-  <section aria-labelledby="tips-heading" class="container-page pt-20">
-    <h2 id="tips-heading">Helpful cooking tips</h2>
     <ul class="mt-8 grid gap-4 md:grid-cols-3">
       {tips.map((t) => (
         <li>
-          <a href={t.href} class="group flex h-full flex-col rounded-2xl border border-line bg-paper p-6 no-underline transition-colors hover:border-forest">
-            <t.icon size={26} class="text-terracotta-deep" aria-hidden="true" />
-            <span class="mt-4 font-display text-xl font-semibold text-forest group-hover:underline">{t.title}</span>
-            <span class="mt-2 text-[0.97rem] text-ink-soft">{t.text}</span>
+          <a href={t.href} class="group flex h-full flex-col justify-between rounded-2xl border border-line bg-paper p-6 no-underline transition-all hover:border-forest hover:shadow-sm">
+            <div>
+              <t.icon size={26} class="text-terracotta-deep" aria-hidden="true" />
+              <h3 class="mt-4 font-display text-xl font-semibold text-forest group-hover:text-terracotta-deep transition-colors">
+                {t.title}
+              </h3>
+              <p class="mt-2 text-[0.97rem] text-ink-soft leading-relaxed">{t.text}</p>
+            </div>
+            <span class="mt-4 inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-terracotta-deep">
+              Read guide &rarr;
+            </span>
           </a>
         </li>
       ))}
     </ul>
   </section>
 
-  <!-- About -->
-  <section aria-labelledby="about-heading" class="container-page pt-20">
-    <div class="grid gap-8 rounded-3xl border border-line bg-paper p-8 lg:grid-cols-[0.8fr_1.2fr] lg:gap-14 lg:p-12">
-      <h2 id="about-heading">About CrockBites</h2>
-      <div class="space-y-4 text-[1.08rem]">
-        <p>CrockBites is a new recipe site built around the slow cooker and everyday meals. The goal is simple: clear ingredient lists, straightforward steps, and honest food safety guidance, so cooking dinner takes less fuss.</p>
-        <p>Every public recipe on CrockBites is kitchen-tested and includes interactive serving scaling, US and Metric unit conversion, step-by-step Cooking Mode with built-in timers, and community reviews from fellow home cooks.</p>
-        <p><a class="link-text font-semibold" href="/about/">Read more about the site</a></p>
+  <!-- About Section -->
+  <section aria-labelledby="about-heading" class="container-page py-20">
+    <div class="grid gap-8 rounded-3xl border border-line bg-paper p-8 lg:grid-cols-[0.8fr_1.2fr] lg:gap-14 lg:p-12 shadow-sm">
+      <h2 id="about-heading" class="text-2xl sm:text-3xl">About CrockBites</h2>
+      <div class="space-y-4 text-[1.08rem] leading-relaxed text-ink-soft">
+        <p>CrockBites is an international recipe blog dedicated to effortless slow cooking and reliable everyday meals. Our philosophy is simple: clear ingredient measurements, straightforward preparation steps, and honest food safety guidance, so preparing dinner takes less fuss.</p>
+        <p>Every public recipe on CrockBites is kitchen-tested and features dynamic serving size adjustments, US customary and Metric conversions, a dedicated Cooking Mode with timers, and real reviews from fellow home cooks.</p>
+        <p><a class="link-text font-semibold" href="/about/">Learn more about our recipe standards &rarr;</a></p>
       </div>
     </div>
   </section>

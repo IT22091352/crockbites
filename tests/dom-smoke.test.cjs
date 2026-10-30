@@ -11,10 +11,10 @@ function load(file, url) {
   dom.window.matchMedia = dom.window.matchMedia || (() => ({ addEventListener() {}, matches: false }));
   dom.window.history.replaceState = dom.window.history.replaceState.bind(dom.window.history);
 
-  // Execute bundled RecipeDetail scripts linked via src
+  // Execute bundled RecipeDetail and search scripts linked via src
   for (const m of html.matchAll(/<script\b[^>]*src="([^"]+)"[^>]*><\/script>/gi)) {
     const src = m[1];
-    if (src.includes('RecipeDetail')) {
+    if (src.includes('RecipeDetail') || src.includes('search')) {
       const scriptPath = `${DIST_ROOT}/${src.replace(/^\//, '')}`;
       if (fs.existsSync(scriptPath)) {
         try {

@@ -1,38 +1,52 @@
 ---
 import { getImage } from 'astro:assets';
+import { Search, SlidersHorizontal, X, Sparkles, CircleAlert } from '@lucide/astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Breadcrumbs from '../components/Breadcrumbs.astro';
-import { getAllRecipes, categoryById, recipeUrl, totalMinutes } from '../utils/recipes';
+import { getAllRecipes, categoryById, recipeUrl, totalMinutes, recipeSlug } from '../utils/recipes';
 import { categories } from '../data/categories';
 import { formatMinutes } from '../utils/time';
 import { toJsonLd } from '../utils/jsonld';
+import { getOptimizedCloudinaryUrl, isRemoteImage } from '../utils/images';
 
 const all = await getAllRecipes();
-const index = await Promise.all(all.map(async (r) => {
-  let imgSrc = '';
-  if (typeof r.data.image === 'string' && (r.data.image.startsWith('http://') || r.data.image.startsWith('https://'))) {
-    imgSrc = r.data.image;
-  } else {
-    const img = await getImage({ src: r.data.image as any, width: 360 });
-    imgSrc = img.src;
-  }
-  return {
-    title: r.data.title,
-    description: r.data.description,
-    category: r.data.category,
-    categoryName: categoryById(r.data.category)?.name ?? '',
-    tags: r.data.tags,
-    url: recipeUrl(r),
-    image: imgSrc,
-    imageAlt: r.data.imageAlt,
-    time: formatMinutes(totalMinutes(r)),
-    draft: r.data.reviewStatus === 'draft',
-    dietaryLabels: r.data.dietaryVerified ? (r.data.dietaryLabels || []) : [],
-    dietaryVerified: Boolean(r.data.dietaryVerified),
-    allergens: r.data.allergenReviewed ? (r.data.allergens || []) : [],
-    allergenReviewed: Boolean(r.data.allergenReviewed),
-  };
-}));
+const index = await Promise.all(
+  all.map(async (r) => {
+    let imgSrc = '';
+    const rawImg = r.data.image;
+    const isRemote = isRemoteImage(rawImg);
+    const imageUrl = typeof rawImg === 'string' ? rawImg : rawImg.src;
+
+    if (isRemote) {
+      imgSrc = getOptimizedCloudinaryUrl(imageUrl, 640);
+    } else {
+      const img = await getImage({ src: rawImg as any, width: 640 });
+      imgSrc = img.src;
+    }
+
+    const tMinutes = totalMinutes(r);
+
+    return {
+      title: r.data.title,
+      slug: recipeSlug(r),
+      description: r.data.description,
+      category: r.data.category,
+      categoryName: categoryById(r.data.category)?.name ?? 'Recipe',
+      tags: r.data.tags,
+      url: recipeUrl(r),
+      image: imgSrc,
+      imageAlt: r.data.imageAlt || r.data.title,
+      minutes: tMinutes,
+      time: formatMinutes(tMinutes),
+      servings: r.data.servings,
+      draft: r.data.reviewStatus === 'draft',
+      dietaryLabels: r.data.dietaryVerified ? r.data.dietaryLabels || [] : [],
+      dietaryVerified: Boolean(r.data.dietaryVerified),
+      allergens: r.data.allergenReviewed ? r.data.allergens || [] : [],
+      allergenReviewed: Boolean(r.data.allergenReviewed),
+    };
+  }),
+);
 
 const dietaryOptions = [
   { id: 'vegetarian', label: 'Vegetarian' },
@@ -51,7 +65,7 @@ const allergenOptions = [
   { id: 'milk', label: 'Exclude Milk' },
   { id: 'eggs', label: 'Exclude Eggs' },
   { id: 'fish', label: 'Exclude Fish' },
-  { id: 'crustacean-shellfish', label: 'Exclude Crustacean Shellfish' },
+  { id: 'crustacean-shellfish', label: 'Exclude Crustaceans' },
   { id: 'tree-nuts', label: 'Exclude Tree Nuts' },
   { id: 'peanuts', label: 'Exclude Peanuts' },
   { id: 'wheat', label: 'Exclude Wheat' },
@@ -59,78 +73,185 @@ const allergenOptions = [
   { id: 'sesame', label: 'Exclude Sesame' },
 ];
 ---
-<BaseLayout title="Search Recipes" path="/search/" description="Search CrockBites recipes by title, ingredient, category or tag." noindex>
-  <div class="container-page pt-8">
+<BaseLayout
+  title="Search Recipes"
+  path="/search/"
+  description="Search CrockBites recipes by ingredient, dish style, dietary preference, or allergen exclusions."
+  noindex
+>
+  <div class="container-page pt-8 pb-20">
     <Breadcrumbs items={[{ name: 'Home', href: '/' }, { name: 'Search' }]} />
-    <h1 class="mt-6">Search recipes</h1>
 
-    <form id="search-form" role="search" class="mt-8 max-w-4xl space-y-4" action="/search/" method="get">
-      <div class="grid gap-3 sm:grid-cols-[1fr_14rem_auto]">
-        <div>
-          <label for="search-input" class="mb-1.5 block font-semibold text-forest">Search</label>
-          <input id="search-input" name="q" type="search" class="field" placeholder="Try chicken, soup or pork" autocomplete="off" enterkeyhint="search" />
-        </div>
-        <div>
-          <label for="search-category" class="mb-1.5 block font-semibold text-forest">Category</label>
-          <select id="search-category" name="category" class="field">
-            <option value="">All categories</option>
-            {categories.map((c) => <option value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-        <div class="flex items-end gap-2">
-          <button type="submit" class="btn w-full sm:w-auto">Search</button>
-          <button type="button" id="search-reset" class="btn btn-outline w-full sm:w-auto">Reset</button>
-        </div>
-      </div>
-
-      <!-- Dietary Filters -->
-      <div class="rounded-xl border border-line bg-paper p-4">
-        <div class="flex flex-wrap items-baseline justify-between gap-2">
-          <span class="text-xs font-bold uppercase tracking-wider text-forest">Dietary Style (Verified Only)</span>
-          <span class="text-xs text-ink-soft">Matches all selected</span>
-        </div>
-        <div class="mt-2.5 flex flex-wrap gap-2" id="dietary-filter-group">
-          {dietaryOptions.map((opt) => (
-            <label class="cursor-pointer text-xs">
-              <input type="checkbox" name="dietary" value={opt.id} class="peer sr-only search-dietary-input" />
-              <span class="inline-flex items-center rounded-full border border-line bg-cream/70 px-3 py-1 font-semibold text-ink transition-colors peer-checked:border-forest peer-checked:bg-forest peer-checked:text-white">
-                {opt.label}
-              </span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <!-- Allergen Exclusion Filters -->
-      <div class="rounded-xl border border-line bg-paper p-4">
-        <div class="flex flex-wrap items-baseline justify-between gap-2">
-          <span class="text-xs font-bold uppercase tracking-wider text-terracotta-deep">Allergen Exclusions (FDA Big 9)</span>
-          <span class="text-xs text-ink-soft">Excludes unreviewed recipes for safety</span>
-        </div>
-        <div class="mt-2.5 flex flex-wrap gap-2" id="allergen-filter-group">
-          {allergenOptions.map((opt) => (
-            <label class="cursor-pointer text-xs">
-              <input type="checkbox" name="excludeAllergens" value={opt.id} class="peer sr-only search-allergen-input" />
-              <span class="inline-flex items-center rounded-full border border-line bg-cream/70 px-3 py-1 font-semibold text-ink transition-colors peer-checked:border-terracotta-deep peer-checked:bg-terracotta-deep peer-checked:text-white">
-                {opt.label}
-              </span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <p class="text-xs italic text-ink-soft">
-        Notice: Dietary filters only match verified recipes. Allergen exclusions only match recipes with completed allergen reviews; unreviewed recipes are excluded for safety. Always inspect manufacturer ingredient labels.
+    <header class="mt-6 max-w-2xl">
+      <h1 class="text-3xl sm:text-4xl lg:text-5xl font-semibold text-forest">
+        Search Recipes
+      </h1>
+      <p class="mt-2 text-base sm:text-lg text-ink-soft">
+        Find kitchen-tested slow cooker dishes, adjust for allergies, or filter by dietary needs.
       </p>
+    </header>
+
+    <!-- Search Form -->
+    <form id="search-form" role="search" class="mt-8 max-w-4xl space-y-4" action="/search/" method="get">
+      <div class="rounded-3xl border border-line bg-paper p-5 sm:p-7 shadow-sm space-y-4">
+        <!-- Main Search Inputs Bar -->
+        <div class="grid gap-3 sm:grid-cols-[1fr_13rem_auto]">
+          <div class="relative">
+            <label for="search-input" class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-forest">
+              Keywords or Ingredients
+            </label>
+            <div class="relative flex items-center">
+              <span class="pointer-events-none absolute left-3.5 text-ink-soft">
+                <Search size={18} aria-hidden="true" />
+              </span>
+              <input
+                id="search-input"
+                name="q"
+                type="search"
+                class="field pl-10 pr-10 text-base"
+                placeholder="Try chili, chicken, coconut, stew..."
+                autocomplete="off"
+                enterkeyhint="search"
+              />
+              <button
+                type="button"
+                id="search-clear-input"
+                class="absolute right-3 hidden size-7 items-center justify-center rounded-full text-ink-soft hover:bg-cream-deep hover:text-forest"
+                aria-label="Clear search input"
+              >
+                <X size={15} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label for="search-category" class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-forest">
+              Category
+            </label>
+            <select id="search-category" name="category" class="field text-sm">
+              <option value="">All Categories</option>
+              {categories.map((c) => <option value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+
+          <div class="flex items-end gap-2">
+            <button type="submit" class="btn w-full sm:w-auto shadow-2xs">
+              Search
+            </button>
+            <button type="button" id="search-reset" class="btn btn-outline w-full sm:w-auto">
+              Reset
+            </button>
+          </div>
+        </div>
+
+        <!-- Filter Toggle & Controls Row -->
+        <div class="flex flex-wrap items-center justify-between gap-3 border-t border-line/60 pt-4">
+          <button
+            type="button"
+            id="toggle-filters-btn"
+            class="inline-flex items-center gap-2 rounded-xl border border-line bg-cream/50 px-3.5 py-2 text-xs font-semibold text-forest transition hover:bg-cream"
+            aria-expanded="false"
+            aria-controls="advanced-filters-panel"
+          >
+            <SlidersHorizontal size={15} aria-hidden="true" />
+            <span>Dietary &amp; Allergen Filters</span>
+            <span id="active-filters-count" class="hidden rounded-full bg-forest px-2 py-0.5 text-[0.68rem] font-bold text-cream">
+              0
+            </span>
+          </button>
+
+          <div class="flex items-center gap-2">
+            <label for="search-sort" class="text-xs font-semibold text-ink-soft">Sort by:</label>
+            <select
+              id="search-sort"
+              name="sort"
+              class="rounded-xl border border-line bg-cream/40 px-3 py-1.5 text-xs font-semibold text-forest focus-visible:ring-2 focus-visible:ring-forest"
+            >
+              <option value="relevance">Best Match</option>
+              <option value="time-asc">Quickest Total Time</option>
+              <option value="title-asc">Title (A–Z)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Advanced Filters Panel (Collapsible on small screens, expanded on desktop) -->
+        <div id="advanced-filters-panel" class="space-y-4 pt-2">
+          <!-- Dietary Style Filters -->
+          <div class="rounded-2xl border border-line/70 bg-cream/30 p-4">
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-forest flex items-center gap-1.5">
+                <Sparkles size={13} class="text-forest" aria-hidden="true" />
+                <span>Dietary Preference (Verified)</span>
+              </span>
+              <span class="text-xs text-ink-soft">Matches all selected</span>
+            </div>
+            <div class="mt-2.5 flex flex-wrap gap-2" id="dietary-filter-group">
+              {dietaryOptions.map((opt) => (
+                <label class="cursor-pointer text-xs select-none">
+                  <input type="checkbox" name="dietary" value={opt.id} class="peer sr-only search-dietary-input" />
+                  <span class="inline-flex min-h-[34px] items-center rounded-full border border-line bg-paper px-3 py-1 font-semibold text-ink transition hover:border-forest peer-checked:border-forest peer-checked:bg-forest peer-checked:text-white">
+                    {opt.label}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <!-- Allergen Exclusion Filters -->
+          <div class="rounded-2xl border border-line/70 bg-cream/30 p-4">
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-terracotta-deep flex items-center gap-1.5">
+                <CircleAlert size={13} class="text-terracotta-deep" aria-hidden="true" />
+                <span>Allergen Exclusions (FDA Big 9)</span>
+              </span>
+              <span class="text-xs text-ink-soft">Excludes unreviewed recipes for safety</span>
+            </div>
+            <div class="mt-2.5 flex flex-wrap gap-2" id="allergen-filter-group">
+              {allergenOptions.map((opt) => (
+                <label class="cursor-pointer text-xs select-none">
+                  <input type="checkbox" name="excludeAllergens" value={opt.id} class="peer sr-only search-allergen-input" />
+                  <span class="inline-flex min-h-[34px] items-center rounded-full border border-line bg-paper px-3 py-1 font-semibold text-ink transition hover:border-terracotta-deep peer-checked:border-terracotta-deep peer-checked:bg-terracotta-deep peer-checked:text-white">
+                    {opt.label}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
     </form>
 
-    <p id="search-status" class="mt-8 text-ink-soft" role="status" aria-live="polite"></p>
+    <!-- Live Status Text (Required by dom-smoke tests) -->
+    <p id="search-status" class="mt-8 text-sm font-semibold text-ink-soft" role="status" aria-live="polite"></p>
+
+    <!-- Results Grid -->
     <ul id="search-results" class="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3"></ul>
-    <div id="search-empty" class="notice mt-6 max-w-2xl" hidden>
-      <p class="font-semibold text-forest">No recipes match that search.</p>
-      <p class="mt-1">Check the spelling, try clearing some dietary or allergen filters, or <a class="link-text" href="/recipes/">browse all recipes</a>.</p>
+
+    <!-- Empty State -->
+    <div id="search-empty" class="mt-8 rounded-3xl border border-line bg-paper p-8 text-center max-w-2xl mx-auto shadow-sm" hidden>
+      <div class="mx-auto flex size-12 items-center justify-center rounded-full bg-cream-deep text-terracotta-deep mb-3">
+        <Search size={22} aria-hidden="true" />
+      </div>
+      <h2 class="font-display text-xl font-semibold text-forest">No recipes match that search</h2>
+      <p class="mt-2 text-sm text-ink-soft max-w-md mx-auto">
+        Check your keyword spelling, clear restrictive dietary or allergen exclusions, or explore our full collection.
+      </p>
+      <div class="mt-6 flex flex-wrap justify-center gap-3">
+        <button type="button" id="search-empty-clear-btn" class="btn btn-small">
+          Clear Filters
+        </button>
+        <a href="/recipes/" class="btn btn-small btn-outline">
+          Browse All Recipes
+        </a>
+      </div>
     </div>
-    <noscript><p class="notice mt-6">Search needs JavaScript. You can still <a class="link-text" href="/recipes/">browse all recipes</a>.</p></noscript>
+
+    <noscript>
+      <p class="notice mt-6">
+        Search requires JavaScript to filter recipes instantly. You can still <a class="link-text" href="/recipes/">browse all recipes</a>.
+      </p>
+    </noscript>
+
     <script id="search-data" type="application/json" set:html={toJsonLd(index)}></script>
   </div>
 </BaseLayout>
@@ -138,6 +259,7 @@ const allergenOptions = [
 <script>
   type Item = {
     title: string;
+    slug: string;
     description: string;
     category: string;
     categoryName: string;
@@ -145,7 +267,9 @@ const allergenOptions = [
     url: string;
     image: string;
     imageAlt: string;
+    minutes: number;
     time: string;
+    servings: number;
     draft: boolean;
     dietaryLabels: string[];
     dietaryVerified: boolean;
@@ -156,85 +280,230 @@ const allergenOptions = [
   const data: Item[] = JSON.parse(document.getElementById('search-data')!.textContent || '[]');
   const form = document.getElementById('search-form') as HTMLFormElement;
   const input = document.getElementById('search-input') as HTMLInputElement;
+  const clearInputBtn = document.getElementById('search-clear-input') as HTMLButtonElement;
   const select = document.getElementById('search-category') as HTMLSelectElement;
+  const sortSelect = document.getElementById('search-sort') as HTMLSelectElement;
   const resetBtn = document.getElementById('search-reset') as HTMLButtonElement;
   const status = document.getElementById('search-status')!;
   const list = document.getElementById('search-results')!;
   const empty = document.getElementById('search-empty')!;
+  const emptyClearBtn = document.getElementById('search-empty-clear-btn');
+  const activeCountEl = document.getElementById('active-filters-count');
 
   const dietaryCheckboxes = Array.from(document.querySelectorAll('.search-dietary-input')) as HTMLInputElement[];
   const allergenCheckboxes = Array.from(document.querySelectorAll('.search-allergen-input')) as HTMLInputElement[];
 
   const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const prepared = data.map((d) => ({ d, title: norm(d.title), hay: norm([d.title, d.description, d.categoryName, ...d.tags].join(' ')) }));
+  const prepared = data.map((d) => ({
+    d,
+    title: norm(d.title),
+    hay: norm([d.title, d.description, d.categoryName, ...d.tags].join(' ')),
+  }));
 
-  function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string) {
-    const n = document.createElement(tag); if (cls) n.className = cls; if (text) n.textContent = text; return n;
+  function updateActiveFilterBadge() {
+    const selectedDietary = dietaryCheckboxes.filter((cb) => cb.checked).length;
+    const excludedAllergens = allergenCheckboxes.filter((cb) => cb.checked).length;
+    const catActive = select.value ? 1 : 0;
+    const totalFilters = selectedDietary + excludedAllergens + catActive;
+
+    if (activeCountEl) {
+      if (totalFilters > 0) {
+        activeCountEl.textContent = String(totalFilters);
+        activeCountEl.classList.remove('hidden');
+      } else {
+        activeCountEl.classList.add('hidden');
+      }
+    }
+
+    if (clearInputBtn) {
+      if (input.value.trim().length > 0) {
+        clearInputBtn.classList.remove('hidden');
+        clearInputBtn.classList.add('flex');
+      } else {
+        clearInputBtn.classList.add('hidden');
+        clearInputBtn.classList.remove('flex');
+      }
+    }
   }
 
   function run(updateUrl: boolean) {
     const q = input.value.trim();
     const cat = select.value;
+    const sortMode = sortSelect ? sortSelect.value : 'relevance';
     const selectedDietary = dietaryCheckboxes.filter((cb) => cb.checked).map((cb) => cb.value);
     const excludedAllergens = allergenCheckboxes.filter((cb) => cb.checked).map((cb) => cb.value);
 
+    updateActiveFilterBadge();
+
     const tokens = norm(q).split(/\s+/).filter(Boolean);
 
-    const results = prepared
-      .filter(({ d, hay }) => {
-        // Category filter
-        if (cat && d.category !== cat) return false;
+    let results = prepared.filter(({ d, hay }) => {
+      if (cat && d.category !== cat) return false;
+      if (tokens.length > 0 && !tokens.every((t) => hay.includes(t))) return false;
 
-        // Query search
-        if (tokens.length > 0 && !tokens.every((t) => hay.includes(t))) return false;
-
-        // Dietary check: MUST be dietaryVerified AND satisfy all selected dietary labels
-        if (selectedDietary.length > 0) {
-          if (!d.dietaryVerified) return false;
-          const matchesAll = selectedDietary.every((lbl) => d.dietaryLabels.includes(lbl));
-          if (!matchesAll) return false;
-        }
-
-        // Allergen check:
-        // When excluding allergens, recipes with unreviewed allergen status must be excluded as unsafe
-        if (excludedAllergens.length > 0) {
-          if (!d.allergenReviewed) return false;
-          const containsExcluded = excludedAllergens.some((allg) => d.allergens.includes(allg));
-          if (containsExcluded) return false;
-        }
-
-        return true;
-      })
-      .map((p) => ({ p, score: tokens.reduce((s, t) => s + (p.title.includes(t) ? 3 : 1), 0) }))
-      .sort((a, b) => b.score - a.score || a.p.d.title.localeCompare(b.p.d.title));
-
-    list.replaceChildren();
-    for (const { p } of results) {
-      const d = p.d;
-      const li = el('li');
-      const card = el('article', 'recipe-card card h-full');
-      const a = el('a', 'recipe-card-link group'); a.href = d.url;
-      const wrap = el('div', 'relative overflow-hidden');
-      const img = el('img', 'aspect-[4/3] w-full object-cover'); img.src = d.image; img.alt = d.imageAlt; img.width = 360; img.height = 270; img.loading = 'lazy'; img.decoding = 'async';
-      wrap.append(img);
-      const body = el('div', 'p-5');
-      body.append(el('p', 'text-sm font-semibold text-terracotta-deep', d.categoryName), el('h3', 'mt-1 text-[1.3rem] leading-snug', d.title));
-
-      if (d.dietaryVerified && d.dietaryLabels.length > 0) {
-        const badgeWrap = el('div', 'mt-2 flex flex-wrap gap-1');
-        for (const lbl of d.dietaryLabels.slice(0, 3)) {
-          badgeWrap.append(el('span', 'rounded bg-forest/10 px-1.5 py-0.5 text-[0.7rem] font-bold uppercase tracking-wider text-forest', lbl));
-        }
-        body.append(badgeWrap);
+      if (selectedDietary.length > 0) {
+        if (!d.dietaryVerified) return false;
+        const matchesAll = selectedDietary.every((lbl) => d.dietaryLabels.includes(lbl));
+        if (!matchesAll) return false;
       }
 
-      body.append(el('p', 'mt-2 line-clamp-2 text-[0.97rem] text-ink-soft', d.description), el('p', 'mt-4 text-sm font-semibold text-ink-soft', `Total time: ${d.time}`));
-      a.append(wrap, body); card.append(a); li.append(card); list.append(li);
+      if (excludedAllergens.length > 0) {
+        if (!d.allergenReviewed) return false;
+        const containsExcluded = excludedAllergens.some((allg) => d.allergens.includes(allg));
+        if (containsExcluded) return false;
+      }
+
+      return true;
+    });
+
+    // Score & Sort
+    const scored = results.map((p) => ({
+      p,
+      score: tokens.reduce((s, t) => s + (p.title.includes(t) ? 3 : 1), 0),
+    }));
+
+    if (sortMode === 'time-asc') {
+      scored.sort((a, b) => a.p.d.minutes - b.p.d.minutes || a.p.d.title.localeCompare(b.p.d.title));
+    } else if (sortMode === 'title-asc') {
+      scored.sort((a, b) => a.p.d.title.localeCompare(b.p.d.title));
+    } else {
+      scored.sort((a, b) => b.score - a.score || a.p.d.title.localeCompare(b.p.d.title));
     }
+
+    list.replaceChildren();
+
+    const auth = (window as any).__CROCKBITES_AUTH__;
+    const savedSlugs = new Set<string>((auth && auth.savedSlugs) || []);
+
+    for (const { p } of scored) {
+      const d = p.d;
+      const li = document.createElement('li');
+
+      const isSaved = savedSlugs.has(d.slug.toLowerCase());
+      const favBtnHtml = !d.draft
+        ? `<button
+             type="button"
+             data-favorite-slug="${d.slug}"
+             aria-pressed="${isSaved ? 'true' : 'false'}"
+             aria-label="${isSaved ? 'Remove from saved recipes' : 'Save recipe'}"
+             title="${isSaved ? 'Saved to My Kitchen' : 'Save recipe'}"
+             class="absolute right-3.5 top-3.5 z-10 inline-flex min-h-[44px] min-w-[44px] size-11 items-center justify-center rounded-full border ${isSaved ? 'border-terracotta-deep/40 text-terracotta-deep' : 'border-line/80 text-ink'} bg-paper/95 shadow-xs backdrop-blur-xs transition hover:scale-105 hover:border-terracotta-deep hover:text-terracotta-deep focus-visible:ring-2 focus-visible:ring-forest"
+           >
+             <svg width="18" height="18" viewBox="0 0 24 24" fill="${isSaved ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+               <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+             </svg>
+           </button>`
+        : '';
+
+      const dietaryHtml =
+        d.dietaryVerified && d.dietaryLabels.length > 0
+          ? `<div class="mt-2.5 flex flex-wrap gap-1.5" aria-label="Dietary characteristics">
+               ${d.dietaryLabels
+                 .slice(0, 3)
+                 .map(
+                   (lbl) =>
+                     `<span class="rounded-full bg-forest/8 border border-forest/15 px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wider text-forest">${lbl}</span>`,
+                 )
+                 .join('')}
+             </div>`
+          : '';
+
+      const categoryBadge = d.draft
+        ? `<span class="absolute left-3 top-3 rounded-full border border-line bg-paper/95 px-3 py-1 text-xs font-bold text-ink shadow-xs">Draft</span>`
+        : `<span class="absolute left-3 top-3 rounded-full border border-forest/10 bg-paper/90 px-2.5 py-0.5 text-xs font-semibold text-forest shadow-xs backdrop-blur-xs">${d.categoryName}</span>`;
+
+      li.innerHTML = `
+        <article class="recipe-card card group relative flex h-full flex-col transition-all duration-200 hover:-translate-y-1 hover:border-forest/30 hover:shadow-lg">
+          ${favBtnHtml}
+          <a href="${d.url}" class="recipe-card-link flex h-full flex-col">
+            <div class="relative aspect-[4/3] w-full overflow-hidden bg-cream-deep">
+              <img
+                src="${d.image}"
+                alt="${d.imageAlt}"
+                width="640"
+                height="480"
+                loading="lazy"
+                decoding="async"
+                class="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+              />
+              ${categoryBadge}
+            </div>
+            <div class="flex flex-1 flex-col justify-between p-5">
+              <div>
+                <h3 class="font-display text-[1.22rem] font-semibold leading-snug text-forest transition-colors group-hover:text-terracotta-deep line-clamp-2">
+                  ${d.title}
+                </h3>
+                ${dietaryHtml}
+                <p class="mt-2.5 line-clamp-2 text-sm text-ink-soft leading-relaxed">
+                  ${d.description}
+                </p>
+              </div>
+              <div class="mt-5 flex items-center justify-between border-t border-line/60 pt-3 text-xs font-semibold text-ink-soft">
+                <span class="inline-flex items-center gap-1.5">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-terracotta-deep"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  <span>${d.time}</span>
+                </span>
+                <span class="inline-flex items-center gap-1.5">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-forest/70"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  <span>Serves ${d.servings}</span>
+                </span>
+              </div>
+            </div>
+          </a>
+        </article>
+      `;
+
+      list.append(li);
+    }
+
+    // Re-bind favorite buttons on dynamically created search cards
+    list.querySelectorAll<HTMLButtonElement>('[data-favorite-slug]').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const authState = (window as any).__CROCKBITES_AUTH__;
+        if (!authState || !authState.authenticated) {
+          window.location.href = `/login/?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+          return;
+        }
+
+        const slug = (btn.getAttribute('data-favorite-slug') || '').toLowerCase();
+        btn.disabled = true;
+        try {
+          const res = await fetch('/api/community/favorites/', {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              'x-csrf-token': authState.csrfToken || '',
+            },
+            body: JSON.stringify({
+              recipeSlug: slug,
+              action: 'toggle',
+              csrfToken: authState.csrfToken || '',
+            }),
+          });
+          if (res.ok) {
+            const resData = await res.json();
+            const nowSaved = Boolean(resData.saved);
+            const icon = btn.querySelector('svg');
+            if (icon) icon.setAttribute('fill', nowSaved ? 'currentColor' : 'none');
+            btn.setAttribute('aria-pressed', nowSaved ? 'true' : 'false');
+            if (nowSaved) {
+              btn.classList.add('text-terracotta-deep', 'border-terracotta-deep/40');
+            } else {
+              btn.classList.remove('text-terracotta-deep', 'border-terracotta-deep/40');
+            }
+          }
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
 
     const label = cat ? select.options[select.selectedIndex].text : '';
     const filtersActive = q || cat || selectedDietary.length > 0 || excludedAllergens.length > 0;
-    
+
     let statusText = '';
     if (filtersActive) {
       const parts: string[] = [];
@@ -250,47 +519,77 @@ const allergenOptions = [
     empty.hidden = results.length > 0;
 
     if (updateUrl) {
-      const params = new URLSearchParams();
-      if (q) params.set('q', q);
-      if (cat) params.set('category', cat);
-      if (selectedDietary.length > 0) params.set('dietary', selectedDietary.join(','));
-      if (excludedAllergens.length > 0) params.set('excludeAllergens', excludedAllergens.join(','));
-      history.replaceState(null, '', params.toString() ? `?${params}` : location.pathname);
+      const pUrl = new URLSearchParams();
+      if (q) pUrl.set('q', q);
+      if (cat) pUrl.set('category', cat);
+      if (sortMode && sortMode !== 'relevance') pUrl.set('sort', sortMode);
+      if (selectedDietary.length > 0) pUrl.set('dietary', selectedDietary.join(','));
+      if (excludedAllergens.length > 0) pUrl.set('excludeAllergens', excludedAllergens.join(','));
+      history.replaceState(null, '', pUrl.toString() ? `?${pUrl}` : location.pathname);
     }
   }
 
   // Load URL params
-  const params = new URLSearchParams(location.search);
-  input.value = params.get('q') ?? '';
-  select.value = params.get('category') ?? '';
+  const urlParams = new URLSearchParams(location.search);
+  input.value = urlParams.get('q') ?? '';
+  select.value = urlParams.get('category') ?? '';
+  if (sortSelect && urlParams.get('sort')) {
+    sortSelect.value = urlParams.get('sort')!;
+  }
 
-  const dietaryParams = (params.get('dietary') ?? '').split(',').filter(Boolean);
+  const dietaryParams = (urlParams.get('dietary') ?? '').split(',').filter(Boolean);
   for (const cb of dietaryCheckboxes) {
     cb.checked = dietaryParams.includes(cb.value);
   }
 
-  const allergenParams = (params.get('excludeAllergens') ?? '').split(',').filter(Boolean);
+  const allergenParams = (urlParams.get('excludeAllergens') ?? '').split(',').filter(Boolean);
   for (const cb of allergenCheckboxes) {
     cb.checked = allergenParams.includes(cb.value);
   }
 
-  form.addEventListener('submit', (e) => { e.preventDefault(); run(true); });
+  function resetAll() {
+    input.value = '';
+    select.value = '';
+    if (sortSelect) sortSelect.value = 'relevance';
+    for (const cb of dietaryCheckboxes) cb.checked = false;
+    for (const cb of allergenCheckboxes) cb.checked = false;
+    run(true);
+    input.focus({ preventScroll: true });
+  }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    run(true);
+  });
   input.addEventListener('input', () => run(true));
   select.addEventListener('change', () => run(true));
+  if (sortSelect) sortSelect.addEventListener('change', () => run(true));
+
+  if (clearInputBtn) {
+    clearInputBtn.addEventListener('click', () => {
+      input.value = '';
+      run(true);
+      input.focus({ preventScroll: true });
+    });
+  }
 
   for (const cb of [...dietaryCheckboxes, ...allergenCheckboxes]) {
     cb.addEventListener('change', () => run(true));
   }
 
-  resetBtn.addEventListener('click', () => {
-    input.value = '';
-    select.value = '';
-    for (const cb of dietaryCheckboxes) cb.checked = false;
-    for (const cb of allergenCheckboxes) cb.checked = false;
-    run(true);
-    input.focus({ preventScroll: true });
+  resetBtn.addEventListener('click', resetAll);
+  if (emptyClearBtn) emptyClearBtn.addEventListener('click', resetAll);
+
+  // Keyboard shortcut '/' to focus search
+  window.addEventListener('keydown', (e) => {
+    if (e.key === '/' && document.activeElement !== input && !(document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement)) {
+      e.preventDefault();
+      input.focus();
+    }
   });
 
   run(false);
-  if (!input.value) input.focus({ preventScroll: true });
+  if (!input.value && window.innerWidth >= 768) {
+    input.focus({ preventScroll: true });
+  }
 </script>

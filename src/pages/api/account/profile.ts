@@ -4,7 +4,7 @@ import { updateUserProfile } from '../../../lib/user-auth';
 
 export const prerender = false;
 
-export const PUT: APIRoute = async ({ request, cookies, locals }) => {
+const updateProfileHandler: APIRoute = async ({ request, cookies, locals }) => {
   const auth = await requireAuthenticatedUserApi(request, cookies, locals, true);
   if (!auth.ok) return auth.response;
 
@@ -28,4 +28,7 @@ export const PUT: APIRoute = async ({ request, cookies, locals }) => {
 
   return jsonResponse({ ok: true, user: res.user });
 };
+
+export const POST: APIRoute = updateProfileHandler;
+export const PUT: APIRoute = updateProfileHandler;
 

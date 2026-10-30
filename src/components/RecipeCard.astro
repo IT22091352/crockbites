@@ -1,6 +1,6 @@
 ---
 import { Image } from 'astro:assets';
-import { Clock, Heart } from '@lucide/astro';
+import { Clock, Heart, Users } from '@lucide/astro';
 import { categoryById, recipeSlug, recipeUrl, totalMinutes, type Recipe } from '../utils/recipes';
 import { formatMinutes } from '../utils/time';
 import { rw, isRemoteImage, getOptimizedCloudinaryUrl } from '../utils/images';
@@ -9,7 +9,7 @@ interface Props {
   recipe: Recipe;
   /** Eager only for images that are visible without scrolling. */
   eager?: boolean;
-  /** Horizontal list layout (used for "Latest recipes"). */
+  /** Layout mode: standard vertical card or horizontal list row. */
   layout?: 'card' | 'row';
 }
 const { recipe, eager = false, layout = 'card' } = Astro.props;
@@ -19,9 +19,10 @@ const cat = categoryById(d.category);
 const isDraft = d.reviewStatus === 'draft';
 const isRemote = isRemoteImage(d.image);
 const imageUrl = typeof d.image === 'string' ? d.image : d.image.src;
+const totalTimeStr = formatMinutes(totalMinutes(recipe));
 ---
 {layout === 'card' ? (
-  <article class="recipe-card card relative h-full">
+  <article class="recipe-card card group relative flex h-full flex-col transition-all duration-200 hover:-translate-y-1 hover:border-forest/30 hover:shadow-lg">
     {!isDraft && (
       <button
         type="button"
@@ -29,73 +30,144 @@ const imageUrl = typeof d.image === 'string' ? d.image : d.image.src;
         aria-pressed="false"
         aria-label="Save recipe"
         title="Save recipe"
-        class="absolute right-3 top-3 z-10 inline-flex size-9 items-center justify-center rounded-full border border-line bg-paper/95 text-ink shadow-xs transition hover:scale-105 hover:border-terracotta-deep"
+        class="absolute right-3.5 top-3.5 z-10 inline-flex min-h-[44px] min-w-[44px] size-11 items-center justify-center rounded-full border border-line/80 bg-paper/95 text-ink shadow-sm backdrop-blur-xs transition hover:scale-105 hover:border-terracotta-deep hover:text-terracotta-deep focus-visible:ring-2 focus-visible:ring-forest focus-visible:outline-hidden"
       >
-        <Heart size={17} aria-hidden="true" />
+        <Heart size={19} aria-hidden="true" />
       </button>
     )}
-    <a href={recipeUrl(recipe)} class="recipe-card-link group">
-      <div class="relative overflow-hidden">
+    <a href={recipeUrl(recipe)} class="recipe-card-link flex h-full flex-col">
+      <div class="relative aspect-[4/3] w-full overflow-hidden bg-cream-deep">
         {isRemote ? (
           <img
             src={getOptimizedCloudinaryUrl(imageUrl, 720)}
             srcset={`${getOptimizedCloudinaryUrl(imageUrl, 360)} 360w, ${getOptimizedCloudinaryUrl(imageUrl, 540)} 540w, ${getOptimizedCloudinaryUrl(imageUrl, 720)} 720w`}
             sizes="(min-width: 1024px) 24rem, (min-width: 640px) 45vw, 92vw"
-            alt={d.imageAlt}
+            alt={d.imageAlt || d.title}
             width={720}
             height={540}
             loading={eager ? 'eager' : 'lazy'}
             decoding="async"
-            class="aspect-[4/3] w-full object-cover"
+            class="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
           />
         ) : (
-          <Image src={d.image as any} alt={d.imageAlt} {...rw(d.image as any, [360, 540, 720])} sizes="(min-width: 1024px) 24rem, (min-width: 640px) 45vw, 92vw"
-            loading={eager ? 'eager' : 'lazy'} decoding="async" class="aspect-[4/3] w-full object-cover" />
+          <Image
+            src={d.image as any}
+            alt={d.imageAlt || d.title}
+            width={720}
+            height={540}
+            {...rw(d.image as any, [360, 540, 720])}
+            sizes="(min-width: 1024px) 24rem, (min-width: 640px) 45vw, 92vw"
+            loading={eager ? 'eager' : 'lazy'}
+            decoding="async"
+            class="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+          />
         )}
-        {isDraft && <span class="absolute left-3 top-3 rounded-full bg-paper/95 px-2.5 py-0.5 text-xs font-bold text-ink">Draft</span>}
+        {isDraft ? (
+          <span class="absolute left-3 top-3 rounded-full border border-line bg-paper/95 px-3 py-1 text-xs font-bold text-ink shadow-xs">
+            Draft
+          </span>
+        ) : (
+          <span class="absolute left-3 top-3 rounded-full border border-forest/10 bg-paper/90 px-2.5 py-0.5 text-xs font-semibold text-forest shadow-xs backdrop-blur-xs">
+            {cat?.name || 'Recipe'}
+          </span>
+        )}
       </div>
-      <div class="p-5">
-        <p class="text-sm font-semibold text-terracotta-deep">{cat?.name}</p>
-        <h3 class="mt-1 text-[1.3rem] leading-snug transition-colors">{d.title}</h3>
-        {d.dietaryVerified && d.dietaryLabels && d.dietaryLabels.length > 0 && (
-          <div class="mt-2 flex flex-wrap gap-1">
-            {d.dietaryLabels.slice(0, 3).map((lbl: string) => (
-              <span class="rounded bg-forest/10 px-1.5 py-0.5 text-[0.7rem] font-bold uppercase tracking-wider text-forest">
-                {lbl}
-              </span>
-            ))}
-          </div>
-        )}
-        <p class="mt-2 line-clamp-2 text-[0.97rem] text-ink-soft">{d.description}</p>
-        <p class="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-ink-soft"><Clock size={16} aria-hidden="true" /><span class="sr-only">Total time:</span>{formatMinutes(totalMinutes(recipe))}</p>
+      <div class="flex flex-1 flex-col justify-between p-5">
+        <div>
+          <h3 class="font-display text-[1.22rem] font-semibold leading-snug text-forest transition-colors group-hover:text-terracotta-deep line-clamp-2">
+            {d.title}
+          </h3>
+
+          {d.dietaryVerified && d.dietaryLabels && d.dietaryLabels.length > 0 && (
+            <div class="mt-2.5 flex flex-wrap gap-1.5" aria-label="Dietary characteristics">
+              {d.dietaryLabels.slice(0, 3).map((lbl: string) => (
+                <span class="rounded-full bg-forest/8 border border-forest/15 px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wider text-forest">
+                  {lbl}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <p class="mt-2.5 line-clamp-2 text-sm text-ink-soft leading-relaxed">
+            {d.description}
+          </p>
+        </div>
+
+        <div class="mt-5 flex items-center justify-between border-t border-line/60 pt-3 text-xs font-semibold text-ink-soft">
+          <span class="inline-flex items-center gap-1.5">
+            <Clock size={15} class="text-terracotta-deep" aria-hidden="true" />
+            <span class="sr-only">Total time:</span>
+            {totalTimeStr}
+          </span>
+          <span class="inline-flex items-center gap-1.5">
+            <Users size={15} class="text-forest/70" aria-hidden="true" />
+            <span>Serves {d.servings}</span>
+          </span>
+        </div>
       </div>
     </a>
   </article>
 ) : (
-  <article class="recipe-card group relative border-b border-line py-5 first:pt-0 last:border-b-0">
-    <a href={recipeUrl(recipe)} class="recipe-card-link grid grid-cols-[6.5rem_1fr] items-center gap-4 sm:grid-cols-[9rem_1fr] sm:gap-6">
-      <div class="overflow-hidden rounded-xl">
+  <article class="recipe-card group relative border-b border-line py-5 first:pt-0 last:border-b-0 transition-colors">
+    <a href={recipeUrl(recipe)} class="recipe-card-link grid grid-cols-[6.5rem_1fr] items-center gap-4 sm:grid-cols-[9.5rem_1fr] sm:gap-6">
+      <div class="aspect-[4/3] w-full overflow-hidden rounded-2xl bg-cream-deep border border-line/60">
         {isRemote ? (
           <img
             src={getOptimizedCloudinaryUrl(imageUrl, 432)}
             srcset={`${getOptimizedCloudinaryUrl(imageUrl, 216)} 216w, ${getOptimizedCloudinaryUrl(imageUrl, 288)} 288w, ${getOptimizedCloudinaryUrl(imageUrl, 432)} 432w`}
-            sizes="(min-width: 640px) 9rem, 6.5rem"
-            alt={d.imageAlt}
+            sizes="(min-width: 640px) 9.5rem, 6.5rem"
+            alt={d.imageAlt || d.title}
             width={288}
             height={216}
             loading={eager ? 'eager' : 'lazy'}
             decoding="async"
-            class="aspect-[4/3] w-full object-cover"
+            class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
-          <Image src={d.image as any} alt={d.imageAlt} {...rw(d.image as any, [216, 288, 432])} sizes="(min-width: 640px) 9rem, 6.5rem"
-            loading={eager ? 'eager' : 'lazy'} decoding="async" class="aspect-[4/3] w-full object-cover" />
+          <Image
+            src={d.image as any}
+            alt={d.imageAlt || d.title}
+            width={288}
+            height={216}
+            {...rw(d.image as any, [216, 288, 432])}
+            sizes="(min-width: 640px) 9.5rem, 6.5rem"
+            loading={eager ? 'eager' : 'lazy'}
+            decoding="async"
+            class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
         )}
       </div>
-      <div class="pr-10">
-        <p class="text-sm font-semibold text-terracotta-deep">{cat?.name}{isDraft && <span class="ml-2 rounded-full border border-line px-2 py-0.5 text-xs font-bold text-ink-soft">Draft</span>}</p>
-        <h3 class="mt-0.5 text-[1.25rem] leading-snug transition-colors">{d.title}</h3>
-        <p class="mt-1 inline-flex items-center gap-1.5 text-sm font-semibold text-ink-soft"><Clock size={16} aria-hidden="true" /><span class="sr-only">Total time:</span>{formatMinutes(totalMinutes(recipe))}</p>
+      <div class="pr-12 sm:pr-14">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold uppercase tracking-wider text-terracotta-deep">
+            {cat?.name || 'Recipe'}
+          </span>
+          {isDraft && (
+            <span class="rounded-full border border-line px-2 py-0.5 text-xs font-bold text-ink-soft">
+              Draft
+            </span>
+          )}
+        </div>
+        <h3 class="mt-1 font-display text-[1.18rem] font-semibold leading-snug text-forest transition-colors group-hover:text-terracotta-deep sm:text-xl">
+          {d.title}
+        </h3>
+        <p class="mt-1.5 hidden text-sm text-ink-soft line-clamp-2 sm:block">
+          {d.description}
+        </p>
+        <div class="mt-2.5 flex flex-wrap items-center gap-3 text-xs font-semibold text-ink-soft">
+          <span class="inline-flex items-center gap-1.5">
+            <Clock size={14} class="text-terracotta-deep" aria-hidden="true" />
+            <span class="sr-only">Total time:</span>
+            {totalTimeStr}
+          </span>
+          <span>•</span>
+          <span>Serves {d.servings}</span>
+          {d.dietaryVerified && d.dietaryLabels && d.dietaryLabels.length > 0 && (
+            <span class="hidden sm:inline-flex rounded-full bg-forest/8 px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider text-forest">
+              {d.dietaryLabels[0]}
+            </span>
+          )}
+        </div>
       </div>
     </a>
     {!isDraft && (
@@ -105,9 +177,9 @@ const imageUrl = typeof d.image === 'string' ? d.image : d.image.src;
         aria-pressed="false"
         aria-label="Save recipe"
         title="Save recipe"
-        class="absolute right-1 top-1/2 -translate-y-1/2 inline-flex size-9 items-center justify-center rounded-full border border-line bg-paper text-ink transition hover:border-terracotta-deep"
+        class="absolute right-1 top-1/2 -translate-y-1/2 inline-flex min-h-[44px] min-w-[44px] size-11 items-center justify-center rounded-full border border-line bg-paper text-ink shadow-xs transition hover:scale-105 hover:border-terracotta-deep hover:text-terracotta-deep focus-visible:ring-2 focus-visible:ring-forest focus-visible:outline-hidden"
       >
-        <Heart size={16} aria-hidden="true" />
+        <Heart size={18} aria-hidden="true" />
       </button>
     )}
   </article>
