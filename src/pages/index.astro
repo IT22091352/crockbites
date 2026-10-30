@@ -5,7 +5,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import RecipeCard from '../components/RecipeCard.astro';
 import CategoryIcon from '../components/CategoryIcon.astro';
 import AdSlot from '../components/AdSlot.astro';
-import hero from '../assets/hero.jpg';
+import hero from '../assets/hero.svg';
 import { getAllRecipes, popularRecipes, recipesForCategory, recipeUrl, totalMinutes } from '../utils/recipes';
 import { categories } from '../data/categories';
 import { formatMinutes } from '../utils/time';
@@ -40,7 +40,7 @@ const tips = [
           <path d="M26 58q-9-8 0-16t0-16" /><path d="M48 58q-9-8 0-16t0-16t0-16" /><path d="M70 58q-9-8 0-16t0-16" />
         </svg>
         <div class="relative overflow-hidden rounded-t-[999px] rounded-b-[2rem] border-[6px] border-forest bg-forest shadow-[var(--shadow-card)]">
-          <Image src={hero} alt="Hearty slow cooker beef stew with tender meat, golden baby potatoes, carrots, and fresh herbs."
+          <Image src={hero} alt="Placeholder illustration: overhead view of a slow cooker full of beef stew with potatoes, carrots and peas."
             {...rw(hero, [420, 640, 840])} sizes="(min-width: 1024px) 26rem, 90vw" loading="eager" fetchpriority="high" decoding="async" class="aspect-[4/5] w-full object-cover" />
         </div>
       </div>
