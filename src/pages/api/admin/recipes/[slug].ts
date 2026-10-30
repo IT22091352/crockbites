@@ -13,6 +13,7 @@ import {
 } from '../../../../lib/admin';
 import { inferRecipeDraft, serializeRecipeToMarkdown } from '../../../../lib/recipe-admin';
 import { deleteRepoFile, getRepoFile, repoRecipePath, writeRepoFile } from '../../../../lib/github';
+import { cleanupUnusedRecipeMedia } from '../../../../lib/cloudinary';
 
 const isAuthorized = async (request: Request, cookies: any) => {
   const secret = getAdminSessionSecret();
@@ -196,8 +197,58 @@ export const DELETE: APIRoute = async ({ params, request, cookies }) => {
   const recipePath = repoRecipePath(slug);
   try {
     const file = await getRepoFile(recipePath, 'main');
+
+    // Parse the target recipe and all other recipes to find orphaned Cloudinary media
+    const allRecipes = await getCollection('recipes');
+    const targetRecipe = allRecipes.find((entry) => entry.id.replace(/\.md$/, '') === slug || (entry.data.slug ?? '').toLowerCase() === slug.toLowerCase());
+    const otherRecipes = allRecipes.filter((entry) => entry.id.replace(/\.md$/, '') !== slug && (entry.data.slug ?? '').toLowerCase() !== slug.toLowerCase());
+
+    // CRITICAL: First delete recipe file from GitHub. Only if this succeeds do we clean up Cloudinary assets!
     await deleteRepoFile(recipePath, file.sha, `Delete recipe: ${slug}`);
-    return new Response(JSON.stringify({ message: 'Recipe deleted', slug }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+    // Recipe confirmed deleted from GitHub repository. Now safely clean up confirmed unused Cloudinary assets:
+    let mediaCleanup: { candidateCount: number; unusedCount: number; results: any[] } = {
+      candidateCount: 0,
+      unusedCount: 0,
+      results: [],
+    };
+
+    if (targetRecipe) {
+      try {
+        const getImageSrc = (img: unknown): string | undefined => {
+          if (typeof img === 'string') return img;
+          if (img && typeof img === 'object' && 'src' in img) return String((img as any).src);
+          return undefined;
+        };
+
+        mediaCleanup = await cleanupUnusedRecipeMedia(
+          {
+            image: getImageSrc(targetRecipe.data.image),
+            gallery: (targetRecipe.data as any).gallery,
+          },
+          otherRecipes.map((r) => ({
+            image: getImageSrc(r.data.image),
+            gallery: (r.data as any).gallery,
+          })),
+        );
+      } catch (cleanupErr) {
+        mediaCleanup = {
+          candidateCount: 0,
+          unusedCount: 0,
+          results: [{
+            publicId: 'all',
+            status: 'failed',
+            error: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr),
+          }],
+        };
+      }
+    }
+
+    return new Response(JSON.stringify({
+      message: 'Recipe deleted',
+      slug,
+      mediaCleanup,
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'GitHub delete failed';
     return new Response(JSON.stringify({ error: message }), { status: 502, headers: { 'content-type': 'application/json' } });

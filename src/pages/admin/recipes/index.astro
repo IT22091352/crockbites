@@ -53,6 +53,7 @@ Astro.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
       .btn-danger { background: rgba(198,106,69,0.12); color: var(--terracotta); }
       .tag { background: rgba(198,106,69,0.12); color: var(--forest); border-radius: 999px; padding: 0.25rem 0.55rem; font-size: 0.72rem; font-weight: 700; }
       .empty { padding:1rem; color: rgba(36,58,45,0.7); }
+      .bulk-bar { display: none; align-items: center; gap: 0.75rem; background: rgba(36,58,45,0.06); padding: 0.75rem 1rem; border-radius: 10px; margin-bottom: 1rem; flex-wrap: wrap; }
       @media (max-width: 780px) { .layout { grid-template-columns: 1fr; } }
     </style>
   </head>
@@ -99,9 +100,18 @@ Astro.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
             </div>
           </div>
 
+          <!-- Bulk Status Management Bar -->
+          <div id="bulkActionsBar" class="bulk-bar">
+            <strong id="selectedCountText">0 recipes selected</strong>
+            <button class="btn btn-primary" type="button" id="bulkPublishBtn">Set as Tested (Publish)</button>
+            <button class="btn btn-subtle" type="button" id="bulkDraftBtn">Set as Draft</button>
+            <button class="btn btn-subtle" type="button" id="bulkClearBtn" style="margin-left:auto;">Clear selection</button>
+          </div>
+
           <table>
             <thead>
               <tr>
+                <th style="width:36px;"><input type="checkbox" id="selectAllCheckbox" aria-label="Select all recipes" /></th>
                 <th>Title</th>
                 <th>Status</th>
                 <th>Category</th>
@@ -111,18 +121,34 @@ Astro.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
             </thead>
             <tbody id="recipeTableBody">
               {recipes.map((recipe) => (
-                <tr data-title={recipe.data.title.toLowerCase()} data-category={recipe.data.category} data-status={recipe.data.reviewStatus}>
+                <tr
+                  data-slug={recipe.id.replace(/\.md$/, '')}
+                  data-title={recipe.data.title.toLowerCase()}
+                  data-category={recipe.data.category}
+                  data-status={recipe.data.reviewStatus}
+                >
+                  <td>
+                    <input
+                      type="checkbox"
+                      class="recipe-select-checkbox"
+                      data-slug={recipe.id.replace(/\.md$/, '')}
+                      aria-label={`Select ${recipe.data.title}`}
+                    />
+                  </td>
                   <td><strong>{recipe.data.title}</strong></td>
-                  <td><span class="tag">{recipe.data.reviewStatus}</span></td>
+                  <td><span class="tag status-tag">{recipe.data.reviewStatus}</span></td>
                   <td>{recipe.data.category}</td>
                   <td>{recipe.data.updatedDate ? new Date(recipe.data.updatedDate).toLocaleDateString() : new Date(recipe.data.pubDate).toLocaleDateString()}</td>
                   <td>
                     <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
-                      {recipe.data.reviewStatus === 'tested' ? (
-                        <a class="btn btn-subtle" href={`/recipe/${recipe.id.replace(/\.md$/, '')}/`} target="_blank">View</a>
-                      ) : (
-                        <a class="btn btn-subtle" href={`/admin/recipes/preview/${recipe.id.replace(/\.md$/, '')}/`} target="_blank" style="color: var(--terracotta); font-weight: 700;">Preview</a>
-                      )}
+                      <a
+                        class="btn btn-subtle view-link"
+                        href={recipe.data.reviewStatus === 'tested' ? `/recipe/${recipe.id.replace(/\.md$/, '')}/` : `/admin/recipes/preview/${recipe.id.replace(/\.md$/, '')}/`}
+                        target="_blank"
+                        style={recipe.data.reviewStatus === 'tested' ? '' : 'color: var(--terracotta); font-weight: 700;'}
+                      >
+                        {recipe.data.reviewStatus === 'tested' ? 'View' : 'Preview'}
+                      </a>
                       <a class="btn btn-subtle" href={`/admin/recipes/${recipe.id.replace(/\.md$/, '')}/`}>Edit</a>
                       <button class="btn btn-danger" type="button" data-delete={recipe.id.replace(/\.md$/, '')}>Delete</button>
                     </div>
@@ -142,6 +168,13 @@ Astro.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
       const categoryFilter = document.getElementById('categoryFilter') as HTMLSelectElement | null;
       const statusFilter = document.getElementById('statusFilter') as HTMLSelectElement | null;
       const emptyState = document.getElementById('emptyState') as HTMLDivElement | null;
+      const selectAllCheckbox = document.getElementById('selectAllCheckbox') as HTMLInputElement | null;
+      const bulkActionsBar = document.getElementById('bulkActionsBar') as HTMLDivElement | null;
+      const selectedCountText = document.getElementById('selectedCountText') as HTMLElement | null;
+      const bulkPublishBtn = document.getElementById('bulkPublishBtn') as HTMLButtonElement | null;
+      const bulkDraftBtn = document.getElementById('bulkDraftBtn') as HTMLButtonElement | null;
+      const bulkClearBtn = document.getElementById('bulkClearBtn') as HTMLButtonElement | null;
+
       const csrfToken = document.cookie
         .split('; ')
         .find((entry) => entry.startsWith('crockbites_admin_csrf='))
@@ -156,6 +189,31 @@ Astro.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
       const safeCategoryFilter = categoryFilter;
       const safeStatusFilter = statusFilter;
       const safeEmptyState = emptyState;
+
+      function getSelectedSlugs(): string[] {
+        const checkedBoxes = Array.from(safeTableBody.querySelectorAll<HTMLInputElement>('.recipe-select-checkbox:checked'));
+        return checkedBoxes.map((cb) => cb.dataset.slug || '').filter(Boolean);
+      }
+
+      function updateBulkBar() {
+        const selected = getSelectedSlugs();
+        if (bulkActionsBar && selectedCountText) {
+          if (selected.length > 0) {
+            bulkActionsBar.style.display = 'flex';
+            selectedCountText.textContent = `${selected.length} recipe${selected.length === 1 ? '' : 's'} selected`;
+          } else {
+            bulkActionsBar.style.display = 'none';
+          }
+        }
+        if (selectAllCheckbox) {
+          const visibleCheckboxes = Array.from(safeTableBody.querySelectorAll<HTMLInputElement>('tr:not([hidden]) .recipe-select-checkbox'));
+          if (visibleCheckboxes.length > 0) {
+            selectAllCheckbox.checked = visibleCheckboxes.every((cb) => cb.checked);
+          } else {
+            selectAllCheckbox.checked = false;
+          }
+        }
+      }
 
       function applyFilters() {
         const query = safeSearchInput.value.trim().toLowerCase();
@@ -177,11 +235,119 @@ Astro.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
         });
 
         safeEmptyState.hidden = visible !== 0;
+        updateBulkBar();
       }
 
       safeSearchInput.addEventListener('input', applyFilters);
       safeCategoryFilter.addEventListener('change', applyFilters);
       safeStatusFilter.addEventListener('change', applyFilters);
+
+      selectAllCheckbox?.addEventListener('change', () => {
+        const isChecked = selectAllCheckbox.checked;
+        const visibleCheckboxes = safeTableBody.querySelectorAll<HTMLInputElement>('tr:not([hidden]) .recipe-select-checkbox');
+        visibleCheckboxes.forEach((cb) => {
+          cb.checked = isChecked;
+        });
+        updateBulkBar();
+      });
+
+      safeTableBody.addEventListener('change', (e) => {
+        if ((e.target as HTMLElement).classList.contains('recipe-select-checkbox')) {
+          updateBulkBar();
+        }
+      });
+
+      bulkClearBtn?.addEventListener('click', () => {
+        safeTableBody.querySelectorAll<HTMLInputElement>('.recipe-select-checkbox').forEach((cb) => {
+          cb.checked = false;
+        });
+        if (selectAllCheckbox) selectAllCheckbox.checked = false;
+        updateBulkBar();
+      });
+
+      async function applyBulkStatusChange(targetStatus: 'draft' | 'tested') {
+        const slugs = getSelectedSlugs();
+        if (slugs.length === 0) return;
+
+        const label = targetStatus === 'tested' ? 'Tested (Published)' : 'Draft';
+        const confirmed = window.confirm(
+          `Are you sure you want to change the status of ${slugs.length} recipe(s) to "${label}"? This will commit updates directly to GitHub.`
+        );
+        if (!confirmed) return;
+
+        if (bulkPublishBtn) bulkPublishBtn.disabled = true;
+        if (bulkDraftBtn) bulkDraftBtn.disabled = true;
+        if (selectedCountText) selectedCountText.textContent = `Updating ${slugs.length} recipe(s)...`;
+
+        try {
+          const response = await fetch('/api/admin/recipes/bulk-status/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-csrf-token': csrfToken,
+            },
+            body: JSON.stringify({ slugs, status: targetStatus }),
+          });
+
+          const data = await response.json().catch(() => ({}));
+
+          if (!response.ok) {
+            throw new Error(data.error || 'Bulk update failed.');
+          }
+
+          // Update modified rows in the table UI
+          if (Array.isArray(data.updated)) {
+            data.updated.forEach((slug: string) => {
+              const row = safeTableBody.querySelector<HTMLTableRowElement>(`tr[data-slug="${slug}"]`);
+              if (row) {
+                row.dataset.status = targetStatus;
+                const tag = row.querySelector('.status-tag');
+                if (tag) tag.textContent = targetStatus;
+
+                const viewLink = row.querySelector<HTMLAnchorElement>('.view-link');
+                if (viewLink) {
+                  if (targetStatus === 'tested') {
+                    viewLink.href = `/recipe/${slug}/`;
+                    viewLink.textContent = 'View';
+                    viewLink.style.color = '';
+                    viewLink.style.fontWeight = '700';
+                  } else {
+                    viewLink.href = `/admin/recipes/preview/${slug}/`;
+                    viewLink.textContent = 'Preview';
+                    viewLink.style.color = 'var(--terracotta)';
+                    viewLink.style.fontWeight = '700';
+                  }
+                }
+              }
+            });
+          }
+
+          if (Array.isArray(data.failed) && data.failed.length > 0) {
+            const failDetails = data.failed.map((f: { slug: string; error: string }) => `${f.slug}: ${f.error}`).join('\n');
+            window.alert(
+              `Updated ${data.updated?.length ?? 0} recipe(s).\nFailed to update ${data.failed.length} recipe(s):\n${failDetails}`
+            );
+          } else {
+            window.alert(`Successfully updated ${data.updated?.length ?? 0} recipe(s) to ${label}.`);
+          }
+
+          // Uncheck all checkboxes and re-run filter
+          safeTableBody.querySelectorAll<HTMLInputElement>('.recipe-select-checkbox').forEach((cb) => {
+            cb.checked = false;
+          });
+          if (selectAllCheckbox) selectAllCheckbox.checked = false;
+          applyFilters();
+        } catch (error) {
+          window.alert(error instanceof Error ? error.message : 'Bulk status update failed.');
+        } finally {
+          if (bulkPublishBtn) bulkPublishBtn.disabled = false;
+          if (bulkDraftBtn) bulkDraftBtn.disabled = false;
+          updateBulkBar();
+        }
+      }
+
+      bulkPublishBtn?.addEventListener('click', () => applyBulkStatusChange('tested'));
+      bulkDraftBtn?.addEventListener('click', () => applyBulkStatusChange('draft'));
 
       safeTableBody.querySelectorAll('[data-delete]').forEach((button) => {
         button.addEventListener('click', async () => {

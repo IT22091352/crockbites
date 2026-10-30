@@ -5,7 +5,10 @@ import {
   ADMIN_COOKIE_NAME,
   CSRF_COOKIE_NAME,
   buildSessionCookie,
-  checkRateLimit,
+  checkLoginRateLimit,
+  recordFailedLogin,
+  resetLoginRateLimit,
+  getClientIp,
   createCsrfToken,
   getAdminSessionSecret,
   getRuntimeSecret,
@@ -14,18 +17,31 @@ import {
 } from '../../../lib/admin';
 
 export const POST: APIRoute = async ({ request, cookies, url }) => {
-  const ip = request.headers.get('cf-connecting-ip') ?? request.headers.get('x-forwarded-for') ?? 'unknown';
-  if (!checkRateLimit(`login:${ip}`)) {
-    return new Response(JSON.stringify({ error: 'Too many failed login attempts. Please wait a few minutes.' }), {
-      status: 429,
-      headers: { 'content-type': 'application/json' },
-    });
-  }
-
+  const ip = getClientIp(request);
   const form = await request.formData();
   const username = String(form.get('username') ?? '').trim();
   const password = String(form.get('password') ?? '');
   const csrfToken = String(form.get('csrfToken') ?? request.headers.get('x-csrf-token') ?? '').trim();
+
+  // Rate limiting check prior to any cryptographic work
+  const rateLimit = await checkLoginRateLimit(ip, username);
+  if (!rateLimit.allowed) {
+    const retryMinutes = Math.ceil(rateLimit.retryAfterSeconds / 60);
+    return new Response(
+      JSON.stringify({
+        error: `Too many failed login attempts. Please wait ${retryMinutes} minute${retryMinutes === 1 ? '' : 's'} before trying again.`,
+        retryAfter: rateLimit.retryAfterSeconds,
+      }),
+      {
+        status: 429,
+        headers: {
+          'content-type': 'application/json',
+          'Retry-After': String(rateLimit.retryAfterSeconds),
+        },
+      }
+    );
+  }
+
   const validUsername = getRuntimeSecret('ADMIN_USERNAME');
   const storedHash = getRuntimeSecret('ADMIN_PASSWORD_HASH');
   const secret = getAdminSessionSecret();
@@ -45,7 +61,7 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
   const validTokens = new Set([expectedLoginToken, ...(expectedSessionToken ? [expectedSessionToken] : [])]);
 
   if (!csrfCookie || !csrfToken || csrfCookie !== csrfToken || !validTokens.has(csrfToken)) {
-    // Re-issue fresh login CSRF token so next attempt succeeds
+    await recordFailedLogin(ip, username);
     cookies.set(CSRF_COOKIE_NAME, expectedLoginToken, {
       httpOnly: false,
       sameSite: 'lax',
@@ -60,8 +76,8 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
   }
 
   if (username !== validUsername || !verifyPassword(password, storedHash)) {
+    const failureResult = await recordFailedLogin(ip, username);
     cookies.delete(ADMIN_COOKIE_NAME, { path: '/' });
-    // Re-issue CSRF token on bad password so next submit doesn't trigger "Security check failed"
     cookies.set(CSRF_COOKIE_NAME, expectedLoginToken, {
       httpOnly: false,
       sameSite: 'lax',
@@ -69,11 +85,32 @@ export const POST: APIRoute = async ({ request, cookies, url }) => {
       path: '/',
       maxAge: 60 * 60 * 12,
     });
+
+    if (failureResult.locked) {
+      const retryMinutes = Math.ceil(failureResult.retryAfterSeconds / 60);
+      return new Response(
+        JSON.stringify({
+          error: `Too many failed login attempts. Please wait ${retryMinutes} minute${retryMinutes === 1 ? '' : 's'} before trying again.`,
+          retryAfter: failureResult.retryAfterSeconds,
+        }),
+        {
+          status: 429,
+          headers: {
+            'content-type': 'application/json',
+            'Retry-After': String(failureResult.retryAfterSeconds),
+          },
+        }
+      );
+    }
+
     return new Response(null, {
       status: 303,
       headers: { location: '/admin/login/?error=Invalid+credentials' },
     });
   }
+
+  // Clear rate-limiting on successful authentication
+  await resetLoginRateLimit(ip, username);
 
   const authCookie = buildSessionCookie(username, secret);
   const parsed = parseAdminSessionCookie(authCookie);

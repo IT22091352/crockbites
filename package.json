@@ -18,7 +18,8 @@
     "placeholders": "python scripts/build-placeholders.py",
     "verify": "astro check && astro build && python scripts/check-links.py && node tests/dom-smoke.test.cjs && node --experimental-strip-types tests/auth-security.test.mjs",
     "test:dom": "node tests/dom-smoke.test.cjs",
-    "test:auth": "node --experimental-strip-types tests/auth-security.test.mjs"
+    "test:auth": "node --experimental-strip-types tests/auth-security.test.mjs",
+    "test:recipe": "node --experimental-strip-types tests/recipe-and-cloudinary.test.mjs"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.4.2",
