@@ -100,6 +100,8 @@ instructions:
     text: Add fresh lime juice and black pepper if desired. Mix thoroughly and taste. Adjust salt, chilli, and lime according to your preference.
   - title: Step 5 – Serve fresh
     text: Transfer the pol sambol to a serving bowl. Serve immediately with rice, string hoppers, hoppers, kiribath, or coconut roti.
+allergens:
+  - fish
 featured: false
 reviewStatus: tested
 ---
