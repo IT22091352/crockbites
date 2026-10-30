@@ -53,5 +53,3 @@ instructions:
 featured: false
 reviewStatus: draft
 ---
-
-rice and curry rice and curry rice and curryrice and curryrice and curryrice and curryrice and curryrice and curryrice and curryrice and curryrice and curryrice and curryrice and curryrice and curryrice and curryrice and curry

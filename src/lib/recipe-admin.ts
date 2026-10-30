@@ -189,7 +189,12 @@ export function serializeRecipeToMarkdown(data: FrontmatterRecipe) {
     reviewStatus: normalized.reviewStatus ?? 'draft',
   };
 
-  return `---\n${YAML.stringify(frontmatter, { lineWidth: 0 })}---\n\n${normalized.description}\n`;
+  const bodyText = typeof (data as any).body === 'string' ? (data as any).body.trim() : '';
+  if (bodyText && bodyText !== normalized.description.trim()) {
+    return `---\n${YAML.stringify(frontmatter, { lineWidth: 0 })}---\n\n${bodyText}\n`;
+  }
+
+  return `---\n${YAML.stringify(frontmatter, { lineWidth: 0 })}---\n`;
 }
 
 export function sanitizeRecipeString(value: unknown) {

@@ -17,6 +17,9 @@ const { Content } = await render(recipe);
 const d = recipe.data;
 const cat = categoryById(d.category)!;
 
+const rawBody = (recipe.body ?? '').trim();
+const hasCustomIntro = Boolean(rawBody && rawBody !== (d.description ?? '').trim());
+
 // Social/structured-data image: a 1200px-wide, absolute URL.
 let ogSrc: string;
 if (typeof d.image === 'string' && (d.image.startsWith('http://') || d.image.startsWith('https://'))) {
@@ -35,6 +38,6 @@ const jsonLd = [
 <BaseLayout title={d.title} description={d.description} path={path} image={ogSrc} imageAlt={d.imageAlt} type="article"
   noindex={!isIndexable(recipe)} publishedTime={d.pubDate.toISOString()} modifiedTime={(d.updatedDate ?? d.pubDate).toISOString()} jsonLd={jsonLd}>
   <RecipeDetail recipe={recipe} related={related}>
-    <Content slot="intro" />
+    {hasCustomIntro && <Content slot="intro" />}
   </RecipeDetail>
 </BaseLayout>
