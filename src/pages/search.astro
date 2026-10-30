@@ -1,6 +1,6 @@
 ---
 import { getImage } from 'astro:assets';
-import { Search, SlidersHorizontal, X, Sparkles, CircleAlert } from '@lucide/astro';
+import { Search, SlidersHorizontal, X, Sparkles, CircleAlert, ChevronDown } from '@lucide/astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Breadcrumbs from '../components/Breadcrumbs.astro';
 import { getAllRecipes, categoryById, recipeUrl, totalMinutes, recipeSlug } from '../utils/recipes';
@@ -149,15 +149,16 @@ const allergenOptions = [
           <button
             type="button"
             id="toggle-filters-btn"
-            class="inline-flex items-center gap-2 rounded-xl border border-line bg-cream/50 px-3.5 py-2 text-xs font-semibold text-forest transition hover:bg-cream"
+            class="inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-line bg-cream/50 px-3.5 py-2 text-xs font-semibold text-forest transition hover:bg-cream hover:border-forest/40 focus-visible:ring-2 focus-visible:ring-forest cursor-pointer"
             aria-expanded="false"
             aria-controls="advanced-filters-panel"
           >
             <SlidersHorizontal size={15} aria-hidden="true" />
             <span>Dietary &amp; Allergen Filters</span>
             <span id="active-filters-count" class="hidden rounded-full bg-forest px-2 py-0.5 text-[0.68rem] font-bold text-cream">
-              0
+              0 active
             </span>
+            <ChevronDown size={14} id="filter-chevron" class="text-ink-soft transition-transform duration-200" aria-hidden="true" />
           </button>
 
           <div class="flex items-center gap-2">
@@ -174,16 +175,16 @@ const allergenOptions = [
           </div>
         </div>
 
-        <!-- Advanced Filters Panel (Collapsible on small screens, expanded on desktop) -->
-        <div id="advanced-filters-panel" class="space-y-4 pt-2">
+        <!-- Advanced Filters Panel (Collapsed by default) -->
+        <div id="advanced-filters-panel" class="hidden space-y-4 pt-2" aria-hidden="true">
           <!-- Dietary Style Filters -->
           <div class="rounded-2xl border border-line/70 bg-cream/30 p-4">
             <div class="flex flex-wrap items-baseline justify-between gap-2">
               <span class="text-xs font-bold uppercase tracking-wider text-forest flex items-center gap-1.5">
                 <Sparkles size={13} class="text-forest" aria-hidden="true" />
-                <span>Dietary Preference (Verified)</span>
+                <span>Dietary Preferences</span>
               </span>
-              <span class="text-xs text-ink-soft">Matches all selected</span>
+              <span class="text-xs text-ink-soft">Matches all selected tags</span>
             </div>
             <div class="mt-2.5 flex flex-wrap gap-2" id="dietary-filter-group">
               {dietaryOptions.map((opt) => (
@@ -202,9 +203,9 @@ const allergenOptions = [
             <div class="flex flex-wrap items-baseline justify-between gap-2">
               <span class="text-xs font-bold uppercase tracking-wider text-terracotta-deep flex items-center gap-1.5">
                 <CircleAlert size={13} class="text-terracotta-deep" aria-hidden="true" />
-                <span>Allergen Exclusions (FDA Big 9)</span>
+                <span>Major Allergen Exclusions</span>
               </span>
-              <span class="text-xs text-ink-soft">Excludes unreviewed recipes for safety</span>
+              <span class="text-xs text-ink-soft">Excludes recipes containing selected allergens</span>
             </div>
             <div class="mt-2.5 flex flex-wrap gap-2" id="allergen-filter-group">
               {allergenOptions.map((opt) => (
@@ -221,30 +222,40 @@ const allergenOptions = [
       </div>
     </form>
 
-    <!-- Live Status Text (Required by dom-smoke tests) -->
-    <p id="search-status" class="mt-8 text-sm font-semibold text-ink-soft" role="status" aria-live="polite"></p>
-
-    <!-- Results Grid -->
-    <ul id="search-results" class="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3"></ul>
-
-    <!-- Empty State -->
-    <div id="search-empty" class="mt-8 rounded-3xl border border-line bg-paper p-8 text-center max-w-2xl mx-auto shadow-sm" hidden>
-      <div class="mx-auto flex size-12 items-center justify-center rounded-full bg-cream-deep text-terracotta-deep mb-3">
-        <Search size={22} aria-hidden="true" />
+    <!-- Search Results Section with Stable Anchor & Scroll Margin -->
+    <section id="results" class="mt-8 scroll-mt-20 md:scroll-mt-24 focus:outline-hidden" tabindex="-1" aria-labelledby="search-results-heading">
+      <div class="flex flex-wrap items-baseline justify-between gap-3 border-b border-line/60 pb-3">
+        <div>
+          <h2 id="search-results-heading" class="font-display text-xl sm:text-2xl font-semibold text-forest">
+            All Recipes
+          </h2>
+          <!-- Live Status Text (Required by dom-smoke tests) -->
+          <p id="search-status" class="mt-1 text-sm font-medium text-ink-soft" role="status" aria-live="polite"></p>
+        </div>
       </div>
-      <h2 class="font-display text-xl font-semibold text-forest">No recipes match that search</h2>
-      <p class="mt-2 text-sm text-ink-soft max-w-md mx-auto">
-        Check your keyword spelling, clear restrictive dietary or allergen exclusions, or explore our full collection.
-      </p>
-      <div class="mt-6 flex flex-wrap justify-center gap-3">
-        <button type="button" id="search-empty-clear-btn" class="btn btn-small">
-          Clear Filters
-        </button>
-        <a href="/recipes/" class="btn btn-small btn-outline">
-          Browse All Recipes
-        </a>
+
+      <!-- Results Grid -->
+      <ul id="search-results" class="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3"></ul>
+
+      <!-- Empty State -->
+      <div id="search-empty" class="mt-8 rounded-3xl border border-line bg-paper p-8 text-center max-w-2xl mx-auto shadow-sm" hidden>
+        <div class="mx-auto flex size-12 items-center justify-center rounded-full bg-cream-deep text-terracotta-deep mb-3">
+          <Search size={22} aria-hidden="true" />
+        </div>
+        <h3 class="font-display text-xl font-semibold text-forest">No recipes match that search</h3>
+        <p class="mt-2 text-sm text-ink-soft max-w-md mx-auto">
+          Check your keyword spelling, clear restrictive dietary or allergen exclusions, or explore our full collection.
+        </p>
+        <div class="mt-6 flex flex-wrap justify-center gap-3">
+          <button type="button" id="search-empty-clear-btn" class="btn btn-small">
+            Clear Filters
+          </button>
+          <a href="/recipes/" class="btn btn-small btn-outline">
+            Browse All Recipes
+          </a>
+        </div>
       </div>
-    </div>
+    </section>
 
     <noscript>
       <p class="notice mt-6">
@@ -289,6 +300,11 @@ const allergenOptions = [
   const empty = document.getElementById('search-empty')!;
   const emptyClearBtn = document.getElementById('search-empty-clear-btn');
   const activeCountEl = document.getElementById('active-filters-count');
+  const toggleFiltersBtn = document.getElementById('toggle-filters-btn') as HTMLButtonElement | null;
+  const filtersPanel = document.getElementById('advanced-filters-panel') as HTMLElement | null;
+  const filterChevron = document.getElementById('filter-chevron') as HTMLElement | null;
+  const resultsHeading = document.getElementById('search-results-heading');
+  const resultsSection = document.getElementById('results');
 
   const dietaryCheckboxes = Array.from(document.querySelectorAll('.search-dietary-input')) as HTMLInputElement[];
   const allergenCheckboxes = Array.from(document.querySelectorAll('.search-allergen-input')) as HTMLInputElement[];
@@ -300,15 +316,45 @@ const allergenOptions = [
     hay: norm([d.title, d.description, d.categoryName, ...d.tags].join(' ')),
   }));
 
+  function toggleFilters(forceOpen?: boolean) {
+    if (!filtersPanel || !toggleFiltersBtn) return;
+    const isCurrentlyHidden = filtersPanel.classList.contains('hidden');
+    const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : isCurrentlyHidden;
+
+    if (shouldOpen) {
+      filtersPanel.classList.remove('hidden');
+      filtersPanel.setAttribute('aria-hidden', 'false');
+      toggleFiltersBtn.setAttribute('aria-expanded', 'true');
+      toggleFiltersBtn.classList.add('bg-forest/10', 'border-forest/40');
+      if (filterChevron) filterChevron.style.transform = 'rotate(180deg)';
+    } else {
+      filtersPanel.classList.add('hidden');
+      filtersPanel.setAttribute('aria-hidden', 'true');
+      toggleFiltersBtn.setAttribute('aria-expanded', 'false');
+      toggleFiltersBtn.classList.remove('bg-forest/10', 'border-forest/40');
+      if (filterChevron) filterChevron.style.transform = 'rotate(0deg)';
+    }
+  }
+
+  if (toggleFiltersBtn) {
+    toggleFiltersBtn.addEventListener('click', () => toggleFilters());
+  }
+
+  function scrollToResults() {
+    if (resultsSection) {
+      resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      resultsSection.focus({ preventScroll: true });
+    }
+  }
+
   function updateActiveFilterBadge() {
-    const selectedDietary = dietaryCheckboxes.filter((cb) => cb.checked).length;
-    const excludedAllergens = allergenCheckboxes.filter((cb) => cb.checked).length;
-    const catActive = select.value ? 1 : 0;
-    const totalFilters = selectedDietary + excludedAllergens + catActive;
+    const selectedDietaryCount = dietaryCheckboxes.filter((cb) => cb.checked).length;
+    const excludedAllergensCount = allergenCheckboxes.filter((cb) => cb.checked).length;
+    const advancedFiltersCount = selectedDietaryCount + excludedAllergensCount;
 
     if (activeCountEl) {
-      if (totalFilters > 0) {
-        activeCountEl.textContent = String(totalFilters);
+      if (advancedFiltersCount > 0) {
+        activeCountEl.textContent = `${advancedFiltersCount} active`;
         activeCountEl.classList.remove('hidden');
       } else {
         activeCountEl.classList.add('hidden');
@@ -504,6 +550,16 @@ const allergenOptions = [
     const label = cat ? select.options[select.selectedIndex].text : '';
     const filtersActive = q || cat || selectedDietary.length > 0 || excludedAllergens.length > 0;
 
+    if (resultsHeading) {
+      if (q) {
+        resultsHeading.textContent = `Results for “${q}”`;
+      } else if (cat) {
+        resultsHeading.textContent = `${label} Recipes`;
+      } else {
+        resultsHeading.textContent = 'All Recipes';
+      }
+    }
+
     let statusText = '';
     if (filtersActive) {
       const parts: string[] = [];
@@ -560,6 +616,7 @@ const allergenOptions = [
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     run(true);
+    scrollToResults();
   });
   input.addEventListener('input', () => run(true));
   select.addEventListener('change', () => run(true));
@@ -579,6 +636,19 @@ const allergenOptions = [
 
   resetBtn.addEventListener('click', resetAll);
   if (emptyClearBtn) emptyClearBtn.addEventListener('click', resetAll);
+
+  // Browser back/forward navigation support
+  window.addEventListener('popstate', () => {
+    const popParams = new URLSearchParams(location.search);
+    input.value = popParams.get('q') ?? '';
+    select.value = popParams.get('category') ?? '';
+    if (sortSelect) sortSelect.value = popParams.get('sort') ?? 'relevance';
+    const dList = (popParams.get('dietary') ?? '').split(',').filter(Boolean);
+    dietaryCheckboxes.forEach((cb) => { cb.checked = dList.includes(cb.value); });
+    const aList = (popParams.get('excludeAllergens') ?? '').split(',').filter(Boolean);
+    allergenCheckboxes.forEach((cb) => { cb.checked = aList.includes(cb.value); });
+    run(false);
+  });
 
   // Keyboard shortcut '/' to focus search
   window.addEventListener('keydown', (e) => {
