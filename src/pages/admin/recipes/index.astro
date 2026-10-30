@@ -118,7 +118,11 @@ Astro.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
                   <td>{recipe.data.updatedDate ? new Date(recipe.data.updatedDate).toLocaleDateString() : new Date(recipe.data.pubDate).toLocaleDateString()}</td>
                   <td>
                     <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
-                      <a class="btn btn-subtle" href={`/recipe/${recipe.id.replace(/\.md$/, '')}/`}>View</a>
+                      {recipe.data.reviewStatus === 'tested' ? (
+                        <a class="btn btn-subtle" href={`/recipe/${recipe.id.replace(/\.md$/, '')}/`} target="_blank">View</a>
+                      ) : (
+                        <span class="btn btn-subtle" style="opacity: 0.5; cursor: not-allowed;" title="Drafts are hidden from the website">Draft</span>
+                      )}
                       <a class="btn btn-subtle" href={`/admin/recipes/${recipe.id.replace(/\.md$/, '')}/`}>Edit</a>
                       <button class="btn btn-danger" type="button" data-delete={recipe.id.replace(/\.md$/, '')}>Delete</button>
                     </div>

@@ -222,8 +222,8 @@ const initialRecipe = {
               <label>
                 Review Status
                 <select name="reviewStatus">
-                  <option value="draft" selected={initialRecipe.reviewStatus === 'draft'}>Draft (Private / testing)</option>
-                  <option value="tested" selected={initialRecipe.reviewStatus === 'tested'}>Published / Tested</option>
+                  <option value="draft" selected={initialRecipe.reviewStatus === 'draft'}>Draft (Hidden from Website)</option>
+                  <option value="tested" selected={initialRecipe.reviewStatus === 'tested'}>Published (Live on Website)</option>
                 </select>
               </label>
             </div>

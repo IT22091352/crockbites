@@ -9,7 +9,7 @@ export const recipeUrl = (r: Recipe | string) => `/recipe/${typeof r === 'string
 export const categoryUrl = (slug: string) => `/category/${slug}/`;
 export const absoluteUrl = (path: string) => new URL(path, site.url).href;
 
-export async function getAllRecipes(): Promise<Recipe[]> {
+export async function getAllRecipes(includeDrafts = false): Promise<Recipe[]> {
   const all = await getCollection('recipes');
   const slugs = new Set<string>();
   for (const recipe of all) {
@@ -17,7 +17,8 @@ export async function getAllRecipes(): Promise<Recipe[]> {
     if (slugs.has(slug)) throw new Error(`Duplicate recipe slug "${slug}". Rename the slug or Markdown file.`);
     slugs.add(slug);
   }
-  return all.sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf() || a.data.title.localeCompare(b.data.title));
+  const filtered = includeDrafts ? all : all.filter((r) => r.data.reviewStatus === 'tested');
+  return filtered.sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf() || a.data.title.localeCompare(b.data.title));
 }
 
 export const totalMinutes = (r: Recipe) => r.data.totalMinutes ?? r.data.prepMinutes + r.data.cookMinutes;
