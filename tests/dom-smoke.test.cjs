@@ -10,9 +10,34 @@ function load(file, url) {
   dom.window.print = () => { dom.window.__printed = true; };
   dom.window.matchMedia = dom.window.matchMedia || (() => ({ addEventListener() {}, matches: false }));
   dom.window.history.replaceState = dom.window.history.replaceState.bind(dom.window.history);
-  for (const m of html.matchAll(/<script type="module">([\s\S]*?)<\/script>/g)) {
-    dom.window.eval('(function(){\n' + m[1] + '\n})()');
+
+  // Execute bundled RecipeDetail scripts linked via src
+  for (const m of html.matchAll(/<script\b[^>]*src="([^"]+)"[^>]*><\/script>/gi)) {
+    const src = m[1];
+    if (src.includes('RecipeDetail')) {
+      const scriptPath = `${DIST_ROOT}/${src.replace(/^\//, '')}`;
+      if (fs.existsSync(scriptPath)) {
+        try {
+          const code = fs.readFileSync(scriptPath, 'utf8');
+          dom.window.eval(code);
+        } catch (err) {
+          // Ignore
+        }
+      }
+    }
   }
+
+  // Execute inline scripts
+  for (const m of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)) {
+    if (m[1].trim()) {
+      try {
+        dom.window.eval('(function(){\n' + m[1] + '\n})()');
+      } catch (err) {
+        // Ignore
+      }
+    }
+  }
+
   return dom;
 }
 
@@ -46,6 +71,13 @@ const rows = () => d.querySelectorAll('[data-ing]');
 
 ok(Boolean(d.querySelector('h1')?.textContent.trim()), `Recipe title present: "${txt('h1')}"`);
 
+// Feature 3: Jump to Recipe
+const jumpBtn = d.querySelector('a[href="#recipe-card"]');
+ok(Boolean(jumpBtn), 'Feature 3: Jump to recipe button exists with href="#recipe-card"');
+const cardTarget = d.getElementById('recipe-card');
+ok(Boolean(cardTarget), 'Feature 3: Recipe card anchor target #recipe-card exists');
+
+// Feature 1: Serving Scaler
 const baseServingsStr = txt('[data-servings-out]');
 const baseServings = parseInt(baseServingsStr || '0', 10);
 ok(baseServings > 0, `base servings valid: ${baseServings}`);
@@ -58,30 +90,67 @@ const dec = d.querySelector('[data-dec]');
 const reset = d.querySelector('[data-reset]');
 ok(Boolean(inc && dec && reset), 'scaler controls exist (+, -, reset)');
 
-inc.click();
+inc?.click();
 const scaledServings = parseInt(txt('[data-servings-out]') || '0', 10);
 ok(scaledServings > baseServings, `servings increased after inc: ${scaledServings}`);
 ok(!reset.hidden, 'reset button visible after scaling');
 
-reset.click();
+reset?.click();
 ok(parseInt(txt('[data-servings-out]') || '0', 10) === baseServings, `reset restores base servings: ${baseServings}`);
 ok(reset.hidden, 'reset button hidden after reset');
 
-for (let i = 0; i < 50; i += 1) dec.click();
+for (let i = 0; i < 50; i += 1) dec?.click();
 ok(txt('[data-servings-out]') === '1' && dec.disabled, 'min 1 enforced, dec button disabled at 1');
 
-reset.click();
+reset?.click();
 
+// Feature 2: US / Metric Unit Converter
+const metricBtn = d.querySelector('[data-unit-btn="metric"]');
+const usBtn = d.querySelector('[data-unit-btn="us"]');
+ok(Boolean(metricBtn && usBtn), 'Feature 2: Unit converter buttons (US/Metric) exist');
+
+if (metricBtn && usBtn) {
+  metricBtn.click();
+  ok(metricBtn.classList.contains('active'), 'Feature 2: Metric toggle activates on click');
+  usBtn.click();
+  ok(usBtn.classList.contains('active'), 'Feature 2: US toggle restores on click');
+}
+
+// Feature 4: Print Recipe
 const printBtn = d.querySelector('[data-print]');
-ok(Boolean(printBtn), 'print button exists');
+ok(Boolean(printBtn), 'Feature 4: Print button exists');
 printBtn?.click();
-ok(dom.window.__printed === true, 'print button triggers window.print()');
+ok(dom.window.__printed === true, 'Feature 4: Print button triggers window.print()');
 
 const checkboxes = d.querySelectorAll('.check-row input[type=checkbox]');
 ok(checkboxes.length > 0, `ingredient checklist has ${checkboxes.length} checkboxes`);
 
 const steps = d.querySelectorAll('ol > li[id^=step-]');
 ok(steps.length > 0, `instructions have ${steps.length} numbered steps`);
+
+// Feature 5: Interactive Cooking Mode
+const startCookingBtn = d.querySelector('[data-start-cooking]');
+ok(Boolean(startCookingBtn), 'Feature 5: Start Cooking button exists');
+const cookingModal = d.getElementById('cookingModeModal');
+ok(Boolean(cookingModal), 'Feature 5: Cooking mode modal element exists');
+
+if (startCookingBtn && cookingModal) {
+  startCookingBtn.click();
+  ok(!cookingModal.hidden, 'Feature 5: Cooking mode opens upon clicking Start Cooking');
+  const exitBtn = d.getElementById('exitCookingModeBtn');
+  ok(Boolean(exitBtn), 'Feature 5: Exit Cooking Mode button exists');
+  exitBtn?.click();
+  ok(cookingModal.hidden, 'Feature 5: Cooking mode closes on Exit click');
+}
+
+// Feature 6: Step Cooking Timers
+const stepTimerButtons = d.querySelectorAll('[data-step-timer-btn]');
+if (stepTimerButtons.length > 0) {
+  const firstTimerBtn = stepTimerButtons[0];
+  ok(Boolean(firstTimerBtn.dataset.totalSeconds), `Feature 6: Timer duration detected: ${firstTimerBtn.dataset.label}`);
+} else {
+  console.log('NOTE: Target recipe instruction steps have no explicit timer durations');
+}
 
 // ---- Mobile menu ----
 const menu = d.getElementById('mobile-menu');

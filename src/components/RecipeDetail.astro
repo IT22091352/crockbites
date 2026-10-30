@@ -1,6 +1,22 @@
 ---
 import { Image } from 'astro:assets';
-import { Clock, Users, Printer, Thermometer, Minus, Plus, ArrowDown, ListOrdered, TriangleAlert, Info } from '@lucide/astro';
+import {
+  Clock,
+  Users,
+  Printer,
+  Thermometer,
+  Minus,
+  Plus,
+  ArrowDown,
+  ListOrdered,
+  TriangleAlert,
+  Info,
+  ChefHat,
+  Timer,
+  X,
+  ChevronLeft,
+  ChevronRight,
+} from '@lucide/astro';
 import Breadcrumbs from './Breadcrumbs.astro';
 import RecipeCard from './RecipeCard.astro';
 import AdSlot from './AdSlot.astro';
@@ -8,6 +24,7 @@ import { categoryById, recipeUrl, totalMinutes, absoluteUrl, type Recipe } from 
 import { amountText, itemText } from '../utils/quantity';
 import { formatMinutes } from '../utils/time';
 import { rw, isRemoteImage, getOptimizedCloudinaryUrl } from '../utils/images';
+import { extractInstructionDuration } from '../utils/timer';
 
 interface Props { recipe: Recipe; related: Recipe[] }
 const { recipe, related } = Astro.props;
@@ -16,7 +33,7 @@ const cat = categoryById(d.category);
 const total = totalMinutes(recipe);
 const fmtDate = (dt: Date) => dt.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
 const isRemote = isRemoteImage(d.image);
-const imageUrl = typeof d.image === 'string' ? d.image : d.image.src;
+const imageUrl = typeof d.image === 'string' ? d.image : (d.image as any).src;
 const gallery = (d as any).gallery as Array<{ url: string; alt: string; width?: number; height?: number }> | undefined;
 
 // Group ingredients under their optional headings, keeping the original order.
@@ -44,6 +61,7 @@ const hasNutrition = Boolean(n && (n.calories || n.proteinGrams || n.carbsGrams 
         </p>
         <div class="mt-6 flex flex-wrap gap-3">
           <a class="btn" href="#recipe-card"><ArrowDown size={18} aria-hidden="true" />Jump to recipe</a>
+          <button type="button" class="btn btn-outline" data-start-cooking><ChefHat size={18} aria-hidden="true" />Start Cooking</button>
           <a class="btn btn-outline" href="#instructions"><ListOrdered size={18} aria-hidden="true" />Jump to instructions</a>
           <button type="button" class="btn btn-outline" data-print><Printer size={18} aria-hidden="true" />Print recipe</button>
         </div>
@@ -110,27 +128,42 @@ const hasNutrition = Boolean(n && (n.calories || n.proteinGrams || n.carbsGrams 
   </div>
 
   <!-- The structured recipe card: also the only thing that prints. -->
-  <section id="recipe-card" aria-labelledby="recipe-card-title" class="container-page">
+  <section id="recipe-card" aria-labelledby="recipe-card-title" class="container-page scroll-mt-20">
     <div class="card recipe-card-print p-5 sm:p-8 lg:p-10" data-scaler data-base={d.servings} data-max={maxServings}>
-      <p class="print-only mb-3 text-sm">CrockBites · {absoluteUrl(recipeUrl(recipe))}</p>
+      <p class="print-only mb-3 text-sm font-semibold">CrockBites · Good Food. Less Fuss. · {absoluteUrl(recipeUrl(recipe))}</p>
       <div class="flex flex-wrap items-start justify-between gap-4 border-b border-line pb-6">
         <div>
           <h2 id="recipe-card-title">{d.title}</h2>
           <p class="mt-2 text-[0.97rem] text-ink-soft">Prep {formatMinutes(d.prepMinutes)} · Cook {formatMinutes(d.cookMinutes)} · Total {formatMinutes(total)}{d.cookTimeNote ? ` · ${d.cookTimeNote}` : ''}</p>
         </div>
-        <button type="button" class="btn btn-outline btn-small" data-print data-noprint><Printer size={18} aria-hidden="true" />Print recipe</button>
+        <div class="flex items-center gap-2" data-noprint>
+          <button type="button" class="btn btn-primary btn-small" data-start-cooking><ChefHat size={16} aria-hidden="true" />Start Cooking</button>
+          <button type="button" class="btn btn-outline btn-small" data-print><Printer size={16} aria-hidden="true" />Print recipe</button>
+        </div>
       </div>
 
-      <div class="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3" role="group" aria-labelledby="servings-label">
-        <p id="servings-label" class="font-semibold text-forest">Servings</p>
-        <div class="inline-flex items-center gap-1 rounded-full border border-forest-soft bg-cream p-1" data-noprint>
-          <button type="button" class="grid size-10 place-content-center rounded-full hover:bg-cream-deep disabled:opacity-40" data-dec aria-label="Decrease servings"><Minus size={18} aria-hidden="true" /></button>
-          <output class="min-w-[3.5rem] text-center font-display text-xl font-semibold text-forest" data-servings-out aria-live="polite">{d.servings}</output>
-          <button type="button" class="grid size-10 place-content-center rounded-full hover:bg-cream-deep disabled:opacity-40" data-inc aria-label="Increase servings"><Plus size={18} aria-hidden="true" /></button>
+      <!-- Interactive Controls: Servings Scaler & Unit Converter -->
+      <div class="mt-6 flex flex-wrap items-center justify-between gap-4 border-b border-line pb-6" role="group" aria-label="Recipe controls">
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-3">
+          <p id="servings-label" class="font-semibold text-forest">Servings:</p>
+          <div class="inline-flex items-center gap-1 rounded-full border border-forest-soft bg-cream p-1" data-noprint>
+            <button type="button" class="grid size-9 place-content-center rounded-full hover:bg-cream-deep disabled:opacity-40" data-dec aria-label="Decrease servings"><Minus size={16} aria-hidden="true" /></button>
+            <output class="min-w-[3.2rem] text-center font-display text-lg font-semibold text-forest" data-servings-out aria-live="polite">{d.servings}</output>
+            <button type="button" class="grid size-9 place-content-center rounded-full hover:bg-cream-deep disabled:opacity-40" data-inc aria-label="Increase servings"><Plus size={16} aria-hidden="true" /></button>
+          </div>
+          <span class="print-only">Makes <span data-servings-out>{d.servings}</span> {d.servingsLabel}</span>
+          <button type="button" class="link-text text-[0.92rem] font-semibold" data-reset hidden data-noprint>Reset ({d.servings})</button>
         </div>
-        <span class="print-only">Makes <span data-servings-out>{d.servings}</span> {d.servingsLabel}</span>
-        <button type="button" class="link-text text-[0.95rem] font-semibold" data-reset hidden data-noprint>Reset to {d.servings}</button>
+
+        <div class="flex items-center gap-2" data-noprint>
+          <span class="text-xs font-semibold uppercase tracking-wider text-ink-soft">Units:</span>
+          <div class="unit-toggle" role="radiogroup" aria-label="Measurement unit system">
+            <button type="button" class="unit-toggle-btn active" data-unit-btn="us" role="radio" aria-checked="true">US Customary</button>
+            <button type="button" class="unit-toggle-btn" data-unit-btn="metric" role="radio" aria-checked="false">Metric</button>
+          </div>
+        </div>
       </div>
+
       <p class="mt-3 text-sm text-ink-soft" data-scale-note hidden data-noprint role="status">
         <Info size={14} class="mr-1 inline align-[-2px]" aria-hidden="true" />Only the ingredient amounts change. Cooking time does not scale in proportion, and a slow cooker should be about half to two-thirds full. Check temperature, not just time.
       </p>
@@ -169,15 +202,35 @@ const hasNutrition = Boolean(n && (n.calories || n.proteinGrams || n.carbsGrams 
         <div id="instructions" class="scroll-mt-24 print:mt-8">
           <h3 class="font-display text-2xl">Instructions</h3>
           <ol class="mt-4 space-y-6">
-            {d.instructions.map((s, i) => (
-              <li id={`step-${i + 1}`} class="step-row flex gap-4">
-                <span class="step-num" aria-hidden="true">{i + 1}</span>
-                <div>
-                  {s.title && <p class="font-display text-lg font-semibold text-forest"><span class="sr-only">Step {i + 1}: </span>{s.title}</p>}
-                  <p class="mt-1">{s.text}</p>
-                </div>
-              </li>
-            ))}
+            {d.instructions.map((s, i) => {
+              const duration = extractInstructionDuration(s.text);
+              return (
+                <li id={`step-${i + 1}`} class="step-row flex gap-4">
+                  <span class="step-num" aria-hidden="true">{i + 1}</span>
+                  <div class="flex-1">
+                    {s.title && <p class="font-display text-lg font-semibold text-forest"><span class="sr-only">Step {i + 1}: </span>{s.title}</p>}
+                    <p class="mt-1 text-ink">{s.text}</p>
+                    {duration && (
+                      <div class="mt-3 flex flex-wrap items-center gap-2.5" data-noprint>
+                        <button
+                          type="button"
+                          class="step-timer-badge"
+                          data-step-timer-btn={i + 1}
+                          data-total-seconds={duration.totalSeconds}
+                          data-label={duration.label}
+                          aria-label={`Cooking timer for step ${i + 1}: ${duration.label}`}
+                        >
+                          <Timer size={14} aria-hidden="true" />
+                          <span data-timer-label>Start {duration.label} timer</span>
+                        </button>
+                        <span class="timer-countdown font-mono text-xs font-bold text-terracotta-deep hidden" data-timer-countdown={i + 1}></span>
+                        <button type="button" class="link-text text-xs" data-timer-reset={i + 1} hidden>Reset</button>
+                      </div>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
           </ol>
         </div>
       </div>
@@ -242,50 +295,538 @@ const hasNutrition = Boolean(n && (n.calories || n.proteinGrams || n.carbsGrams 
       </ul>
     </section>
   </div>
+
+  <!-- Cooking Mode Full-Screen Overlay Modal -->
+  <div id="cookingModeModal" class="cooking-mode-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="cookingStepHeading" data-noprint>
+    <div class="cooking-mode-container">
+      <div class="cooking-mode-header">
+        <div class="cooking-progress-track">
+          <div id="cookingProgressBar" class="cooking-progress-bar" style="width: 25%;"></div>
+        </div>
+        <div class="flex items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <span class="rounded-full bg-forest-soft px-3 py-1 text-xs font-bold text-cream" id="cookingStepBadge">Step 1 of 4</span>
+            <span class="text-xs text-cream/70 hidden sm:inline">{d.title}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" id="toggleCookingIngredientsBtn" class="btn btn-outline btn-small" style="color: #fff; border-color: rgba(255,255,255,0.3);" aria-expanded="false">
+              <ListOrdered size={16} aria-hidden="true" />
+              <span id="ingredientsBtnLabel">Ingredients</span>
+            </button>
+            <button type="button" id="exitCookingModeBtn" class="btn btn-small btn-outline" style="color: #fff; border-color: rgba(255,255,255,0.3);" aria-label="Exit Cooking Mode">
+              <X size={16} aria-hidden="true" /> Exit
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="cooking-mode-body">
+        <div class="cooking-step-card">
+          <h3 id="cookingStepHeading" class="cooking-step-title font-display">Step 1</h3>
+          <p id="cookingStepText" class="cooking-step-desc">Loading step...</p>
+
+          <!-- Step timer embedded directly in Cooking Mode -->
+          <div id="cookingModeTimerArea" class="mt-8 flex flex-wrap items-center gap-4" hidden>
+            <div class="flex items-center gap-2.5 rounded-2xl bg-forest-soft/60 px-4 py-2 border border-white/10">
+              <Timer size={22} class="text-terracotta" aria-hidden="true" />
+              <span id="cookingModeTimerCountdown" class="font-mono text-2xl font-bold tracking-wider text-cream">00:00</span>
+            </div>
+            <button type="button" id="cookingModeTimerBtn" class="btn btn-primary btn-small">Start Timer</button>
+            <button type="button" id="cookingModeTimerResetBtn" class="btn btn-outline btn-small" style="color: #fff; border-color: rgba(255,255,255,0.3);" hidden>Reset</button>
+          </div>
+        </div>
+
+        <!-- Ingredients Side-Drawer inside Cooking Mode -->
+        <aside id="cookingDrawer" class="cooking-drawer" hidden aria-label="Ingredients Reference">
+          <div class="flex items-center justify-between border-b border-white/10 pb-3">
+            <h4 class="font-display text-lg font-bold text-cream">Ingredients</h4>
+            <button type="button" id="closeDrawerBtn" class="text-cream/70 hover:text-white" aria-label="Close drawer"><X size={18} /></button>
+          </div>
+          <p class="mt-2 text-xs text-cream/70">Scaled for <span data-servings-out>{d.servings}</span> servings</p>
+          <ul class="mt-4 space-y-2.5 text-sm" id="cookingDrawerIngredients">
+            {d.ingredients.map((ing) => (
+              <li class="flex items-start gap-2.5 border-b border-white/10 pb-2">
+                <input type="checkbox" class="mt-1" />
+                <span>
+                  <strong class="font-semibold text-cream" data-drawer-amount>{amountText(ing)}</strong>{' '}
+                  <span data-drawer-name>{itemText(ing)}</span>{ing.note ? `, ${ing.note}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </aside>
+      </div>
+
+      <div class="cooking-mode-footer">
+        <button type="button" id="cookingPrevBtn" class="btn btn-outline" style="color: #fff; border-color: rgba(255,255,255,0.3);" disabled>
+          <ChevronLeft size={18} aria-hidden="true" /> Previous
+        </button>
+        <div class="cooking-mode-hints text-xs text-cream/60 hidden sm:block">
+          Use <kbd class="kbd">←</kbd> <kbd class="kbd">→</kbd> arrows to navigate · <kbd class="kbd">Esc</kbd> to exit
+        </div>
+        <button type="button" id="cookingNextBtn" class="btn btn-primary">
+          Next <ChevronRight size={18} aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  </div>
 </article>
 
 <script>
-  import { formatQuantity, unitLabel } from '../utils/quantity';
+  import { formatScaledAndConvertedAmount, type UnitSystem } from '../utils/cooking-units';
+  import { formatTimerCountdown, playKitchenChime, sendTimerNotification } from '../utils/timer';
 
+  // --- Browser print button ---
   document.querySelectorAll('[data-print]').forEach((b) => b.addEventListener('click', () => window.print()));
 
+  // --- State for Serving Scaler and Unit Converter ---
   const root = document.querySelector<HTMLElement>('[data-scaler]');
   if (root) {
     const base = Number(root.dataset.base);
     const max = Number(root.dataset.max);
     let servings = base;
+    let unitSystem: UnitSystem = 'us';
+
     const outs = document.querySelectorAll<HTMLElement>('[data-servings-out]');
     const rows = root.querySelectorAll<HTMLElement>('[data-ing]');
     const dec = root.querySelector<HTMLButtonElement>('[data-dec]')!;
     const inc = root.querySelector<HTMLButtonElement>('[data-inc]')!;
     const reset = root.querySelector<HTMLElement>('[data-reset]')!;
     const note = root.querySelector<HTMLElement>('[data-scale-note]')!;
+    const unitButtons = document.querySelectorAll<HTMLButtonElement>('[data-unit-btn]');
 
     const render = () => {
       const factor = servings / base;
+
       rows.forEach((row) => {
         const qty = Number(row.dataset.qty);
-        if (!qty) return;
-        const scalable = row.dataset.scale !== 'false';
-        const q = scalable ? qty * factor : qty;
         const unit = row.dataset.unit;
+        const scalable = row.dataset.scale !== 'false';
+
         const amountEl = row.querySelector<HTMLElement>('[data-amount]');
-        if (amountEl) amountEl.textContent = unit ? `${formatQuantity(q)} ${unitLabel(unit, q)}` : formatQuantity(q);
-        const alt = row.querySelector<HTMLElement>('[data-alt]');
-        if (alt) alt.hidden = scalable && factor !== 1; // metric hints are only valid at the original size
+        const altEl = row.querySelector<HTMLElement>('[data-alt]');
         const nameEl = row.querySelector<HTMLElement>('[data-name]');
-        if (nameEl && !unit) nameEl.textContent = q > 1 && row.dataset.plural ? row.dataset.plural! : row.dataset.item!;
+
+        if (!qty) return;
+
+        const converted = formatScaledAndConvertedAmount(qty, unit, factor, unitSystem, scalable);
+        if (amountEl) {
+          amountEl.textContent = converted.amountText;
+        }
+
+        // Hide static metric hints when scaling or when already viewing metric
+        if (altEl) {
+          altEl.hidden = (scalable && factor !== 1) || unitSystem === 'metric' || converted.isConverted;
+        }
+
+        // Handle countable item plurals
+        if (nameEl && !unit) {
+          const effectiveQty = scalable ? qty * factor : qty;
+          nameEl.textContent = effectiveQty > 1 && row.dataset.plural ? row.dataset.plural! : row.dataset.item!;
+        }
       });
+
+      // Update drawer ingredients in Cooking Mode if present
+      const drawerItems = document.querySelectorAll<HTMLElement>('#cookingDrawerIngredients li');
+      drawerItems.forEach((li, idx) => {
+        const correspondingRow = rows[idx];
+        if (!correspondingRow) return;
+        const qty = Number(correspondingRow.dataset.qty);
+        const unit = correspondingRow.dataset.unit;
+        const scalable = correspondingRow.dataset.scale !== 'false';
+        const drawerAmountEl = li.querySelector<HTMLElement>('[data-drawer-amount]');
+        if (drawerAmountEl && qty) {
+          const converted = formatScaledAndConvertedAmount(qty, unit, factor, unitSystem, scalable);
+          drawerAmountEl.textContent = converted.amountText;
+        }
+      });
+
       outs.forEach((o) => (o.textContent = String(servings)));
       dec.disabled = servings <= 1;
       inc.disabled = servings >= max;
-      const changed = servings !== base;
-      reset.hidden = !changed;
-      note.hidden = !changed;
+
+      const isChanged = servings !== base || unitSystem !== 'us';
+      reset.hidden = !isChanged;
+      note.hidden = servings === base;
+
+      unitButtons.forEach((btn) => {
+        const sys = btn.dataset.unitBtn;
+        const isActive = sys === unitSystem;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-checked', String(isActive));
+      });
     };
-    dec.addEventListener('click', () => { if (servings > 1) { servings -= 1; render(); } });
-    inc.addEventListener('click', () => { if (servings < max) { servings += 1; render(); } });
-    reset.addEventListener('click', () => { servings = base; render(); });
+
+    dec.addEventListener('click', () => {
+      if (servings > 1) {
+        servings -= 1;
+        render();
+      }
+    });
+
+    inc.addEventListener('click', () => {
+      if (servings < max) {
+        servings += 1;
+        render();
+      }
+    });
+
+    reset.addEventListener('click', () => {
+      servings = base;
+      unitSystem = 'us';
+      render();
+    });
+
+    unitButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const chosen = btn.dataset.unitBtn as UnitSystem;
+        if (chosen && chosen !== unitSystem) {
+          unitSystem = chosen;
+          render();
+        }
+      });
+    });
+
     render();
   }
+
+  // --- Step-by-Step Cooking Timers (Wall-Clock Accuracy) ---
+  interface ActiveTimer {
+    totalSeconds: number;
+    targetEndTime: number;
+    remainingSeconds: number;
+    timerId: number | null;
+    isRunning: boolean;
+    label: string;
+  }
+
+  const activeTimers = new Map<number, ActiveTimer>();
+
+  // Request browser notification permissions if not prompted
+  if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+    // Only request on direct user engagement with a timer
+  }
+
+  function startOrPauseTimer(
+    stepNum: number,
+    totalSeconds: number,
+    label: string,
+    onTick: (remaining: number, isFinished: boolean) => void,
+  ) {
+    let timer = activeTimers.get(stepNum);
+
+    if (!timer) {
+      timer = {
+        totalSeconds,
+        targetEndTime: Date.now() + totalSeconds * 1000,
+        remainingSeconds: totalSeconds,
+        timerId: null,
+        isRunning: false,
+        label,
+      };
+      activeTimers.set(stepNum, timer);
+    }
+
+    if (timer.isRunning) {
+      // Pause
+      if (timer.timerId) clearInterval(timer.timerId);
+      timer.timerId = null;
+      timer.isRunning = false;
+      onTick(timer.remainingSeconds, false);
+      return false;
+    } else {
+      // Start or Resume
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+      timer.targetEndTime = Date.now() + timer.remainingSeconds * 1000;
+      timer.isRunning = true;
+
+      const tick = () => {
+        const now = Date.now();
+        const diff = Math.max(0, Math.round((timer!.targetEndTime - now) / 1000));
+        timer!.remainingSeconds = diff;
+
+        if (diff <= 0) {
+          if (timer!.timerId) clearInterval(timer!.timerId);
+          timer!.timerId = null;
+          timer!.isRunning = false;
+          playKitchenChime();
+          sendTimerNotification('CrockBites Timer Finished!', `Step ${stepNum} cooking timer (${label}) has finished.`);
+          onTick(0, true);
+        } else {
+          onTick(diff, false);
+        }
+      };
+
+      tick();
+      timer.timerId = window.setInterval(tick, 1000);
+      return true;
+    }
+  }
+
+  function resetTimer(stepNum: number, onReset: () => void) {
+    const timer = activeTimers.get(stepNum);
+    if (timer) {
+      if (timer.timerId) clearInterval(timer.timerId);
+      activeTimers.delete(stepNum);
+    }
+    onReset();
+  }
+
+  // Bind standard in-page step timer buttons
+  document.querySelectorAll<HTMLButtonElement>('[data-step-timer-btn]').forEach((btn) => {
+    const stepNum = Number(btn.dataset.stepTimerBtn);
+    const totalSeconds = Number(btn.dataset.totalSeconds);
+    const label = btn.dataset.label || 'timer';
+    const countdownEl = document.querySelector<HTMLElement>(`[data-timer-countdown="${stepNum}"]`);
+    const resetBtn = document.querySelector<HTMLButtonElement>(`[data-timer-reset="${stepNum}"]`);
+    const labelSpan = btn.querySelector<HTMLElement>('[data-timer-label]');
+
+    btn.addEventListener('click', () => {
+      const isRunning = startOrPauseTimer(stepNum, totalSeconds, label, (remaining, isFinished) => {
+        if (countdownEl) {
+          countdownEl.hidden = false;
+          countdownEl.classList.remove('hidden');
+          countdownEl.textContent = isFinished ? '00:00 (Done!)' : formatTimerCountdown(remaining);
+        }
+        if (resetBtn) resetBtn.hidden = false;
+        if (labelSpan) {
+          if (isFinished) {
+            labelSpan.textContent = 'Restart';
+            btn.classList.remove('running');
+          } else {
+            labelSpan.textContent = activeTimers.get(stepNum)?.isRunning ? 'Pause' : 'Resume';
+            btn.classList.toggle('running', Boolean(activeTimers.get(stepNum)?.isRunning));
+          }
+        }
+      });
+
+      if (labelSpan) {
+        labelSpan.textContent = isRunning ? 'Pause' : 'Resume';
+        btn.classList.toggle('running', isRunning);
+      }
+    });
+
+    resetBtn?.addEventListener('click', () => {
+      resetTimer(stepNum, () => {
+        if (countdownEl) {
+          countdownEl.hidden = true;
+          countdownEl.classList.add('hidden');
+        }
+        if (resetBtn) resetBtn.hidden = true;
+        if (labelSpan) labelSpan.textContent = `Start ${label} timer`;
+        btn.classList.remove('running');
+      });
+    });
+  });
+
+  // --- Feature 5: Interactive Cooking Mode ---
+  const cookingModal = document.getElementById('cookingModeModal');
+  const startCookingButtons = document.querySelectorAll('[data-start-cooking]');
+  const exitCookingBtn = document.getElementById('exitCookingModeBtn');
+  const cookingPrevBtn = document.getElementById('cookingPrevBtn') as HTMLButtonElement | null;
+  const cookingNextBtn = document.getElementById('cookingNextBtn') as HTMLButtonElement | null;
+  const cookingStepBadge = document.getElementById('cookingStepBadge');
+  const cookingStepHeading = document.getElementById('cookingStepHeading');
+  const cookingStepText = document.getElementById('cookingStepText');
+  const cookingProgressBar = document.getElementById('cookingProgressBar');
+  const toggleIngredientsBtn = document.getElementById('toggleCookingIngredientsBtn');
+  const cookingDrawer = document.getElementById('cookingDrawer');
+  const closeDrawerBtn = document.getElementById('closeDrawerBtn');
+
+  // Cooking Mode Timer Controls
+  const cookingModeTimerArea = document.getElementById('cookingModeTimerArea');
+  const cookingModeTimerCountdown = document.getElementById('cookingModeTimerCountdown');
+  const cookingModeTimerBtn = document.getElementById('cookingModeTimerBtn') as HTMLButtonElement | null;
+  const cookingModeTimerResetBtn = document.getElementById('cookingModeTimerResetBtn') as HTMLButtonElement | null;
+
+  // Extract instructions from static markup
+  const instructionElements = Array.from(document.querySelectorAll<HTMLElement>('.step-row'));
+  const stepsData = instructionElements.map((el, i) => {
+    const titleEl = el.querySelector('p.font-display');
+    const textEl = el.querySelector('div > p:not(.font-display)') || el.querySelector('p');
+    const timerBtn = el.querySelector<HTMLButtonElement>('[data-step-timer-btn]');
+
+    return {
+      stepNum: i + 1,
+      title: titleEl?.textContent?.replace(/^Step \d+:\s*/, '').trim() || `Step ${i + 1}`,
+      text: textEl?.textContent?.trim() || '',
+      hasTimer: Boolean(timerBtn),
+      durationSeconds: timerBtn ? Number(timerBtn.dataset.totalSeconds) : 0,
+      durationLabel: timerBtn ? timerBtn.dataset.label || '' : '',
+    };
+  });
+
+  let currentStepIdx = 0;
+  let wakeLock: any = null;
+
+  async function requestWakeLock() {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLock = await (navigator as any).wakeLock.request('screen');
+      }
+    } catch {
+      // Ignored if device denies wake lock
+    }
+  }
+
+  function releaseWakeLock() {
+    if (wakeLock) {
+      try {
+        wakeLock.release();
+        wakeLock = null;
+      } catch {
+        // Ignored
+      }
+    }
+  }
+
+  function updateCookingModeView() {
+    if (!stepsData.length) return;
+    const step = stepsData[currentStepIdx];
+    const total = stepsData.length;
+
+    if (cookingStepBadge) cookingStepBadge.textContent = `Step ${currentStepIdx + 1} of ${total}`;
+    if (cookingStepHeading) cookingStepHeading.textContent = step.title;
+    if (cookingStepText) cookingStepText.textContent = step.text;
+
+    const percent = Math.round(((currentStepIdx + 1) / total) * 100);
+    if (cookingProgressBar) cookingProgressBar.style.width = `${percent}%`;
+
+    if (cookingPrevBtn) cookingPrevBtn.disabled = currentStepIdx === 0;
+    if (cookingNextBtn) {
+      if (currentStepIdx === total - 1) {
+        cookingNextBtn.innerHTML = 'Finish Cooking &check;';
+      } else {
+        cookingNextBtn.innerHTML = 'Next &rarr;';
+      }
+    }
+
+    // Step Timer in Cooking Mode
+    if (step.hasTimer && cookingModeTimerArea && cookingModeTimerCountdown && cookingModeTimerBtn) {
+      cookingModeTimerArea.hidden = false;
+      const timerState = activeTimers.get(step.stepNum);
+      const remaining = timerState ? timerState.remainingSeconds : step.durationSeconds;
+      cookingModeTimerCountdown.textContent = formatTimerCountdown(remaining);
+
+      if (timerState?.isRunning) {
+        cookingModeTimerBtn.textContent = 'Pause Timer';
+      } else if (timerState && timerState.remainingSeconds < step.durationSeconds) {
+        cookingModeTimerBtn.textContent = 'Resume Timer';
+      } else {
+        cookingModeTimerBtn.textContent = `Start ${step.durationLabel} Timer`;
+      }
+
+      if (cookingModeTimerResetBtn) {
+        cookingModeTimerResetBtn.hidden = !timerState;
+      }
+    } else if (cookingModeTimerArea) {
+      cookingModeTimerArea.hidden = true;
+    }
+  }
+
+  function openCookingMode() {
+    if (!cookingModal) return;
+    cookingModal.hidden = false;
+    document.body.style.overflow = 'hidden';
+    updateCookingModeView();
+    requestWakeLock();
+  }
+
+  function closeCookingMode() {
+    if (!cookingModal) return;
+    cookingModal.hidden = true;
+    document.body.style.overflow = '';
+    releaseWakeLock();
+  }
+
+  startCookingButtons.forEach((btn) => btn.addEventListener('click', openCookingMode));
+  exitCookingBtn?.addEventListener('click', closeCookingMode);
+
+  cookingPrevBtn?.addEventListener('click', () => {
+    if (currentStepIdx > 0) {
+      currentStepIdx -= 1;
+      updateCookingModeView();
+    }
+  });
+
+  cookingNextBtn?.addEventListener('click', () => {
+    if (currentStepIdx < stepsData.length - 1) {
+      currentStepIdx += 1;
+      updateCookingModeView();
+    } else {
+      closeCookingMode();
+    }
+  });
+
+  // Cooking Mode Timer Buttons
+  cookingModeTimerBtn?.addEventListener('click', () => {
+    const step = stepsData[currentStepIdx];
+    if (!step?.hasTimer) return;
+
+    startOrPauseTimer(step.stepNum, step.durationSeconds, step.durationLabel, (remaining, isFinished) => {
+      if (cookingModeTimerCountdown) {
+        cookingModeTimerCountdown.textContent = isFinished ? '00:00 (Done!)' : formatTimerCountdown(remaining);
+      }
+      if (cookingModeTimerBtn) {
+        if (isFinished) {
+          cookingModeTimerBtn.textContent = 'Restart Timer';
+        } else {
+          cookingModeTimerBtn.textContent = activeTimers.get(step.stepNum)?.isRunning ? 'Pause Timer' : 'Resume Timer';
+        }
+      }
+      if (cookingModeTimerResetBtn) cookingModeTimerResetBtn.hidden = false;
+    });
+
+    const isRunning = activeTimers.get(step.stepNum)?.isRunning;
+    cookingModeTimerBtn.textContent = isRunning ? 'Pause Timer' : 'Resume Timer';
+    if (cookingModeTimerResetBtn) cookingModeTimerResetBtn.hidden = false;
+  });
+
+  cookingModeTimerResetBtn?.addEventListener('click', () => {
+    const step = stepsData[currentStepIdx];
+    if (!step?.hasTimer) return;
+
+    resetTimer(step.stepNum, () => {
+      if (cookingModeTimerCountdown) cookingModeTimerCountdown.textContent = formatTimerCountdown(step.durationSeconds);
+      if (cookingModeTimerBtn) cookingModeTimerBtn.textContent = `Start ${step.durationLabel} Timer`;
+      if (cookingModeTimerResetBtn) cookingModeTimerResetBtn.hidden = true;
+    });
+  });
+
+  // Drawer Toggle
+  toggleIngredientsBtn?.addEventListener('click', () => {
+    if (cookingDrawer) {
+      const isHidden = cookingDrawer.hidden;
+      cookingDrawer.hidden = !isHidden;
+      toggleIngredientsBtn.setAttribute('aria-expanded', String(!isHidden));
+    }
+  });
+
+  closeDrawerBtn?.addEventListener('click', () => {
+    if (cookingDrawer) {
+      cookingDrawer.hidden = true;
+      toggleIngredientsBtn?.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  // Keyboard navigation
+  window.addEventListener('keydown', (e) => {
+    if (!cookingModal || cookingModal.hidden) return;
+
+    if (e.key === 'Escape') {
+      closeCookingMode();
+    } else if (e.key === 'ArrowRight' || e.key === 'n') {
+      if (currentStepIdx < stepsData.length - 1) {
+        currentStepIdx += 1;
+        updateCookingModeView();
+      }
+    } else if (e.key === 'ArrowLeft' || e.key === 'p') {
+      if (currentStepIdx > 0) {
+        currentStepIdx -= 1;
+        updateCookingModeView();
+      }
+    }
+  });
 </script>
