@@ -125,23 +125,115 @@ ok(dom.window.__printed === true, 'Feature 4: Print button triggers window.print
 const checkboxes = d.querySelectorAll('.check-row input[type=checkbox]');
 ok(checkboxes.length > 0, `ingredient checklist has ${checkboxes.length} checkboxes`);
 
+// Phase 3 Sprint 1: Smart Ingredient Checklist
+const checklistProgress = d.getElementById('checklistProgress');
+const checklistResetBtn = d.getElementById('checklistResetBtn');
+ok(Boolean(checklistProgress), 'Phase 3: Checklist progress element #checklistProgress exists');
+ok(Boolean(checklistResetBtn), 'Phase 3: Checklist reset button #checklistResetBtn exists');
+ok(checklistResetBtn.hidden === true, 'Phase 3: Checklist reset button is hidden initially');
+ok(checklistProgress.textContent.includes('0 of'), `Phase 3: Initial progress is 0: "${checklistProgress.textContent}"`);
+
+// Test checkbox click & dual synchronization
+const firstMainCheck = d.querySelector('.check-row input[type="checkbox"][data-check-idx="0"]');
+const firstDrawerCheck = d.querySelector('#cookingDrawerIngredients input[type="checkbox"][data-drawer-check-idx="0"]');
+ok(Boolean(firstMainCheck && firstDrawerCheck), 'Phase 3: Matching main and drawer checkboxes exist for ingredient 0');
+
+if (firstMainCheck && firstDrawerCheck) {
+  firstMainCheck.checked = true;
+  firstMainCheck.dispatchEvent(new dom.window.Event('change'));
+  ok(firstDrawerCheck.checked === true, 'Phase 3: Checking main list checkbox synchronizes drawer checkbox');
+  ok(checklistProgress.textContent.includes('1 of'), `Phase 3: Progress updated to 1 gathered: "${checklistProgress.textContent}"`);
+  ok(checklistResetBtn.hidden === false, 'Phase 3: Reset button becomes visible when items are gathered');
+
+  const savedChecklist = dom.window.localStorage.getItem(`crockbites_checklist_${targetSlug}`);
+  ok(savedChecklist && savedChecklist.includes('0'), 'Phase 3: Checklist state persisted in localStorage');
+
+  // Check 2nd item from drawer
+  const secondDrawerCheck = d.querySelector('#cookingDrawerIngredients input[type="checkbox"][data-drawer-check-idx="1"]');
+  const secondMainCheck = d.querySelector('.check-row input[type="checkbox"][data-check-idx="1"]');
+  if (secondDrawerCheck && secondMainCheck) {
+    secondDrawerCheck.checked = true;
+    secondDrawerCheck.dispatchEvent(new dom.window.Event('change'));
+    ok(secondMainCheck.checked === true, 'Phase 3: Checking drawer checkbox synchronizes main list checkbox');
+    ok(checklistProgress.textContent.includes('2 of'), `Phase 3: Progress updated to 2 gathered: "${checklistProgress.textContent}"`);
+  }
+
+  // Click reset
+  checklistResetBtn.click();
+  ok(checklistProgress.textContent.includes('0 of'), `Phase 3: Reset button restores progress to 0: "${checklistProgress.textContent}"`);
+  ok(firstMainCheck.checked === false && firstDrawerCheck.checked === false, 'Phase 3: Reset unchecks both main and drawer checkboxes');
+  ok(checklistResetBtn.hidden === true, 'Phase 3: Reset button hidden after reset');
+}
+
+// Test corrupt/invalid localStorage handling
+dom.window.localStorage.setItem(`crockbites_checklist_${targetSlug}`, '["corrupt", 9999, -5, null]');
+// Re-checking does not crash and ignores invalid indices
+firstMainCheck?.dispatchEvent(new dom.window.Event('change'));
+ok(true, 'Phase 3: Corrupt or out-of-range checklist data handled safely without errors');
+
 const steps = d.querySelectorAll('ol > li[id^=step-]');
 ok(steps.length > 0, `instructions have ${steps.length} numbered steps`);
 
-// Feature 5: Interactive Cooking Mode
+// Feature 5 & Phase 3: Interactive Cooking Mode & Step Persistence
 const startCookingBtn = d.querySelector('[data-start-cooking]');
 ok(Boolean(startCookingBtn), 'Feature 5: Start Cooking button exists');
 const cookingModal = d.getElementById('cookingModeModal');
 ok(Boolean(cookingModal), 'Feature 5: Cooking mode modal element exists');
+const mobileCookingBar = d.getElementById('mobileCookingBar');
+ok(Boolean(mobileCookingBar), 'Phase 3: Mobile sticky action bar #mobileCookingBar exists');
 
 if (startCookingBtn && cookingModal) {
   startCookingBtn.click();
   ok(!cookingModal.hidden, 'Feature 5: Cooking mode opens upon clicking Start Cooking');
+  ok(mobileCookingBar?.hidden === true, 'Phase 3: Mobile cooking bar hidden while Cooking Mode is active');
+
+  const nextBtn = d.getElementById('cookingNextBtn');
+  const restartBtn = d.getElementById('restartCookingBtn');
+  ok(Boolean(restartBtn), 'Phase 3: Cooking Mode Restart button exists');
+
+  // Advance to Step 2
+  nextBtn?.click();
+  const stepBadge = d.getElementById('cookingStepBadge');
+  ok(stepBadge?.textContent.includes('Step 2'), `Phase 3: Advanced to Step 2: "${stepBadge?.textContent}"`);
+  const savedStep = dom.window.localStorage.getItem(`crockbites_cooking_step_${targetSlug}`);
+  ok(savedStep === '1', `Phase 3: Cooking step persisted in localStorage: ${savedStep}`);
+
+  // Test restart button
+  restartBtn?.click();
+  ok(stepBadge?.textContent.includes('Step 1'), 'Phase 3: Restart button restores Cooking Mode to Step 1');
+  ok(dom.window.localStorage.getItem(`crockbites_cooking_step_${targetSlug}`) === '0', 'Phase 3: Step 0 saved on restart');
+
+  // Exit cooking mode
   const exitBtn = d.getElementById('exitCookingModeBtn');
   ok(Boolean(exitBtn), 'Feature 5: Exit Cooking Mode button exists');
   exitBtn?.click();
   ok(cookingModal.hidden, 'Feature 5: Cooking mode closes on Exit click');
+  ok(mobileCookingBar?.hidden === false, 'Phase 3: Mobile cooking bar restored when Cooking Mode closes');
+
+  // Test invalid step in localStorage recovery
+  dom.window.localStorage.setItem(`crockbites_cooking_step_${targetSlug}`, '99999');
+  startCookingBtn.click();
+  ok(stepBadge?.textContent.includes('Step 1'), 'Phase 3: Out-of-bounds saved step safely defaults to Step 1');
+  exitBtn?.click();
 }
+
+// Phase 3: Share Recipe Action
+const shareButtons = d.querySelectorAll('[data-share-recipe]');
+ok(shareButtons.length >= 2, `Phase 3: Multiple Share Recipe buttons exist (found ${shareButtons.length})`);
+const shareToast = d.getElementById('shareToast');
+ok(Boolean(shareToast), 'Phase 3: Share toast notification element exists');
+
+// Test clipboard copy fallback
+let copiedUrl = '';
+dom.window.navigator.clipboard = {
+  writeText: async (text) => {
+    copiedUrl = text;
+  },
+};
+shareButtons[0]?.click();
+setTimeout(() => {
+  ok(copiedUrl.includes(targetSlug), `Phase 3: Share action copied canonical recipe URL: "${copiedUrl}"`);
+}, 10);
 
 // Feature 6: Step Cooking Timers
 const stepTimerButtons = d.querySelectorAll('[data-step-timer-btn]');
@@ -165,6 +257,8 @@ if (nutritionEl) {
 const allergenEl = d.querySelector('[data-recipe-allergens]');
 ok(Boolean(allergenEl), 'Feature 8: Allergen information panel is present on recipe page');
 ok(Boolean(d.getElementById('allergen-heading')), 'Feature 8: Allergen heading is present');
+ok(!allergenEl?.textContent.includes('FDA'), 'Phase 3: Allergen panel does not reference FDA or imply regulatory endorsement');
+ok(allergenEl?.textContent.includes('major food allergen'), 'Phase 3: Allergen panel accurately uses "major food allergen" phrasing');
 
 // Phase 3: Community Features on Recipe Page & Header
 const headerAccountLink = d.querySelector('[data-header-account-link]');

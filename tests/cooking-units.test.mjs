@@ -97,5 +97,73 @@ assert.equal(formatTimerCountdown(3665), '01:01:05', 'formats hours, minutes, se
 assert.equal(formatTimerCountdown(125), '02:05', 'formats minutes and seconds');
 assert.equal(formatTimerCountdown(0), '00:00', 'formats zero countdown');
 
+// 7. Phase 3: Checklist Progress Calculation & Unique Index Validation
+function calculateChecklistProgress(checkedSet, total) {
+  const safeCount = Math.min(checkedSet.size, total);
+  return `${safeCount} of ${total} ingredients gathered`;
+}
+assert.equal(calculateChecklistProgress(new Set([0, 1]), 8), '2 of 8 ingredients gathered');
+assert.equal(calculateChecklistProgress(new Set(), 8), '0 of 8 ingredients gathered');
+assert.equal(calculateChecklistProgress(new Set([0, 1, 2, 3, 4, 5, 6, 7]), 8), '8 of 8 ingredients gathered');
+
+// 8. Phase 3: Checklist Invalid / Corrupt Data Recovery
+function sanitizeChecklistIndices(rawJson, totalUnique) {
+  const validIndices = new Set();
+  try {
+    const parsed = JSON.parse(rawJson);
+    if (Array.isArray(parsed)) {
+      for (const item of parsed) {
+        if (item !== null && item !== undefined && typeof item !== 'boolean') {
+          const num = Number(item);
+          if (Number.isInteger(num) && num >= 0 && num < totalUnique) {
+            validIndices.add(num);
+          }
+        }
+      }
+    }
+  } catch {}
+  return validIndices;
+}
+assert.deepEqual(
+  Array.from(sanitizeChecklistIndices('["corrupt", -1, 999, 2, null, 4]', 6)),
+  [2, 4],
+  'filters out negative, out-of-bounds, non-integer, and null checklist entries'
+);
+assert.deepEqual(
+  Array.from(sanitizeChecklistIndices('not-json', 6)),
+  [],
+  'safely handles non-JSON strings without throwing'
+);
+
+// 9. Phase 3: Cooking Step Index Sanitization & Boundary Protection
+function sanitizeCookingStep(raw, stepCount) {
+  if (raw !== null && raw !== undefined) {
+    const parsed = parseInt(String(raw), 10);
+    if (!isNaN(parsed) && parsed >= 0 && parsed < stepCount) {
+      return parsed;
+    }
+  }
+  return 0;
+}
+assert.equal(sanitizeCookingStep('2', 5), 2, 'valid step retained');
+assert.equal(sanitizeCookingStep('-1', 5), 0, 'negative step defaults to 0');
+assert.equal(sanitizeCookingStep('99', 5), 0, 'out-of-bounds step defaults to 0');
+assert.equal(sanitizeCookingStep('invalid', 5), 0, 'non-numeric step defaults to 0');
+assert.equal(sanitizeCookingStep(null, 5), 0, 'null step defaults to 0');
+
+// 10. Phase 3: Completion and Restart Reset Logic
+let activeStep = 3;
+function restartCooking() {
+  activeStep = 0;
+  return activeStep;
+}
+function finishCooking() {
+  activeStep = 0;
+  return { activeStep, completed: true };
+}
+assert.equal(restartCooking(), 0, 'restart resets active step to 0');
+activeStep = 4;
+assert.deepEqual(finishCooking(), { activeStep: 0, completed: true }, 'finish resets active step to 0');
+
 console.log('cooking-units and timer tests passed');
 

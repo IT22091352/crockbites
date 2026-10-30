@@ -20,6 +20,8 @@ import {
   ChevronRight,
   Heart,
   MessageSquare,
+  Share2,
+  RotateCcw,
 } from '@lucide/astro';
 import Breadcrumbs from './Breadcrumbs.astro';
 import RecipeCard from './RecipeCard.astro';
@@ -43,9 +45,12 @@ const imageUrl = typeof d.image === 'string' ? d.image : (d.image as any).src;
 const rawGallery = (d as any).gallery as Array<{ url: string; alt: string; width?: number; height?: number; isPrimary?: boolean }> | undefined;
 const gallery = rawGallery?.filter((img) => img.url && img.url !== imageUrl);
 
-// Group ingredients under their optional headings, keeping the original order.
-const groups: { name?: string; items: typeof d.ingredients }[] = [];
-for (const ing of d.ingredients) {
+// Attach stable zero-based indices and group ingredients under optional headings
+type IndexedIngredient = (typeof d.ingredients)[number] & { __idx: number };
+const indexedIngredients: IndexedIngredient[] = d.ingredients.map((ing, idx) => ({ ...ing, __idx: idx }));
+
+const groups: { name?: string; items: IndexedIngredient[] }[] = [];
+for (const ing of indexedIngredients) {
   const last = groups[groups.length - 1];
   if (last && last.name === ing.group) last.items.push(ing);
   else groups.push({ name: ing.group, items: [ing] });
@@ -141,6 +146,15 @@ const allergenNames: Record<string, string> = {
               <span>Save Recipe</span>
             </button>
           )}
+          <button
+            type="button"
+            class="btn btn-outline"
+            data-share-recipe
+            aria-label="Share recipe"
+          >
+            <Share2 size={18} aria-hidden="true" />
+            <span>Share Recipe</span>
+          </button>
           <a class="btn btn-outline" href="#instructions"><ListOrdered size={18} aria-hidden="true" />Jump to instructions</a>
           <button type="button" class="btn btn-outline" data-print><Printer size={18} aria-hidden="true" />Print recipe</button>
         </div>
@@ -210,7 +224,7 @@ const allergenNames: Record<string, string> = {
 
   <!-- The structured recipe card: also the only thing that prints. -->
   <section id="recipe-card" aria-labelledby="recipe-card-title" class="container-page scroll-mt-20">
-    <div class="card recipe-card-print p-5 sm:p-8 lg:p-10" data-scaler data-base={d.servings} data-max={maxServings}>
+    <div class="card recipe-card-print p-5 sm:p-8 lg:p-10" data-scaler data-base={d.servings} data-max={maxServings} data-slug={slug}>
       <p class="print-only mb-3 text-sm font-semibold">CrockBites · Good Food. Less Fuss. · {absoluteUrl(recipeUrl(recipe))}</p>
       <div class="flex flex-wrap items-start justify-between gap-4 border-b border-line pb-6">
         <div>
@@ -219,6 +233,7 @@ const allergenNames: Record<string, string> = {
         </div>
         <div class="flex items-center gap-2" data-noprint>
           <button type="button" class="btn btn-primary btn-small" data-start-cooking><ChefHat size={16} aria-hidden="true" />Start Cooking</button>
+          <button type="button" class="btn btn-outline btn-small" data-share-recipe aria-label="Share recipe"><Share2 size={16} aria-hidden="true" />Share</button>
           <button type="button" class="btn btn-outline btn-small" data-print><Printer size={16} aria-hidden="true" />Print recipe</button>
         </div>
       </div>
@@ -251,16 +266,29 @@ const allergenNames: Record<string, string> = {
 
       <div class="mt-8 grid gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-12 print:block">
         <div>
-          <h3 class="font-display text-2xl">Ingredients</h3>
+          <div class="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 class="font-display text-2xl">Ingredients</h3>
+            <div class="flex items-center gap-3 text-xs" data-noprint>
+              <span id="checklistProgress" class="font-semibold text-forest">0 of {d.ingredients.length} ingredients gathered</span>
+              <button
+                type="button"
+                id="checklistResetBtn"
+                class="link-text font-semibold text-terracotta-deep hover:underline"
+                hidden
+              >
+                Clear all
+              </button>
+            </div>
+          </div>
           <p class="mt-1 text-sm text-ink-soft" data-noprint>Tick items off as you gather them.</p>
           {groups.map((g) => (
             <div class="mt-5">
               {g.name && <h4 class="font-display text-lg font-semibold text-terracotta-deep">{g.name}</h4>}
               <ul class="mt-1">
                 {g.items.map((ing) => (
-                  <li data-ing data-qty={ing.quantity ?? 0} data-unit={ing.unit ?? ''} data-item={ing.item} data-plural={ing.itemPlural ?? ''} data-scale={String(ing.scale)}>
+                  <li data-ing data-qty={ing.quantity ?? 0} data-unit={ing.unit ?? ''} data-item={ing.item} data-plural={ing.itemPlural ?? ''} data-scale={String(ing.scale)} data-ing-idx={ing.__idx}>
                     <label class="check-row">
-                      <input type="checkbox" />
+                      <input type="checkbox" data-check-idx={ing.__idx} />
                       <span>
                         {ing.quantity ? <strong class="font-semibold text-forest" data-amount>{amountText(ing)}</strong> : null}{' '}
                         {ing.alt && <span class="text-ink-soft" data-alt>{ing.alt}</span>}{ing.alt ? ' ' : ''}
@@ -445,7 +473,7 @@ const allergenNames: Record<string, string> = {
                 </p>
               ) : (
                 <p class="font-medium text-forest">
-                  <strong>Contains:</strong> No FDA Big 9 allergens declared for this recipe.
+                  <strong>Contains:</strong> No major food allergens declared for this recipe.
                 </p>
               )}
               {d.allergenNotes && (
@@ -460,10 +488,10 @@ const allergenNames: Record<string, string> = {
           ) : (
             <div class="mt-3 text-sm text-ink-soft">
               <p class="font-medium text-amber-900">
-                Allergen review pending for this recipe.
+                Major food allergen information has not yet been reviewed.
               </p>
               <p class="mt-1 text-xs italic text-ink-soft/90">
-                Ingredients have not yet undergone structured review against the FDA Big 9 allergens. Always check packaged ingredient labels for potential allergens and cross-contact.
+                Ingredients have not yet undergone structured review against major food allergens (milk, eggs, fish, shellfish, tree nuts, peanuts, wheat, soybeans, sesame). Always check packaged ingredient labels for potential allergens and cross-contact.
               </p>
             </div>
           )}
@@ -472,7 +500,7 @@ const allergenNames: Record<string, string> = {
     </div>
   </section>
 
-  <div class="container-page" data-noprint>
+  <div class="container-page pb-24 md:pb-0" data-noprint>
     <AdSlot slot="recipeAfterCard" />
     <div class="mt-14 grid gap-12 lg:grid-cols-2">
       {d.servingSuggestions.length > 0 && (
@@ -836,6 +864,16 @@ const allergenNames: Record<string, string> = {
             <span class="text-xs text-cream/70 hidden sm:inline">{d.title}</span>
           </div>
           <div class="flex items-center gap-2">
+            <button
+              type="button"
+              id="restartCookingBtn"
+              class="btn btn-outline btn-small"
+              style="color: #fff; border-color: rgba(255,255,255,0.3);"
+              aria-label="Restart cooking from step 1"
+            >
+              <RotateCcw size={14} aria-hidden="true" />
+              <span class="hidden sm:inline">Restart</span>
+            </button>
             <button type="button" id="toggleCookingIngredientsBtn" class="btn btn-outline btn-small" style="color: #fff; border-color: rgba(255,255,255,0.3);" aria-expanded="false">
               <ListOrdered size={16} aria-hidden="true" />
               <span id="ingredientsBtnLabel">Ingredients</span>
@@ -871,9 +909,9 @@ const allergenNames: Record<string, string> = {
           </div>
           <p class="mt-2 text-xs text-cream/70">Scaled for <span data-servings-out>{d.servings}</span> servings</p>
           <ul class="mt-4 space-y-2.5 text-sm" id="cookingDrawerIngredients">
-            {d.ingredients.map((ing) => (
+            {d.ingredients.map((ing, idx) => (
               <li class="flex items-start gap-2.5 border-b border-white/10 pb-2">
-                <input type="checkbox" class="mt-1" />
+                <input type="checkbox" class="mt-1" data-drawer-check-idx={idx} />
                 <span>
                   <strong class="font-semibold text-cream" data-drawer-amount>{amountText(ing)}</strong>{' '}
                   <span data-drawer-name>{itemText(ing)}</span>{ing.note ? `, ${ing.note}` : ''}
@@ -897,13 +935,60 @@ const allergenNames: Record<string, string> = {
       </div>
     </div>
   </div>
+
+  <!-- Mobile Sticky Cooking Action Bar -->
+  <aside
+    id="mobileCookingBar"
+    class="fixed bottom-0 inset-x-0 z-30 flex items-center justify-between gap-2 border-t border-line bg-paper/95 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] backdrop-blur-md md:hidden shadow-[0_-4px_16px_rgba(0,0,0,0.06)]"
+    data-noprint
+    aria-label="Mobile recipe quick actions"
+  >
+    <button
+      type="button"
+      class="btn btn-primary flex-1 min-h-[44px] justify-center text-sm py-2 px-3"
+      data-start-cooking
+    >
+      <ChefHat size={18} aria-hidden="true" />
+      <span>Start Cooking</span>
+    </button>
+    {!isDraft && (
+      <button
+        type="button"
+        class="btn btn-outline min-h-[44px] min-w-[44px] px-3 py-2 justify-center"
+        data-favorite-slug={slug}
+        aria-pressed="false"
+        aria-label="Save recipe"
+      >
+        <Heart size={18} aria-hidden="true" />
+        <span class="sr-only">Save Recipe</span>
+      </button>
+    )}
+    <button
+      type="button"
+      class="btn btn-outline min-h-[44px] min-w-[44px] px-3 py-2 justify-center"
+      data-share-recipe
+      aria-label="Share recipe"
+    >
+      <Share2 size={18} aria-hidden="true" />
+      <span class="sr-only">Share Recipe</span>
+    </button>
+  </aside>
+
+  <!-- Share Feedback Toast -->
+  <div
+    id="shareToast"
+    role="status"
+    aria-live="polite"
+    class="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none rounded-xl border border-forest/30 bg-forest px-4 py-2 text-xs font-semibold text-cream shadow-lg opacity-0 transition-opacity duration-300"
+  ></div>
 </article>
 
 <script>
   import { formatScaledAndConvertedAmount, type UnitSystem } from '../utils/cooking-units';
   import { formatTimerCountdown, playKitchenChime, sendTimerNotification } from '../utils/timer';
 
-  // --- Browser print button ---
+  (() => {
+    // --- Browser print button ---
   document.querySelectorAll('[data-print]').forEach((b) => b.addEventListener('click', () => window.print()));
 
   // --- State for Serving Scaler and Unit Converter ---
@@ -1148,16 +1233,161 @@ const allergenNames: Record<string, string> = {
     });
   });
 
+  // --- Smart Ingredient Checklist Persistence & Synchronization ---
+  const recipeSlug = root?.dataset.slug || window.location.pathname.split('/').filter(Boolean).pop() || '';
+  const checklistKey = `crockbites_checklist_${recipeSlug}`;
+  const progressEl = document.getElementById('checklistProgress');
+  const resetChecklistBtn = document.getElementById('checklistResetBtn');
+  const mainCheckboxes = document.querySelectorAll<HTMLInputElement>('.check-row input[type="checkbox"][data-check-idx]');
+  const drawerCheckboxes = document.querySelectorAll<HTMLInputElement>('#cookingDrawerIngredients input[type="checkbox"][data-drawer-check-idx]');
+  const totalUniqueIngredients = mainCheckboxes.length || drawerCheckboxes.length;
+  const checkedIndices = new Set<number>();
+
+  function readChecklistStorage(): void {
+    checkedIndices.clear();
+    try {
+      const raw = localStorage.getItem(checklistKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          if (item !== null && item !== undefined && typeof item !== 'boolean') {
+            const num = Number(item);
+            if (Number.isInteger(num) && num >= 0 && num < totalUniqueIngredients) {
+              checkedIndices.add(num);
+            }
+          }
+        }
+      }
+    } catch {
+      // Graceful fallback for storage denial or corrupt JSON
+    }
+  }
+
+  function writeChecklistStorage(): void {
+    try {
+      if (checkedIndices.size > 0) {
+        localStorage.setItem(checklistKey, JSON.stringify(Array.from(checkedIndices)));
+      } else {
+        localStorage.removeItem(checklistKey);
+      }
+    } catch {
+      // Storage failure or private browsing mode
+    }
+  }
+
+  function syncChecklistUI(): void {
+    const count = checkedIndices.size;
+    if (progressEl) {
+      progressEl.textContent = `${count} of ${totalUniqueIngredients} ingredients gathered`;
+    }
+    if (resetChecklistBtn) {
+      resetChecklistBtn.hidden = count === 0;
+    }
+    mainCheckboxes.forEach((cb) => {
+      const idx = Number(cb.dataset.checkIdx);
+      cb.checked = checkedIndices.has(idx);
+    });
+    drawerCheckboxes.forEach((cb) => {
+      const idx = Number(cb.dataset.drawerCheckIdx);
+      cb.checked = checkedIndices.has(idx);
+    });
+  }
+
+  function setIngredientCheck(idx: number, checked: boolean): void {
+    if (idx < 0 || idx >= totalUniqueIngredients) return;
+    if (checked) checkedIndices.add(idx);
+    else checkedIndices.delete(idx);
+    writeChecklistStorage();
+    syncChecklistUI();
+  }
+
+  mainCheckboxes.forEach((cb) => {
+    cb.addEventListener('change', () => {
+      const idx = Number(cb.dataset.checkIdx);
+      setIngredientCheck(idx, cb.checked);
+    });
+  });
+
+  drawerCheckboxes.forEach((cb) => {
+    cb.addEventListener('change', () => {
+      const idx = Number(cb.dataset.drawerCheckIdx);
+      setIngredientCheck(idx, cb.checked);
+    });
+  });
+
+  resetChecklistBtn?.addEventListener('click', () => {
+    checkedIndices.clear();
+    writeChecklistStorage();
+    syncChecklistUI();
+  });
+
+  readChecklistStorage();
+  syncChecklistUI();
+
+  // --- Share Recipe Action ---
+  const shareToast = document.getElementById('shareToast');
+  let shareToastTimer: number | null = null;
+  function showShareToast(message: string): void {
+    if (!shareToast) return;
+    shareToast.textContent = message;
+    shareToast.classList.remove('opacity-0');
+    shareToast.classList.add('opacity-100');
+    if (shareToastTimer) clearTimeout(shareToastTimer);
+    shareToastTimer = window.setTimeout(() => {
+      shareToast.classList.remove('opacity-100');
+      shareToast.classList.add('opacity-0');
+    }, 2600);
+  }
+
+  document.querySelectorAll<HTMLButtonElement>('[data-share-recipe]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const url = window.location.href.split('#')[0];
+      const sharePayload = {
+        title: document.title,
+        text: `Check out this recipe on CrockBites: ${document.title}`,
+        url,
+      };
+
+      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+        try {
+          await navigator.share(sharePayload);
+          return;
+        } catch (err: any) {
+          if (err && err.name === 'AbortError') return;
+        }
+      }
+
+      // Clipboard fallback
+      try {
+        if (navigator?.clipboard?.writeText) {
+          await navigator.clipboard.writeText(url);
+          showShareToast('Recipe link copied to clipboard!');
+        } else {
+          const textarea = document.createElement('textarea');
+          textarea.value = url;
+          textarea.style.position = 'fixed';
+          textarea.style.opacity = '0';
+          document.body.appendChild(textarea);
+          textarea.select();
+          (document as any).execCommand('copy');
+          document.body.removeChild(textarea);
+          showShareToast('Recipe link copied to clipboard!');
+        }
+      } catch {
+        showShareToast('Unable to copy link.');
+      }
+    });
+  });
+
   // --- Feature 5: Interactive Cooking Mode ---
   const cookingModal = document.getElementById('cookingModeModal');
+  const mobileCookingBar = document.getElementById('mobileCookingBar');
   const startCookingButtons = document.querySelectorAll('[data-start-cooking]');
   const exitCookingBtn = document.getElementById('exitCookingModeBtn');
+  const restartCookingBtn = document.getElementById('restartCookingBtn');
   const cookingPrevBtn = document.getElementById('cookingPrevBtn') as HTMLButtonElement | null;
   const cookingNextBtn = document.getElementById('cookingNextBtn') as HTMLButtonElement | null;
-  const cookingStepBadge = document.getElementById('cookingStepBadge');
-  const cookingStepHeading = document.getElementById('cookingStepHeading');
-  const cookingStepText = document.getElementById('cookingStepText');
-  const cookingProgressBar = document.getElementById('cookingProgressBar');
   const toggleIngredientsBtn = document.getElementById('toggleCookingIngredientsBtn');
   const cookingDrawer = document.getElementById('cookingDrawer');
   const closeDrawerBtn = document.getElementById('closeDrawerBtn');
@@ -1168,25 +1398,56 @@ const allergenNames: Record<string, string> = {
   const cookingModeTimerBtn = document.getElementById('cookingModeTimerBtn') as HTMLButtonElement | null;
   const cookingModeTimerResetBtn = document.getElementById('cookingModeTimerResetBtn') as HTMLButtonElement | null;
 
-  // Extract instructions from static markup
-  const instructionElements = Array.from(document.querySelectorAll<HTMLElement>('.step-row'));
-  const stepsData = instructionElements.map((el, i) => {
-    const titleEl = el.querySelector('p.font-display');
-    const textEl = el.querySelector('div > p:not(.font-display)') || el.querySelector('p');
-    const timerBtn = el.querySelector<HTMLButtonElement>('[data-step-timer-btn]');
+  // Extract instructions dynamically from static markup
+  function getStepsData() {
+    return Array.from(document.querySelectorAll<HTMLElement>('.step-row')).map((el, i) => {
+      const titleEl = el.querySelector('p.font-display');
+      const textEl = el.querySelector('div > p:not(.font-display)') || el.querySelector('p');
+      const timerBtn = el.querySelector<HTMLButtonElement>('[data-step-timer-btn]');
 
-    return {
-      stepNum: i + 1,
-      title: titleEl?.textContent?.replace(/^Step \d+:\s*/, '').trim() || `Step ${i + 1}`,
-      text: textEl?.textContent?.trim() || '',
-      hasTimer: Boolean(timerBtn),
-      durationSeconds: timerBtn ? Number(timerBtn.dataset.totalSeconds) : 0,
-      durationLabel: timerBtn ? timerBtn.dataset.label || '' : '',
-    };
-  });
+      return {
+        stepNum: i + 1,
+        title: titleEl?.textContent?.replace(/^Step \d+:\s*/, '').trim() || `Step ${i + 1}`,
+        text: textEl?.textContent?.trim() || '',
+        hasTimer: Boolean(timerBtn),
+        durationSeconds: timerBtn ? Number(timerBtn.dataset.totalSeconds) : 0,
+        durationLabel: timerBtn ? timerBtn.dataset.label || '' : '',
+      };
+    });
+  }
 
+  const cookingStepKey = `crockbites_cooking_step_${recipeSlug}`;
   let currentStepIdx = 0;
   let wakeLock: any = null;
+
+  function readSavedCookingStep(): number {
+    const steps = getStepsData();
+    try {
+      const raw = localStorage.getItem(cookingStepKey);
+      if (raw !== null) {
+        const parsed = parseInt(raw, 10);
+        if (!isNaN(parsed) && parsed >= 0 && parsed < steps.length) {
+          return parsed;
+        }
+      }
+    } catch {}
+    return 0;
+  }
+
+  function writeCookingStep(idx: number): void {
+    const steps = getStepsData();
+    try {
+      if (idx >= 0 && idx < steps.length) {
+        localStorage.setItem(cookingStepKey, String(idx));
+      }
+    } catch {}
+  }
+
+  function clearCookingStep(): void {
+    try {
+      localStorage.removeItem(cookingStepKey);
+    } catch {}
+  }
 
   async function requestWakeLock() {
     try {
@@ -1210,23 +1471,30 @@ const allergenNames: Record<string, string> = {
   }
 
   function updateCookingModeView() {
-    if (!stepsData.length) return;
-    const step = stepsData[currentStepIdx];
-    const total = stepsData.length;
+    const steps = getStepsData();
+    if (!steps.length) return;
+    const step = steps[currentStepIdx];
+    const total = steps.length;
 
-    if (cookingStepBadge) cookingStepBadge.textContent = `Step ${currentStepIdx + 1} of ${total}`;
-    if (cookingStepHeading) cookingStepHeading.textContent = step.title;
-    if (cookingStepText) cookingStepText.textContent = step.text;
+    const badge = document.getElementById('cookingStepBadge');
+    if (badge) badge.textContent = `Step ${currentStepIdx + 1} of ${total}`;
+    const heading = document.getElementById('cookingStepHeading');
+    if (heading) heading.textContent = step.title;
+    const textEl = document.getElementById('cookingStepText');
+    if (textEl) textEl.textContent = step.text;
 
     const percent = Math.round(((currentStepIdx + 1) / total) * 100);
-    if (cookingProgressBar) cookingProgressBar.style.width = `${percent}%`;
+    const progressBar = document.getElementById('cookingProgressBar');
+    if (progressBar) progressBar.style.width = `${percent}%`;
 
-    if (cookingPrevBtn) cookingPrevBtn.disabled = currentStepIdx === 0;
-    if (cookingNextBtn) {
+    const prevBtn = document.getElementById('cookingPrevBtn') as HTMLButtonElement | null;
+    if (prevBtn) prevBtn.disabled = currentStepIdx === 0;
+    const nextBtn = document.getElementById('cookingNextBtn') as HTMLButtonElement | null;
+    if (nextBtn) {
       if (currentStepIdx === total - 1) {
-        cookingNextBtn.innerHTML = 'Finish Cooking &check;';
+        nextBtn.innerHTML = 'Finish Cooking &check;';
       } else {
-        cookingNextBtn.innerHTML = 'Next &rarr;';
+        nextBtn.innerHTML = 'Next &rarr;';
       }
     }
 
@@ -1257,6 +1525,8 @@ const allergenNames: Record<string, string> = {
     if (!cookingModal) return;
     cookingModal.hidden = false;
     document.body.style.overflow = 'hidden';
+    if (mobileCookingBar) mobileCookingBar.hidden = true;
+    currentStepIdx = readSavedCookingStep();
     updateCookingModeView();
     requestWakeLock();
   }
@@ -1265,31 +1535,44 @@ const allergenNames: Record<string, string> = {
     if (!cookingModal) return;
     cookingModal.hidden = true;
     document.body.style.overflow = '';
+    if (mobileCookingBar) mobileCookingBar.hidden = false;
     releaseWakeLock();
   }
 
   startCookingButtons.forEach((btn) => btn.addEventListener('click', openCookingMode));
   exitCookingBtn?.addEventListener('click', closeCookingMode);
 
+  restartCookingBtn?.addEventListener('click', () => {
+    currentStepIdx = 0;
+    writeCookingStep(0);
+    updateCookingModeView();
+  });
+
   cookingPrevBtn?.addEventListener('click', () => {
     if (currentStepIdx > 0) {
       currentStepIdx -= 1;
+      writeCookingStep(currentStepIdx);
       updateCookingModeView();
     }
   });
 
   cookingNextBtn?.addEventListener('click', () => {
-    if (currentStepIdx < stepsData.length - 1) {
+    const steps = getStepsData();
+    if (currentStepIdx < steps.length - 1) {
       currentStepIdx += 1;
+      writeCookingStep(currentStepIdx);
       updateCookingModeView();
     } else {
+      // User explicitly completed cooking: reset progress & clear storage
+      currentStepIdx = 0;
+      clearCookingStep();
       closeCookingMode();
     }
   });
 
   // Cooking Mode Timer Buttons
   cookingModeTimerBtn?.addEventListener('click', () => {
-    const step = stepsData[currentStepIdx];
+    const step = getStepsData()[currentStepIdx];
     if (!step?.hasTimer) return;
 
     startOrPauseTimer(step.stepNum, step.durationSeconds, step.durationLabel, (remaining, isFinished) => {
@@ -1312,7 +1595,7 @@ const allergenNames: Record<string, string> = {
   });
 
   cookingModeTimerResetBtn?.addEventListener('click', () => {
-    const step = stepsData[currentStepIdx];
+    const step = getStepsData()[currentStepIdx];
     if (!step?.hasTimer) return;
 
     resetTimer(step.stepNum, () => {
@@ -1345,18 +1628,23 @@ const allergenNames: Record<string, string> = {
     if (e.key === 'Escape') {
       closeCookingMode();
     } else if (e.key === 'ArrowRight' || e.key === 'n') {
-      if (currentStepIdx < stepsData.length - 1) {
+      const steps = getStepsData();
+      if (currentStepIdx < steps.length - 1) {
         currentStepIdx += 1;
+        writeCookingStep(currentStepIdx);
         updateCookingModeView();
       }
     } else if (e.key === 'ArrowLeft' || e.key === 'p') {
       if (currentStepIdx > 0) {
         currentStepIdx -= 1;
+        writeCookingStep(currentStepIdx);
         updateCookingModeView();
       }
     }
   });
+  })();
 
+  (() => {
   // ============================================================================
   // Phase 3: Community Reviews, Collections Popover & Recently Viewed Tracking
   // ============================================================================
@@ -1868,4 +2156,5 @@ const allergenNames: Record<string, string> = {
       });
     }
   }
+  })();
 </script>
