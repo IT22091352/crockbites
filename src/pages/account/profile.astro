@@ -1,0 +1,549 @@
+---
+export const prerender = false;
+
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AccountNav from '../../components/AccountNav.astro';
+import { resolveUserSession } from '../../lib/community-server';
+import { isTransactionalEmailConfigured } from '../../lib/user-auth';
+
+const { db, user, csrfToken } = await resolveUserSession(
+  Astro.cookies,
+  Astro.locals,
+  Astro.url.protocol,
+);
+
+if (!user || !db) {
+  return Astro.redirect(`/login/?returnTo=${encodeURIComponent('/account/profile/')}`);
+}
+
+const emailStatus = isTransactionalEmailConfigured();
+
+const PRESET_AVATARS = [
+  { id: 'preset:crock', icon: '🍲', label: 'Slow Cooker' },
+  { id: 'preset:chef', icon: '👩‍🍳', label: 'Home Chef' },
+  { id: 'preset:herb', icon: '🌿', label: 'Fresh Herbs' },
+  { id: 'preset:spice', icon: '🌶️', label: 'Bold Spice' },
+  { id: 'preset:whisk', icon: '🥣', label: 'Daily Whisk' },
+  { id: 'preset:stew', icon: '🥘', label: 'Cozy Stew' },
+];
+---
+
+<BaseLayout
+  title="Profile & Account Settings"
+  path="/account/profile/"
+  description="Update your CrockBites profile, change your password, manage active sessions, or review data privacy controls."
+  noindex={true}
+>
+  <div class="mx-auto max-w-6xl px-4 py-10" data-csrf-token={csrfToken}>
+    <AccountNav user={user} activeTab="profile" csrfToken={csrfToken} />
+
+    <div class="grid gap-8 lg:grid-cols-3">
+      <!-- Left Column: Profile Form & Password Change -->
+      <div class="space-y-8 lg:col-span-2">
+        <!-- Profile Details Form -->
+        <section class="rounded-2xl border border-stone-200/80 bg-white p-6 shadow-xs sm:p-8">
+          <h2 class="font-serif text-xl font-semibold text-stone-900">Public Profile</h2>
+          <p class="mt-1 text-sm text-stone-600">
+            Your display name and username appear alongside any recipe reviews or public collections you share.
+          </p>
+
+          <div
+            id="profile-status-banner"
+            role="status"
+            aria-live="polite"
+            class="mt-4 hidden rounded-xl border px-4 py-3 text-sm font-medium"
+          ></div>
+
+          <form id="profile-form" class="mt-6 space-y-5">
+            <div class="grid gap-5 sm:grid-cols-2">
+              <div>
+                <label for="profile-display-name" class="block text-sm font-semibold text-stone-800">
+                  Display Name
+                </label>
+                <input
+                  id="profile-display-name"
+                  name="displayName"
+                  type="text"
+                  required
+                  minlength="2"
+                  maxlength="50"
+                  value={user.displayName}
+                  class="mt-1.5 w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-sm text-stone-900 focus:border-brand-600 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20"
+                />
+              </div>
+
+              <div>
+                <label for="profile-username" class="block text-sm font-semibold text-stone-800">
+                  Username
+                </label>
+                <input
+                  id="profile-username"
+                  name="username"
+                  type="text"
+                  required
+                  minlength="3"
+                  maxlength="30"
+                  pattern="[a-zA-Z0-9_]+"
+                  value={user.username}
+                  class="mt-1.5 w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-sm text-stone-900 focus:border-brand-600 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20"
+                />
+                <p class="mt-1 text-xs text-stone-500">3–30 letters, numbers, or underscores.</p>
+              </div>
+            </div>
+
+            <div>
+              <label for="profile-bio" class="block text-sm font-semibold text-stone-800">
+                Kitchen Bio <span class="font-normal text-stone-500">(optional, max 300 chars)</span>
+              </label>
+              <textarea
+                id="profile-bio"
+                name="bio"
+                rows="3"
+                maxlength="300"
+                placeholder="Tell the community what you love cooking in your slow cooker..."
+                class="mt-1.5 w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-sm text-stone-900 focus:border-brand-600 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20"
+              >{user.bio}</textarea>
+            </div>
+
+            <div>
+              <span class="block text-sm font-semibold text-stone-800">Kitchen Badge / Avatar</span>
+              <p class="mt-0.5 text-xs text-stone-500">
+                Choose a preset kitchen badge or provide a verified Cloudinary image URL.
+              </p>
+
+              <div class="mt-3 grid grid-cols-3 gap-2.5 sm:grid-cols-6">
+                {PRESET_AVATARS.map((preset) => (
+                  <button
+                    type="button"
+                    data-avatar-preset={preset.id}
+                    class={`flex flex-col items-center justify-center rounded-xl border p-2.5 text-center transition ${
+                      user.avatarUrl === preset.id
+                        ? 'border-brand-700 bg-brand-50 ring-2 ring-brand-600/20'
+                        : 'border-stone-200 bg-stone-50/60 hover:border-stone-300 hover:bg-stone-100'
+                    }`}
+                  >
+                    <span class="text-xl">{preset.icon}</span>
+                    <span class="mt-1 text-[11px] font-medium text-stone-700">{preset.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div class="mt-3">
+                <label for="profile-avatar-url" class="sr-only">Avatar Value or Cloudinary URL</label>
+                <input
+                  id="profile-avatar-url"
+                  name="avatarUrl"
+                  type="text"
+                  value={user.avatarUrl}
+                  placeholder="preset:crock or https://res.cloudinary.com/..."
+                  class="w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2 text-xs text-stone-700 focus:border-brand-600 focus:outline-hidden"
+                />
+              </div>
+            </div>
+
+            <div class="flex justify-end pt-2">
+              <button
+                type="submit"
+                id="profile-save-btn"
+                class="inline-flex items-center justify-center rounded-xl bg-brand-800 px-5 py-2.5 text-sm font-semibold text-white shadow-xs transition hover:bg-brand-900 disabled:opacity-60"
+              >
+                Save Profile Changes
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <!-- Change Password Form -->
+        <section class="rounded-2xl border border-stone-200/80 bg-white p-6 shadow-xs sm:p-8">
+          <h2 class="font-serif text-xl font-semibold text-stone-900">Change Password</h2>
+          <p class="mt-1 text-sm text-stone-600">
+            Updating your password automatically rotates your active session and signs out any other devices.
+          </p>
+
+          <div
+            id="password-status-banner"
+            role="status"
+            aria-live="polite"
+            class="mt-4 hidden rounded-xl border px-4 py-3 text-sm font-medium"
+          ></div>
+
+          <form id="password-form" class="mt-6 space-y-4">
+            <div>
+              <label for="current-password" class="block text-sm font-semibold text-stone-800">
+                Current Password
+              </label>
+              <input
+                id="current-password"
+                name="currentPassword"
+                type="password"
+                required
+                autocomplete="current-password"
+                class="mt-1.5 w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-sm text-stone-900 focus:border-brand-600 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20"
+              />
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label for="new-password" class="block text-sm font-semibold text-stone-800">
+                  New Password
+                </label>
+                <input
+                  id="new-password"
+                  name="newPassword"
+                  type="password"
+                  required
+                  minlength="8"
+                  autocomplete="new-password"
+                  class="mt-1.5 w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-sm text-stone-900 focus:border-brand-600 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20"
+                />
+                <p class="mt-1 text-xs text-stone-500">At least 8 characters with letters and numbers.</p>
+              </div>
+
+              <div>
+                <label for="confirm-new-password" class="block text-sm font-semibold text-stone-800">
+                  Confirm New Password
+                </label>
+                <input
+                  id="confirm-new-password"
+                  name="confirmPassword"
+                  type="password"
+                  required
+                  minlength="8"
+                  autocomplete="new-password"
+                  class="mt-1.5 w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-sm text-stone-900 focus:border-brand-600 focus:outline-hidden focus:ring-2 focus:ring-brand-500/20"
+                />
+              </div>
+            </div>
+
+            <div class="flex justify-end pt-2">
+              <button
+                type="submit"
+                id="password-save-btn"
+                class="inline-flex items-center justify-center rounded-xl bg-stone-900 px-5 py-2.5 text-sm font-semibold text-white shadow-xs transition hover:bg-stone-800 disabled:opacity-60"
+              >
+                Update Password
+              </button>
+            </div>
+          </form>
+        </section>
+      </div>
+
+      <!-- Right Column: Email Status, Session Control, Privacy & Account Deletion -->
+      <div class="space-y-8">
+        <!-- Email & Verification Card -->
+        <section class="rounded-2xl border border-stone-200/80 bg-white p-6 shadow-xs">
+          <h2 class="font-serif text-lg font-semibold text-stone-900">Account Email</h2>
+          <p class="mt-2 break-all text-sm font-medium text-stone-800">{user.email}</p>
+
+          <div class="mt-3">
+            {user.emailVerified ? (
+              <p class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800">
+                ✓ Your email address is verified
+              </p>
+            ) : (
+              <div class="space-y-3">
+                <p class="text-xs text-stone-600">
+                  Your email is currently unverified.
+                  {!emailStatus.configured && (
+                    <span class="block mt-1 text-amber-800">
+                      Note: Live transactional email delivery requires <code class="rounded bg-amber-100 px-1">RESEND_API_KEY</code> and <code class="rounded bg-amber-100 px-1">EMAIL_FROM</code> in production secrets.
+                    </span>
+                  )}
+                </p>
+                <button
+                  type="button"
+                  id="send-verify-email-btn"
+                  class="inline-flex items-center rounded-xl border border-stone-300 bg-stone-50 px-3.5 py-2 text-xs font-semibold text-stone-800 transition hover:bg-stone-100"
+                >
+                  Generate Verification Token
+                </button>
+                <p id="verify-email-feedback" class="hidden text-xs text-stone-600"></p>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <!-- Active Sessions Card -->
+        <section class="rounded-2xl border border-stone-200/80 bg-white p-6 shadow-xs">
+          <h2 class="font-serif text-lg font-semibold text-stone-900">Active Sessions</h2>
+          <p class="mt-1 text-xs text-stone-600">
+            Signed in on a shared or public computer? Revoke all active browser sessions immediately.
+          </p>
+          <button
+            type="button"
+            id="logout-all-btn"
+            class="mt-4 w-full rounded-xl border border-stone-300 bg-stone-50 px-4 py-2.5 text-xs font-semibold text-stone-800 transition hover:bg-stone-100"
+          >
+            Sign Out of All Devices
+          </button>
+        </section>
+
+        <!-- Data Privacy & Account Deletion -->
+        <section class="rounded-2xl border border-rose-200 bg-rose-50/40 p-6 shadow-xs">
+          <h2 class="font-serif text-lg font-semibold text-rose-950">Privacy & Delete Account</h2>
+          <div class="mt-2 space-y-2 text-xs leading-relaxed text-rose-900/90">
+            <p>
+              <strong>Data Retention Policy:</strong> Deleting your account permanently removes your profile, email, password hash, saved favorites, custom collections, and recently viewed history.
+            </p>
+            <p>
+              To preserve community recipe ratings, any previously <em>approved</em> reviews are retained in anonymized form under <strong>"Deleted User"</strong> with all personal identifiers removed. Pending or rejected reviews are permanently deleted.
+            </p>
+          </div>
+
+          <div
+            id="delete-account-banner"
+            role="alert"
+            class="mt-3 hidden rounded-xl border border-rose-300 bg-rose-100 px-3.5 py-2.5 text-xs font-medium text-rose-900"
+          ></div>
+
+          <form id="delete-account-form" class="mt-4 space-y-3">
+            <div>
+              <label for="delete-confirm-password" class="block text-xs font-semibold text-rose-950">
+                Confirm your current password to delete account
+              </label>
+              <input
+                id="delete-confirm-password"
+                name="password"
+                type="password"
+                required
+                placeholder="Enter current password"
+                class="mt-1 w-full rounded-xl border border-rose-300 bg-white px-3 py-2 text-xs text-stone-900 focus:border-rose-600 focus:outline-hidden"
+              />
+            </div>
+            <button
+              type="submit"
+              id="delete-account-btn"
+              class="w-full rounded-xl bg-rose-700 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-rose-800 disabled:opacity-60"
+            >
+              Permanently Delete My Account
+            </button>
+          </form>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script is:inline>
+    (() => {
+      const container = document.querySelector('[data-csrf-token]');
+      const csrfToken = container ? container.getAttribute('data-csrf-token') || '' : '';
+
+      // Preset Avatar Picker
+      const avatarInput = document.getElementById('profile-avatar-url');
+      const presetButtons = document.querySelectorAll('[data-avatar-preset]');
+      presetButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const val = btn.getAttribute('data-avatar-preset') || '';
+          if (avatarInput) avatarInput.value = val;
+          presetButtons.forEach((b) => {
+            b.classList.remove('border-brand-700', 'bg-brand-50', 'ring-2', 'ring-brand-600/20');
+            b.classList.add('border-stone-200', 'bg-stone-50/60');
+          });
+          btn.classList.remove('border-stone-200', 'bg-stone-50/60');
+          btn.classList.add('border-brand-700', 'bg-brand-50', 'ring-2', 'ring-brand-600/20');
+        });
+      });
+
+      function showBanner(el, message, isError) {
+        if (!el) return;
+        el.textContent = message;
+        el.classList.remove(
+          'hidden',
+          'border-emerald-200',
+          'bg-emerald-50',
+          'text-emerald-900',
+          'border-rose-200',
+          'bg-rose-50',
+          'text-rose-900'
+        );
+        if (isError) {
+          el.classList.add('border-rose-200', 'bg-rose-50', 'text-rose-900');
+        } else {
+          el.classList.add('border-emerald-200', 'bg-emerald-50', 'text-emerald-900');
+        }
+      }
+
+      // Profile Form Submit
+      const profileForm = document.getElementById('profile-form');
+      const profileBanner = document.getElementById('profile-status-banner');
+      const profileBtn = document.getElementById('profile-save-btn');
+
+      if (profileForm) {
+        profileForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          if (profileBtn) profileBtn.disabled = true;
+          const formData = new FormData(profileForm);
+          const payload = {
+            displayName: formData.get('displayName'),
+            username: formData.get('username'),
+            bio: formData.get('bio'),
+            avatarUrl: formData.get('avatarUrl'),
+            csrfToken,
+          };
+
+          try {
+            const res = await fetch('/api/account/profile/', {
+              method: 'POST',
+              headers: {
+                'content-type': 'application/json',
+                'x-csrf-token': csrfToken,
+              },
+              body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              showBanner(profileBanner, data.error || 'Could not update profile.', true);
+            } else {
+              showBanner(profileBanner, 'Profile updated! Refreshing...', false);
+              setTimeout(() => window.location.reload(), 600);
+            }
+          } catch {
+            showBanner(profileBanner, 'Network error while saving profile.', true);
+          } finally {
+            if (profileBtn) profileBtn.disabled = false;
+          }
+        });
+      }
+
+      // Password Form Submit
+      const passwordForm = document.getElementById('password-form');
+      const passwordBanner = document.getElementById('password-status-banner');
+      const passwordBtn = document.getElementById('password-save-btn');
+
+      if (passwordForm) {
+        passwordForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const formData = new FormData(passwordForm);
+          const currentPassword = String(formData.get('currentPassword') || '');
+          const newPassword = String(formData.get('newPassword') || '');
+          const confirmPassword = String(formData.get('confirmPassword') || '');
+
+          if (newPassword !== confirmPassword) {
+            showBanner(passwordBanner, 'New password and confirmation do not match.', true);
+            return;
+          }
+
+          if (passwordBtn) passwordBtn.disabled = true;
+          try {
+            const res = await fetch('/api/account/password/', {
+              method: 'POST',
+              headers: {
+                'content-type': 'application/json',
+                'x-csrf-token': csrfToken,
+              },
+              body: JSON.stringify({ currentPassword, newPassword, csrfToken }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              showBanner(passwordBanner, data.error || 'Could not change password.', true);
+            } else {
+              passwordForm.reset();
+              showBanner(passwordBanner, data.message || 'Password updated and session rotated!', false);
+              setTimeout(() => window.location.reload(), 800);
+            }
+          } catch {
+            showBanner(passwordBanner, 'Network error while updating password.', true);
+          } finally {
+            if (passwordBtn) passwordBtn.disabled = false;
+          }
+        });
+      }
+
+      // Email Verification Trigger
+      const verifyBtn = document.getElementById('send-verify-email-btn');
+      const verifyFeedback = document.getElementById('verify-email-feedback');
+      if (verifyBtn) {
+        verifyBtn.addEventListener('click', async () => {
+          verifyBtn.disabled = true;
+          try {
+            const res = await fetch('/api/auth/verify-email/', {
+              method: 'POST',
+              headers: {
+                'content-type': 'application/json',
+                'x-csrf-token': csrfToken,
+              },
+              body: JSON.stringify({ action: 'request', csrfToken }),
+            });
+            const data = await res.json();
+            if (verifyFeedback) {
+              verifyFeedback.textContent = data.message || data.error || 'Verification token generated.';
+              verifyFeedback.classList.remove('hidden');
+            }
+          } catch {
+            if (verifyFeedback) {
+              verifyFeedback.textContent = 'Could not request verification token.';
+              verifyFeedback.classList.remove('hidden');
+            }
+          } finally {
+            verifyBtn.disabled = false;
+          }
+        });
+      }
+
+      // Logout All Sessions
+      const logoutAllBtn = document.getElementById('logout-all-btn');
+      if (logoutAllBtn) {
+        logoutAllBtn.addEventListener('click', async () => {
+          logoutAllBtn.disabled = true;
+          try {
+            await fetch('/api/auth/logout-all/', {
+              method: 'POST',
+              headers: {
+                'content-type': 'application/json',
+                'x-csrf-token': csrfToken,
+              },
+              body: JSON.stringify({ csrfToken }),
+            });
+            window.location.href = '/login/';
+          } catch {
+            logoutAllBtn.disabled = false;
+          }
+        });
+      }
+
+      // Delete Account Form
+      const deleteForm = document.getElementById('delete-account-form');
+      const deleteBanner = document.getElementById('delete-account-banner');
+      const deleteBtn = document.getElementById('delete-account-btn');
+
+      if (deleteForm) {
+        deleteForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          if (!window.confirm('Are you sure you want to permanently delete your CrockBites account? This cannot be undone.')) {
+            return;
+          }
+          const formData = new FormData(deleteForm);
+          const password = String(formData.get('password') || '');
+          if (deleteBtn) deleteBtn.disabled = true;
+
+          try {
+            const res = await fetch('/api/account/delete/', {
+              method: 'POST',
+              headers: {
+                'content-type': 'application/json',
+                'x-csrf-token': csrfToken,
+              },
+              body: JSON.stringify({ password, csrfToken }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              if (deleteBanner) {
+                deleteBanner.textContent = data.error || 'Failed to delete account.';
+                deleteBanner.classList.remove('hidden');
+              }
+            } else {
+              window.location.href = '/?accountDeleted=1';
+            }
+          } catch {
+            if (deleteBanner) {
+              deleteBanner.textContent = 'Network error while deleting account.';
+              deleteBanner.classList.remove('hidden');
+            }
+          } finally {
+            if (deleteBtn) deleteBtn.disabled = false;
+          }
+        });
+      }
+    })();
+  </script>
+</BaseLayout>

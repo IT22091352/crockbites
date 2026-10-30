@@ -1,0 +1,225 @@
+---
+export const prerender = false;
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { resolveUserSession } from '../lib/community-server';
+import { getD1BindingStatus } from '../lib/db';
+import { sanitizeReturnUrl } from '../lib/user-auth';
+
+const { user, csrfToken } = await resolveUserSession(Astro.cookies, Astro.locals, Astro.url.protocol);
+const returnTo = sanitizeReturnUrl(Astro.url.searchParams.get('returnTo'), '/account/');
+
+if (user) {
+  return Astro.redirect(returnTo);
+}
+
+const d1Status = getD1BindingStatus(Astro.locals);
+---
+<BaseLayout title="Create Account" path="/register/" description="Join the CrockBites community to save your favorite slow cooker recipes, build custom meal collections, and share reviews." noindex>
+  <div class="container-page py-12">
+    <div class="mx-auto max-w-lg rounded-3xl border border-line bg-paper p-6 shadow-[var(--shadow-card)] sm:p-10">
+      <p class="text-xs font-bold uppercase tracking-widest text-terracotta-deep">CrockBites Community</p>
+      <h1 class="mt-2 text-3xl text-forest">Create your account</h1>
+      <p class="mt-2 text-sm text-ink-soft">
+        Save recipes, organize weeknight meal collections, and rate dishes you have cooked.
+      </p>
+
+      {d1Status.mode === 'unconfigured' && (
+        <div class="notice mt-6 text-sm" role="alert">
+          <p class="font-bold text-forest">Community Database Notice</p>
+          <p class="mt-1 text-ink-soft">{d1Status.details}</p>
+        </div>
+      )}
+
+      <form id="register-form" class="mt-6 space-y-4" novalidate>
+        <input type="hidden" name="csrfToken" value={csrfToken} />
+        <input type="hidden" name="returnTo" value={returnTo} />
+
+        <div>
+          <label for="reg-username" class="mb-1 block text-sm font-semibold text-forest">Username</label>
+          <input
+            id="reg-username"
+            name="username"
+            type="text"
+            required
+            minlength="3"
+            maxlength="24"
+            pattern="^[a-zA-Z0-9_]+$"
+            autocomplete="username"
+            placeholder="e.g. slowcooker_sam"
+            class="field w-full"
+          />
+          <p class="mt-1 text-xs text-ink-soft">3–24 characters; letters, numbers, and underscores only.</p>
+        </div>
+
+        <div>
+          <label for="reg-display" class="mb-1 block text-sm font-semibold text-forest">Display Name</label>
+          <input
+            id="reg-display"
+            name="displayName"
+            type="text"
+            required
+            minlength="2"
+            maxlength="50"
+            autocomplete="name"
+            placeholder="e.g. Sam Miller"
+            class="field w-full"
+          />
+          <p class="mt-1 text-xs text-ink-soft">Shown publicly on reviews and public collections you share.</p>
+        </div>
+
+        <div>
+          <label for="reg-email" class="mb-1 block text-sm font-semibold text-forest">Email Address</label>
+          <input
+            id="reg-email"
+            name="email"
+            type="email"
+            required
+            autocomplete="email"
+            placeholder="you@example.com"
+            class="field w-full"
+          />
+        </div>
+
+        <div>
+          <div class="mb-1 flex items-center justify-between">
+            <label for="reg-password" class="text-sm font-semibold text-forest">Password</label>
+            <button type="button" id="toggle-reg-pw" class="link-text text-xs font-semibold">Show password</button>
+          </div>
+          <input
+            id="reg-password"
+            name="password"
+            type="password"
+            required
+            minlength="8"
+            maxlength="128"
+            autocomplete="new-password"
+            placeholder="At least 8 characters with letter & number"
+            class="field w-full"
+          />
+        </div>
+
+        <div>
+          <label for="reg-confirm" class="mb-1 block text-sm font-semibold text-forest">Confirm Password</label>
+          <input
+            id="reg-confirm"
+            name="confirmPassword"
+            type="password"
+            required
+            minlength="8"
+            maxlength="128"
+            autocomplete="new-password"
+            placeholder="Re-enter your password"
+            class="field w-full"
+          />
+        </div>
+
+        <label class="flex items-start gap-2.5 pt-2 text-sm text-ink-soft cursor-pointer">
+          <input id="reg-terms" name="termsAccepted" type="checkbox" required class="mt-1 size-4 accent-forest" />
+          <span>
+            I agree to the <a href="/terms-of-use/" class="link-text" target="_blank">Terms of Use</a> and acknowledge the <a href="/privacy-policy/" class="link-text" target="_blank">Privacy Policy</a> regarding saved recipes and moderated reviews.
+          </span>
+        </label>
+
+        <div id="register-feedback" class="hidden rounded-xl border p-3.5 text-sm font-medium" role="alert" aria-live="polite"></div>
+
+        <button type="submit" id="register-submit" class="btn w-full justify-center py-3 text-base">
+          Create Account
+        </button>
+      </form>
+
+      <p class="mt-6 border-t border-line pt-5 text-center text-sm text-ink-soft">
+        Already have an account?{' '}
+        <a href={`/login/?returnTo=${encodeURIComponent(returnTo)}`} class="link-text font-semibold text-forest">
+          Sign in
+        </a>
+      </p>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  const form = document.getElementById('register-form') as HTMLFormElement;
+  const pwInput = document.getElementById('reg-password') as HTMLInputElement;
+  const confirmInput = document.getElementById('reg-confirm') as HTMLInputElement;
+  const toggleBtn = document.getElementById('toggle-reg-pw') as HTMLButtonElement;
+  const feedback = document.getElementById('register-feedback')!;
+  const submitBtn = document.getElementById('register-submit') as HTMLButtonElement;
+
+  toggleBtn?.addEventListener('click', () => {
+    const isHidden = pwInput.type === 'password';
+    pwInput.type = isHidden ? 'text' : 'password';
+    confirmInput.type = isHidden ? 'text' : 'password';
+    toggleBtn.textContent = isHidden ? 'Hide password' : 'Show password';
+  });
+
+  function showMessage(msg: string, isError = true) {
+    feedback.textContent = msg;
+    feedback.className = isError
+      ? 'rounded-xl border border-red-300 bg-red-50 p-3.5 text-sm font-medium text-red-800'
+      : 'rounded-xl border border-emerald-300 bg-emerald-50 p-3.5 text-sm font-medium text-emerald-900';
+  }
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(form);
+    const username = String(formData.get('username') ?? '').trim();
+    const displayName = String(formData.get('displayName') ?? '').trim();
+    const email = String(formData.get('email') ?? '').trim();
+    const password = String(formData.get('password') ?? '');
+    const confirmPassword = String(formData.get('confirmPassword') ?? '');
+    const termsAccepted = (document.getElementById('reg-terms') as HTMLInputElement)?.checked;
+    const csrfToken = String(formData.get('csrfToken') ?? '');
+    const returnTo = String(formData.get('returnTo') ?? '/account/');
+
+    if (!termsAccepted) {
+      showMessage('Please accept the Terms of Use and Privacy Policy to continue.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      showMessage('Passwords do not match.');
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Creating account...';
+    feedback.className = 'hidden';
+
+    try {
+      const res = await fetch('/api/auth/register/', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-csrf-token': csrfToken,
+        },
+        body: JSON.stringify({
+          username,
+          displayName,
+          email,
+          password,
+          confirmPassword,
+          termsAccepted,
+          returnTo,
+          csrfToken,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        showMessage(data.error || 'Could not create account.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Create Account';
+        return;
+      }
+
+      showMessage('Account created! Redirecting...', false);
+      window.location.href = data.redirectTo || '/account/';
+    } catch {
+      showMessage('Network error. Please check your connection and try again.');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Create Account';
+    }
+  });
+</script>
+

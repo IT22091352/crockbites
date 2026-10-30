@@ -4,6 +4,8 @@ export const prerender = false;
 import { ADMIN_COOKIE_NAME, CSRF_COOKIE_NAME, createCsrfToken, getAdminSessionSecret, parseAdminSessionCookie, verifySessionCookie } from '../../lib/admin';
 import { getGithubConfig } from '../../lib/github';
 import { getCloudinaryConfig } from '../../lib/cloudinary';
+import { getD1BindingStatus } from '../../lib/db';
+import { isTransactionalEmailConfigured } from '../../lib/user-auth';
 
 const adminCookie = Astro.cookies.get(ADMIN_COOKIE_NAME)?.value ?? '';
 const session = parseAdminSessionCookie(adminCookie);
@@ -30,6 +32,8 @@ const gh = getGithubConfig();
 const ghConfigured = Boolean(gh.token && gh.owner && gh.repo);
 const cl = getCloudinaryConfig();
 const clConfigured = cl.isConfigured;
+const d1Status = getD1BindingStatus(Astro.locals);
+const emailStatus = isTransactionalEmailConfigured();
 
 const isDev = import.meta.env.DEV;
 ---
@@ -82,6 +86,7 @@ const isDev = import.meta.env.DEV;
           <a href="/admin/">Overview</a>
           <a href="/admin/recipes/">Recipes</a>
           <a href="/admin/recipes/new/">New Recipe</a>
+          <a href="/admin/reviews/">Reviews</a>
           <a class="active" href="/admin/settings/">Settings</a>
         </nav>
       </aside>
@@ -158,6 +163,41 @@ const isDev = import.meta.env.DEV;
           </div>
           <p class="env-notice">
             Uploaded images are placed into the <code>crockbites/recipes/</code> folder on Cloudinary.
+          </p>
+        </div>
+
+        <!-- Cloudflare D1 Community Database Status -->
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <div>
+              <h2 style="margin: 0; font-size: 1.35rem;">Cloudflare D1 Community Database</h2>
+              <p style="margin: 0.35rem 0 0; color: rgba(36,58,45,0.75); font-size: 0.95rem;">
+                Stores user accounts, sessions, saved favorites, custom collections, recently viewed recipes, and community reviews.
+              </p>
+            </div>
+            <div>
+              {d1Status.isD1Bound || d1Status.mode === 'local-sqlite' ? (
+                <span class="status-badge badge-ok">✓ Active ({d1Status.mode})</span>
+              ) : (
+                <span class="status-badge badge-missing">✕ D1 Binding Not Configured</span>
+              )}
+            </div>
+          </div>
+
+          <div class="grid-params">
+            <div class="param-name">D1 Binding Name</div>
+            <div class="param-val"><code>DB</code></div>
+
+            <div class="param-name">Migration File</div>
+            <div class="param-val"><code>migrations/0001_community_platform.sql</code></div>
+
+            <div class="param-name">Transactional Email</div>
+            <div class="param-val">
+              {emailStatus.configured ? `✓ Configured (${emailStatus.provider})` : '✕ Not Configured (Set RESEND_API_KEY & EMAIL_FROM)'}
+            </div>
+          </div>
+          <p class="env-notice">
+            {d1Status.details}
           </p>
         </div>
 

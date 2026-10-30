@@ -1,0 +1,40 @@
+---
+export const prerender = false;
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { resolveUserSession } from '../lib/community-server';
+import { clearUserAuthCookies, revokeUserSession, verifyUserCsrfToken } from '../lib/user-auth';
+
+const { db, user, sessionToken, csrfToken } = await resolveUserSession(Astro.cookies, Astro.locals, Astro.url.protocol);
+
+if (Astro.request.method === 'POST') {
+  if (sessionToken && db) {
+    const validCsrf = await verifyUserCsrfToken(Astro.request, csrfToken, sessionToken);
+    if (validCsrf) {
+      await revokeUserSession(db, sessionToken);
+    }
+  }
+  clearUserAuthCookies(Astro.cookies);
+  return Astro.redirect('/login/');
+}
+
+if (!user) {
+  return Astro.redirect('/login/');
+}
+---
+<BaseLayout title="Sign Out" path="/logout/" description="Sign out of your CrockBites account." noindex>
+  <div class="container-page py-16">
+    <div class="mx-auto max-w-md rounded-3xl border border-line bg-paper p-8 text-center shadow-[var(--shadow-card)]">
+      <h1 class="text-2xl text-forest">Sign out of CrockBites?</h1>
+      <p class="mt-2 text-sm text-ink-soft">
+        You are currently signed in as <strong>{user.displayName}</strong> (@{user.username}).
+      </p>
+      <form method="post" action="/logout/" class="mt-6 flex justify-center gap-3">
+        <input type="hidden" name="csrfToken" value={csrfToken} />
+        <a href="/account/" class="btn btn-outline">Cancel</a>
+        <button type="submit" class="btn">Sign Out</button>
+      </form>
+    </div>
+  </div>
+</BaseLayout>
+

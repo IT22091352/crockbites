@@ -1,0 +1,168 @@
+---
+export const prerender = false;
+
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AccountNav from '../../components/AccountNav.astro';
+import RecipeCard from '../../components/RecipeCard.astro';
+import { getPublishedRecipesMap, resolveUserSession } from '../../lib/community-server';
+import {
+  listRecentlyViewed,
+  listUserCollections,
+  listUserFavorites,
+  listUserReviews,
+} from '../../lib/community';
+import type { Recipe } from '../../utils/recipes';
+
+const { db, user, csrfToken } = await resolveUserSession(
+  Astro.cookies,
+  Astro.locals,
+  Astro.url.protocol,
+);
+
+if (!user || !db) {
+  return Astro.redirect(`/login/?returnTo=${encodeURIComponent('/account/')}`);
+}
+
+const [{ bySlug }, favorites, collections, recentlyViewedRows, userReviews] = await Promise.all([
+  getPublishedRecipesMap(),
+  listUserFavorites(db, user.id),
+  listUserCollections(db, user.id),
+  listRecentlyViewed(db, user.id, 20),
+  listUserReviews(db, user.id),
+]);
+
+const recentRecipes = recentlyViewedRows
+  .map((item) => ({
+    recipe: bySlug.get(item.recipeSlug),
+    viewedAt: item.viewedAt,
+  }))
+  .filter((item): item is { recipe: Recipe; viewedAt: string } => Boolean(item.recipe));
+
+const favoriteRecipes = favorites
+  .map((item) => bySlug.get(item.recipeSlug))
+  .filter((r): r is Recipe => Boolean(r))
+  .slice(0, 3);
+---
+
+<BaseLayout
+  title="My Kitchen Account"
+  path="/account/"
+  description="Manage your saved slow-cooker recipes, custom recipe collections, recently viewed meals, and community reviews on CrockBites."
+  noindex={true}
+>
+  <div class="mx-auto max-w-6xl px-4 py-10">
+    <AccountNav user={user} activeTab="overview" csrfToken={csrfToken} />
+
+    <!-- Quick Stat Cards -->
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <a
+        href="/account/favorites/"
+        class="group rounded-2xl border border-stone-200/80 bg-white p-5 shadow-xs transition hover:border-brand-300 hover:shadow-sm"
+      >
+        <p class="text-xs font-semibold uppercase tracking-wider text-stone-500">Saved Recipes</p>
+        <p class="mt-2 font-serif text-3xl font-bold text-stone-900 group-hover:text-brand-800">
+          {favorites.length}
+        </p>
+        <p class="mt-1 text-xs text-stone-500">View your bookmarked meals →</p>
+      </a>
+
+      <a
+        href="/account/collections/"
+        class="group rounded-2xl border border-stone-200/80 bg-white p-5 shadow-xs transition hover:border-brand-300 hover:shadow-sm"
+      >
+        <p class="text-xs font-semibold uppercase tracking-wider text-stone-500">Recipe Collections</p>
+        <p class="mt-2 font-serif text-3xl font-bold text-stone-900 group-hover:text-brand-800">
+          {collections.length}
+        </p>
+        <p class="mt-1 text-xs text-stone-500">Organize meal plans & folders →</p>
+      </a>
+
+      <a
+        href="/account/reviews/"
+        class="group rounded-2xl border border-stone-200/80 bg-white p-5 shadow-xs transition hover:border-brand-300 hover:shadow-sm"
+      >
+        <p class="text-xs font-semibold uppercase tracking-wider text-stone-500">My Reviews</p>
+        <p class="mt-2 font-serif text-3xl font-bold text-stone-900 group-hover:text-brand-800">
+          {userReviews.length}
+        </p>
+        <p class="mt-1 text-xs text-stone-500">Manage ratings & feedback →</p>
+      </a>
+
+      <div class="rounded-2xl border border-stone-200/80 bg-white p-5 shadow-xs">
+        <p class="text-xs font-semibold uppercase tracking-wider text-stone-500">Recently Viewed</p>
+        <p class="mt-2 font-serif text-3xl font-bold text-stone-900">
+          {recentRecipes.length}
+        </p>
+        <p class="mt-1 text-xs text-stone-500">Up to your last 20 recipes</p>
+      </div>
+    </div>
+
+    <!-- Recently Saved Preview -->
+    <section class="mt-10" aria-labelledby="saved-preview-heading">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <h2 id="saved-preview-heading" class="font-serif text-2xl font-semibold text-stone-900">
+            Recently Saved Recipes
+          </h2>
+          <p class="text-sm text-stone-600">Quick access to the recipes you bookmarked most recently.</p>
+        </div>
+        <a
+          href="/account/favorites/"
+          class="text-sm font-semibold text-brand-800 hover:text-brand-900 hover:underline"
+        >
+          See all ({favorites.length}) →
+        </a>
+      </div>
+
+      {favoriteRecipes.length > 0 ? (
+        <div class="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {favoriteRecipes.map((recipe) => (
+            <RecipeCard recipe={recipe} />
+          ))}
+        </div>
+      ) : (
+        <div class="mt-4 rounded-2xl border border-dashed border-stone-300 bg-white/60 p-8 text-center">
+          <p class="text-base font-medium text-stone-800">No saved recipes yet</p>
+          <p class="mt-1 text-sm text-stone-600">
+            Tap the heart icon on any recipe card or recipe page to save it here for weeknight cooking.
+          </p>
+          <a
+            href="/recipes/"
+            class="mt-4 inline-flex items-center rounded-xl bg-brand-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-900"
+          >
+            Browse Recipes
+          </a>
+        </div>
+      )}
+    </section>
+
+    <!-- Recently Viewed Recipes Section -->
+    <section class="mt-12" aria-labelledby="recently-viewed-heading">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <h2 id="recently-viewed-heading" class="font-serif text-2xl font-semibold text-stone-900">
+            Recently Viewed Recipes
+          </h2>
+          <p class="text-sm text-stone-600">
+            Your last {recentRecipes.length} viewed published recipes, ordered from newest to oldest.
+          </p>
+        </div>
+      </div>
+
+      {recentRecipes.length > 0 ? (
+        <div class="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {recentRecipes.map(({ recipe }) => (
+            <RecipeCard recipe={recipe} />
+          ))}
+        </div>
+      ) : (
+        <div class="mt-4 rounded-2xl border border-dashed border-stone-300 bg-white/60 p-8 text-center">
+          <p class="text-base font-medium text-stone-800">No recently viewed recipes yet</p>
+          <p class="mt-1 text-sm text-stone-600">
+            As you browse published recipes while signed in, your last 20 viewed recipes will appear here automatically.
+          </p>
+        </div>
+      )}
+    </section>
+  </div>
+</BaseLayout>

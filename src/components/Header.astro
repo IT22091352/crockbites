@@ -1,5 +1,5 @@
 ---
-import { Search, Menu, X } from '@lucide/astro';
+import { Search, Menu, X, User } from '@lucide/astro';
 import Logo from './Logo.astro';
 
 const nav = [
@@ -32,6 +32,15 @@ const isCurrent = (href: string) => (href === '/' ? path === '/' : path.startsWi
         <Search size={18} aria-hidden="true" /><span class="hidden sm:inline">Search</span><span class="sr-only sm:hidden">Search recipes</span>
         <kbd class="hidden rounded border border-line bg-cream px-1.5 text-xs text-ink-soft lg:inline" aria-hidden="true">/</kbd>
       </a>
+      <a
+        href="/login/"
+        data-header-account-link
+        class="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-paper px-3.5 text-[0.95rem] font-semibold text-ink no-underline transition-colors hover:border-forest"
+      >
+        <User size={18} aria-hidden="true" />
+        <span data-header-account-label class="hidden sm:inline">Sign In</span>
+        <span class="sr-only sm:hidden">Account</span>
+      </a>
       <button type="button" id="menu-open" class="inline-flex size-11 items-center justify-center rounded-full border border-line bg-paper md:hidden" aria-expanded="false" aria-controls="mobile-menu" aria-label="Open menu">
         <Menu size={22} aria-hidden="true" />
       </button>
@@ -52,6 +61,7 @@ const isCurrent = (href: string) => (href === '/' ? path === '/' : path.startsWi
         <li><a href={n.href} class="block py-4 font-display text-2xl font-semibold text-cream no-underline" aria-current={isCurrent(n.href) ? 'page' : undefined}>{n.label}</a></li>
       ))}
       <li><a href="/search/" class="block py-4 font-display text-2xl font-semibold text-cream no-underline">Search</a></li>
+      <li><a href="/login/" data-mobile-account-link class="block py-4 font-display text-2xl font-semibold text-cream no-underline">Sign In / Register</a></li>
     </ul>
     <p class="mt-8 font-display text-lg text-cream/80">Good Food. Less Fuss.</p>
   </nav>
@@ -86,4 +96,126 @@ const isCurrent = (href: string) => (href === '/' ? path === '/' : path.startsWi
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   });
   window.matchMedia('(min-width: 768px)').addEventListener('change', (m) => { if (m.matches) close(false); });
+
+  // Progressive Community Auth & Card Favorites Hydration
+  async function initCommunityHeaderAndCards() {
+    try {
+      const meRes = await fetch('/api/auth/me/', { credentials: 'same-origin' });
+      if (!meRes.ok) return;
+      const meData = await meRes.json();
+
+      const headerLink = document.querySelector<HTMLAnchorElement>('[data-header-account-link]');
+      const headerLabel = document.querySelector<HTMLElement>('[data-header-account-label]');
+      const mobileLink = document.querySelector<HTMLAnchorElement>('[data-mobile-account-link]');
+
+      let savedSet = new Set<string>();
+
+      if (meData.authenticated && meData.user) {
+        if (headerLink) {
+          headerLink.href = '/account/';
+          headerLink.classList.add('border-forest/40');
+        }
+        if (headerLabel) {
+          headerLabel.textContent = meData.user.displayName || 'My Kitchen';
+        }
+        if (mobileLink) {
+          mobileLink.href = '/account/';
+          mobileLink.textContent = `My Kitchen (${meData.user.displayName})`;
+        }
+
+        const favBtns = document.querySelectorAll<HTMLButtonElement>('[data-favorite-slug]');
+        if (favBtns.length > 0) {
+          const favRes = await fetch('/api/community/favorites/', { credentials: 'same-origin' });
+          if (favRes.ok) {
+            const favData = await favRes.json();
+            if (Array.isArray(favData.favorites)) {
+              for (const f of favData.favorites) {
+                if (f && f.recipeSlug) savedSet.add(String(f.recipeSlug).toLowerCase());
+              }
+            }
+          }
+        }
+      }
+
+      (window as any).__CROCKBITES_AUTH__ = {
+        authenticated: Boolean(meData.authenticated),
+        user: meData.user || null,
+        csrfToken: meData.csrfToken || '',
+        savedSlugs: Array.from(savedSet),
+      };
+      window.dispatchEvent(new CustomEvent('crockbites:auth-ready', { detail: (window as any).__CROCKBITES_AUTH__ }));
+
+      function applyFavoriteButtonState(btn: HTMLButtonElement, isSaved: boolean) {
+        btn.setAttribute('aria-pressed', isSaved ? 'true' : 'false');
+        btn.setAttribute('aria-label', isSaved ? 'Remove from saved recipes' : 'Save recipe');
+        btn.title = isSaved ? 'Saved to My Kitchen' : 'Save recipe';
+        const icon = btn.querySelector('svg');
+        if (icon) {
+          if (isSaved) {
+            icon.setAttribute('fill', 'currentColor');
+            btn.classList.add('text-terracotta-deep', 'border-terracotta-deep/40');
+          } else {
+            icon.setAttribute('fill', 'none');
+            btn.classList.remove('text-terracotta-deep', 'border-terracotta-deep/40');
+          }
+        }
+      }
+
+      document.querySelectorAll<HTMLButtonElement>('[data-favorite-slug]').forEach((btn) => {
+        const slug = (btn.getAttribute('data-favorite-slug') || '').toLowerCase();
+        if (!slug) return;
+        applyFavoriteButtonState(btn, savedSet.has(slug));
+
+        if (btn.dataset.boundFav === '1') return;
+        btn.dataset.boundFav = '1';
+
+        btn.addEventListener('click', async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+
+          const auth = (window as any).__CROCKBITES_AUTH__;
+          if (!auth || !auth.authenticated) {
+            const returnTo = window.location.pathname + window.location.search;
+            window.location.href = `/login/?returnTo=${encodeURIComponent(returnTo)}`;
+            return;
+          }
+
+          btn.disabled = true;
+          try {
+            const res = await fetch('/api/community/favorites/', {
+              method: 'POST',
+              headers: {
+                'content-type': 'application/json',
+                'x-csrf-token': auth.csrfToken || '',
+              },
+              body: JSON.stringify({
+                recipeSlug: slug,
+                action: 'toggle',
+                csrfToken: auth.csrfToken || '',
+              }),
+            });
+            if (res.status === 401) {
+              window.location.href = `/login/?returnTo=${encodeURIComponent(window.location.pathname)}`;
+              return;
+            }
+            const data = await res.json();
+            if (res.ok) {
+              const nowSaved = Boolean(data.saved);
+              if (nowSaved) savedSet.add(slug);
+              else savedSet.delete(slug);
+              document
+                .querySelectorAll<HTMLButtonElement>(`[data-favorite-slug="${slug}"]`)
+                .forEach((b) => applyFavoriteButtonState(b, nowSaved));
+            }
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
+    } catch {
+      // Progressive enhancement: ignore offline/network errors silently
+    }
+  }
+
+  initCommunityHeaderAndCards();
 </script>

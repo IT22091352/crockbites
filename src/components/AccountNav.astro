@@ -1,0 +1,127 @@
+---
+import type { SafeUser } from '../lib/user-auth';
+
+interface Props {
+  user: SafeUser;
+  activeTab: 'overview' | 'profile' | 'favorites' | 'collections' | 'reviews';
+  csrfToken: string;
+}
+
+const { user, activeTab, csrfToken } = Astro.props;
+
+const AVATAR_PRESET_EMOJIS: Record<string, { icon: string; bg: string; label: string }> = {
+  'preset:crock': { icon: '🍲', bg: 'bg-brand-100 text-brand-900', label: 'Slow Cooker' },
+  'preset:chef': { icon: '👩‍🍳', bg: 'bg-amber-100 text-amber-900', label: 'Home Chef' },
+  'preset:herb': { icon: '🌿', bg: 'bg-emerald-100 text-emerald-900', label: 'Fresh Herbs' },
+  'preset:spice': { icon: '🌶️', bg: 'bg-rose-100 text-rose-900', label: 'Bold Spice' },
+  'preset:whisk': { icon: '🥣', bg: 'bg-sky-100 text-sky-900', label: 'Daily Whisk' },
+  'preset:stew': { icon: '🥘', bg: 'bg-orange-100 text-orange-900', label: 'Cozy Stew' },
+};
+
+const presetAvatar = user.avatarUrl && AVATAR_PRESET_EMOJIS[user.avatarUrl] ? AVATAR_PRESET_EMOJIS[user.avatarUrl] : null;
+const customAvatarUrl =
+  user.avatarUrl && (user.avatarUrl.startsWith('https://res.cloudinary.com/') || user.avatarUrl.startsWith('/avatars/'))
+    ? user.avatarUrl
+    : null;
+const initials = (user.displayName || user.username || 'C').slice(0, 2).toUpperCase();
+
+const tabs = [
+  { id: 'overview', label: 'Overview', href: '/account/' },
+  { id: 'favorites', label: 'Saved Recipes', href: '/account/favorites/' },
+  { id: 'collections', label: 'Collections', href: '/account/collections/' },
+  { id: 'reviews', label: 'My Reviews', href: '/account/reviews/' },
+  { id: 'profile', label: 'Profile & Settings', href: '/account/profile/' },
+] as const;
+---
+
+<div class="mb-8 rounded-2xl border border-stone-200/80 bg-white p-6 shadow-sm">
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div class="flex items-center gap-4">
+      {customAvatarUrl ? (
+        <img
+          src={customAvatarUrl}
+          alt={user.displayName}
+          class="h-14 w-14 rounded-2xl border border-stone-200 object-cover shadow-xs"
+        />
+      ) : presetAvatar ? (
+        <div
+          class={`flex h-14 w-14 items-center justify-center rounded-2xl text-2xl shadow-xs ${presetAvatar.bg}`}
+          title={presetAvatar.label}
+        >
+          {presetAvatar.icon}
+        </div>
+      ) : (
+        <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-800 font-serif text-lg font-bold text-white shadow-xs">
+          {initials}
+        </div>
+      )}
+
+      <div>
+        <div class="flex flex-wrap items-center gap-2">
+          <h1 class="font-serif text-2xl font-semibold text-stone-900">{user.displayName}</h1>
+          <span class="rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-medium text-stone-600">
+            @{user.username}
+          </span>
+          {user.emailVerified ? (
+            <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+              ✓ Verified
+            </span>
+          ) : (
+            <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+              Unverified Email
+            </span>
+          )}
+        </div>
+        {user.bio ? (
+          <p class="mt-1 text-sm text-stone-600 line-clamp-2">{user.bio}</p>
+        ) : (
+          <p class="mt-1 text-xs text-stone-500">
+            Member since {new Date(user.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+          </p>
+        )}
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <a
+        href="/recipes/"
+        class="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-2 text-xs font-semibold text-stone-700 transition hover:bg-stone-100"
+      >
+        Explore Recipes
+      </a>
+      <form method="POST" action="/logout/">
+        <input type="hidden" name="csrfToken" value={csrfToken} />
+        <button
+          type="submit"
+          class="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/70 px-3.5 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+        >
+          Sign Out
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <nav aria-label="Account sections" class="mt-6 border-t border-stone-100 pt-4">
+    <ul class="flex flex-wrap gap-2">
+      {tabs.map((tab) => {
+        const isActive = activeTab === tab.id;
+        return (
+          <li>
+            <a
+              href={tab.href}
+              aria-current={isActive ? 'page' : undefined}
+              class={`inline-flex items-center rounded-xl px-4 py-2 text-sm font-medium transition ${
+                isActive
+                  ? 'bg-brand-800 text-white shadow-xs'
+                  : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
+              }`}
+            >
+              {tab.label}
+            </a>
+          </li>
+        );
+      })}
+    </ul>
+  </nav>
+</div>
+

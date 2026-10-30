@@ -166,6 +166,18 @@ const allergenEl = d.querySelector('[data-recipe-allergens]');
 ok(Boolean(allergenEl), 'Feature 8: Allergen information panel is present on recipe page');
 ok(Boolean(d.getElementById('allergen-heading')), 'Feature 8: Allergen heading is present');
 
+// Phase 3: Community Features on Recipe Page & Header
+const headerAccountLink = d.querySelector('[data-header-account-link]');
+ok(Boolean(headerAccountLink), 'Phase 3: Header account / sign-in link exists');
+const saveBtn = d.querySelector(`[data-favorite-slug="${targetSlug}"]`);
+ok(Boolean(saveBtn), 'Phase 3: Save Recipe button exists on recipe detail page');
+const collectionBtn = d.getElementById('recipe-collection-btn');
+ok(Boolean(collectionBtn), 'Phase 3: Add to Collection button exists on recipe detail page');
+const ratingPill = d.getElementById('recipe-rating-summary-pill');
+ok(Boolean(ratingPill), 'Phase 3: Recipe header star rating summary pill exists');
+const reviewsSection = d.getElementById('recipe-reviews');
+ok(Boolean(reviewsSection), 'Phase 3: Community Ratings & Reviews section (#recipe-reviews) exists');
+
 // ---- Mobile menu ----
 const menu = d.getElementById('mobile-menu');
 const open = d.getElementById('menu-open');

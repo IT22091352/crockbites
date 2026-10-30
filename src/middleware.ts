@@ -103,5 +103,17 @@ export const onRequest = defineMiddleware(async (context, next) => {
     }
   }
 
-  return next();
+  const response = await next();
+  if (
+    normalizedPath.startsWith('/account') ||
+    normalizedPath.startsWith('/login') ||
+    normalizedPath.startsWith('/register') ||
+    normalizedPath.startsWith('/logout') ||
+    normalizedPath.startsWith('/api/auth') ||
+    normalizedPath.startsWith('/api/account') ||
+    normalizedPath.startsWith('/api/community')
+  ) {
+    response.headers.set('cache-control', 'private, no-store, no-cache, must-revalidate');
+  }
+  return response;
 });

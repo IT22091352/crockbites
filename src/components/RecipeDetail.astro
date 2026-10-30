@@ -18,11 +18,14 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  Heart,
+  FolderPlus,
+  MessageSquare,
 } from '@lucide/astro';
 import Breadcrumbs from './Breadcrumbs.astro';
 import RecipeCard from './RecipeCard.astro';
 import AdSlot from './AdSlot.astro';
-import { categoryById, recipeUrl, totalMinutes, absoluteUrl, type Recipe } from '../utils/recipes';
+import { categoryById, recipeSlug, recipeUrl, totalMinutes, absoluteUrl, type Recipe } from '../utils/recipes';
 import { amountText, itemText } from '../utils/quantity';
 import { formatMinutes } from '../utils/time';
 import { rw, isRemoteImage, getOptimizedCloudinaryUrl } from '../utils/images';
@@ -31,6 +34,8 @@ import { extractInstructionDuration } from '../utils/timer';
 interface Props { recipe: Recipe; related: Recipe[] }
 const { recipe, related } = Astro.props;
 const d = recipe.data;
+const slug = recipeSlug(recipe);
+const isDraft = d.reviewStatus === 'draft';
 const cat = categoryById(d.category);
 const total = totalMinutes(recipe);
 const fmtDate = (dt: Date) => dt.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
@@ -104,14 +109,89 @@ const allergenNames: Record<string, string> = {
           </div>
         )}
         <h1 class="mt-4">{d.title}</h1>
+        {!isDraft && (
+          <div class="mt-2.5 flex flex-wrap items-center gap-3 text-sm" data-recipe-header-rating>
+            <a
+              href="#recipe-reviews"
+              id="recipe-rating-summary-pill"
+              class="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-xs font-semibold text-ink no-underline transition hover:border-forest"
+            >
+              <span id="header-stars-display" class="text-terracotta-deep">★★★★★</span>
+              <span id="header-rating-text">Rate this recipe</span>
+            </a>
+          </div>
+        )}
         <p class="mt-4 max-w-xl text-lg text-ink-soft">{d.description}</p>
         <p class="mt-4 text-sm text-ink-soft">
           By {d.author} · Published <time datetime={d.pubDate.toISOString().slice(0, 10)}>{fmtDate(d.pubDate)}</time>
           {d.updatedDate && <> · Updated <time datetime={d.updatedDate.toISOString().slice(0, 10)}>{fmtDate(d.updatedDate)}</time></>}
         </p>
-        <div class="mt-6 flex flex-wrap gap-3">
+        <div class="mt-6 flex flex-wrap items-center gap-3">
           <a class="btn" href="#recipe-card"><ArrowDown size={18} aria-hidden="true" />Jump to recipe</a>
           <button type="button" class="btn btn-outline" data-start-cooking><ChefHat size={18} aria-hidden="true" />Start Cooking</button>
+          {!isDraft && (
+            <>
+              <button
+                type="button"
+                class="btn btn-outline"
+                data-favorite-slug={slug}
+                aria-pressed="false"
+                aria-label="Save recipe"
+              >
+                <Heart size={18} aria-hidden="true" />
+                <span>Save Recipe</span>
+              </button>
+              <div class="relative">
+                <button
+                  type="button"
+                  id="recipe-collection-btn"
+                  class="btn btn-outline"
+                  aria-expanded="false"
+                  aria-controls="recipe-collection-popover"
+                >
+                  <FolderPlus size={18} aria-hidden="true" />
+                  <span>Add to Collection</span>
+                </button>
+                <div
+                  id="recipe-collection-popover"
+                  hidden
+                  class="absolute left-0 top-full z-30 mt-2 w-72 rounded-2xl border border-line bg-paper p-4 shadow-lg"
+                >
+                  <div class="flex items-center justify-between border-b border-line pb-2">
+                    <p class="font-display text-sm font-semibold text-forest">Save to Collection</p>
+                    <button
+                      type="button"
+                      id="close-collection-popover"
+                      class="rounded p-1 text-xs text-ink-soft hover:text-ink"
+                      aria-label="Close collection menu"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div id="collection-popover-list" class="mt-3 max-h-48 space-y-2 overflow-y-auto text-sm">
+                    <p class="text-xs text-ink-soft">Loading your collections...</p>
+                  </div>
+                  <form id="quick-create-collection-form" class="mt-3 flex gap-1.5 border-t border-line pt-3">
+                    <input
+                      type="text"
+                      name="name"
+                      required
+                      minlength="2"
+                      maxlength="80"
+                      placeholder="New collection name..."
+                      class="min-w-0 flex-1 rounded-lg border border-line bg-cream/60 px-2.5 py-1.5 text-xs text-ink focus:border-forest focus:outline-hidden"
+                    />
+                    <button
+                      type="submit"
+                      class="rounded-lg bg-forest px-2.5 py-1.5 text-xs font-semibold text-cream hover:bg-forest/90"
+                    >
+                      Create
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </>
+          )}
           <a class="btn btn-outline" href="#instructions"><ListOrdered size={18} aria-hidden="true" />Jump to instructions</a>
           <button type="button" class="btn btn-outline" data-print><Printer size={18} aria-hidden="true" />Print recipe</button>
         </div>
@@ -475,6 +555,186 @@ const allergenNames: Record<string, string> = {
         </section>
       )}
     </div>
+
+    {!isDraft && (
+      <section
+        id="recipe-reviews"
+        aria-labelledby="reviews-heading"
+        class="mt-16 scroll-mt-24 rounded-3xl border border-line bg-paper p-6 sm:p-8 lg:p-10"
+        data-recipe-community-root
+        data-recipe-slug={slug}
+      >
+        <div class="flex flex-col justify-between gap-4 border-b border-line pb-6 sm:flex-row sm:items-end">
+          <div>
+            <h2 id="reviews-heading" class="flex items-center gap-2.5 text-[1.75rem]">
+              <MessageSquare size={26} class="text-terracotta-deep" aria-hidden="true" />
+              Community Ratings &amp; Reviews
+            </h2>
+            <p class="mt-1 text-sm text-ink-soft">
+              Real feedback from home cooks who tested this recipe in their own slow cookers.
+            </p>
+          </div>
+        </div>
+
+        <div class="mt-8 grid gap-10 lg:grid-cols-[1fr_1.4fr]">
+          <!-- Left Column: Rating Summary & Distribution + Review Form -->
+          <div class="space-y-8">
+            <div class="rounded-2xl border border-line bg-cream/60 p-5">
+              <div class="flex items-center gap-4">
+                <div class="text-center">
+                  <p id="reviews-avg-num" class="font-display text-4xl font-bold text-forest">—</p>
+                  <p id="reviews-avg-stars" class="mt-0.5 text-base tracking-wider text-terracotta-deep">☆☆☆☆☆</p>
+                  <p id="reviews-total-count" class="mt-1 text-xs font-semibold text-ink-soft">No reviews yet</p>
+                </div>
+
+                <div class="flex-1 space-y-1.5 border-l border-line pl-4 text-xs" id="reviews-dist-bars">
+                  {[5, 4, 3, 2, 1].map((star) => (
+                    <div class="flex items-center gap-2" data-dist-row={star}>
+                      <span class="w-10 font-semibold text-ink-soft">{star} ★</span>
+                      <div class="h-2 flex-1 overflow-hidden rounded-full bg-line/60">
+                        <div
+                          class="h-full rounded-full bg-terracotta-deep transition-all duration-300"
+                          data-dist-bar={star}
+                          style="width: 0%"
+                        ></div>
+                      </div>
+                      <span class="w-6 text-right font-mono text-[11px] text-ink-soft" data-dist-count={star}>0</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <!-- Guest Sign-In Prompt -->
+            <div
+              id="recipe-review-guest-prompt"
+              class="rounded-2xl border border-line bg-cream/40 p-5"
+            >
+              <h3 class="font-display text-lg font-semibold text-forest">Tried this recipe?</h3>
+              <p class="mt-1 text-sm text-ink-soft">
+                Sign in to your CrockBites account to leave a star rating and share how it turned out.
+              </p>
+              <div class="mt-4 flex flex-wrap gap-2.5">
+                <a
+                  href={`/login/?returnTo=${encodeURIComponent(recipeUrl(recipe) + '#recipe-reviews')}`}
+                  class="btn btn-primary btn-small"
+                >
+                  Sign In to Review
+                </a>
+                <a
+                  href={`/register/?returnTo=${encodeURIComponent(recipeUrl(recipe) + '#recipe-reviews')}`}
+                  class="btn btn-outline btn-small"
+                >
+                  Create Free Account
+                </a>
+              </div>
+            </div>
+
+            <!-- Authenticated Review Form -->
+            <form
+              id="recipe-review-form"
+              hidden
+              class="space-y-4 rounded-2xl border border-line bg-cream/40 p-5"
+            >
+              <div class="flex items-center justify-between">
+                <h3 id="review-form-heading" class="font-display text-lg font-semibold text-forest">
+                  Leave a Review
+                </h3>
+                <span
+                  id="my-review-status-pill"
+                  hidden
+                  class="rounded-full border border-line bg-paper px-2.5 py-0.5 text-xs font-semibold text-ink-soft"
+                ></span>
+              </div>
+
+              <div
+                id="review-form-banner"
+                hidden
+                role="status"
+                aria-live="polite"
+                class="rounded-xl border px-3.5 py-2.5 text-xs font-medium"
+              ></div>
+
+              <div>
+                <span class="block text-xs font-semibold uppercase tracking-wider text-ink-soft">
+                  Your Rating *
+                </span>
+                <input type="hidden" name="rating" id="review-rating-input" value="5" />
+                <div class="mt-1.5 flex items-center gap-1" role="radiogroup" aria-label="Star rating">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      type="button"
+                      data-star-pick={star}
+                      role="radio"
+                      aria-checked={star === 5 ? 'true' : 'false'}
+                      aria-label={`${star} ${star === 1 ? 'star' : 'stars'}`}
+                      class="rounded-lg p-1 text-2xl leading-none text-terracotta-deep transition hover:scale-110 focus:outline-hidden"
+                    >
+                      ★
+                    </button>
+                  ))}
+                  <span id="review-rating-label" class="ml-2 text-xs font-semibold text-forest">5 out of 5 stars</span>
+                </div>
+              </div>
+
+              <div>
+                <label for="review-title-input" class="block text-xs font-semibold uppercase tracking-wider text-ink-soft">
+                  Review Headline *
+                </label>
+                <input
+                  id="review-title-input"
+                  name="title"
+                  type="text"
+                  required
+                  minlength="3"
+                  maxlength="120"
+                  placeholder="e.g., Tender meat and super easy prep!"
+                  class="mt-1 w-full rounded-xl border border-line bg-paper px-3.5 py-2 text-sm text-ink focus:border-forest focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label for="review-comment-input" class="block text-xs font-semibold uppercase tracking-wider text-ink-soft">
+                  Your Review *
+                </label>
+                <textarea
+                  id="review-comment-input"
+                  name="comment"
+                  rows="4"
+                  required
+                  minlength="10"
+                  maxlength="2000"
+                  placeholder="How did it turn out? Did you make any swaps or adjust the cooking time?"
+                  class="mt-1 w-full rounded-xl border border-line bg-paper px-3.5 py-2 text-sm text-ink focus:border-forest focus:outline-hidden"
+                ></textarea>
+              </div>
+
+              <p class="text-xs text-ink-soft">
+                Reviews are moderated before appearing publicly to keep CrockBites helpful and spam-free.
+              </p>
+
+              <button
+                type="submit"
+                id="review-submit-btn"
+                class="btn btn-primary w-full justify-center"
+              >
+                Submit Review
+              </button>
+            </form>
+          </div>
+
+          <!-- Right Column: Approved Reviews List -->
+          <div>
+            <h3 class="font-display text-xl font-semibold text-forest">Approved Community Reviews</h3>
+            <div id="approved-reviews-list" class="mt-4 space-y-4">
+              <div class="rounded-2xl border border-dashed border-line p-8 text-center text-sm text-ink-soft">
+                No approved reviews yet. Be the first to cook and review this recipe!
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    )}
 
     <section aria-labelledby="related-heading" class="mt-20">
       <h2 id="related-heading">More recipes to try</h2>
@@ -1017,4 +1277,371 @@ const allergenNames: Record<string, string> = {
       }
     }
   });
+
+  // ============================================================================
+  // Phase 3: Community Reviews, Collections Popover & Recently Viewed Tracking
+  // ============================================================================
+  const communityRoot = document.querySelector<HTMLElement>('[data-recipe-community-root]');
+  if (communityRoot) {
+    const recipeSlug = communityRoot.getAttribute('data-recipe-slug') || '';
+
+    const headerStarsEl = document.getElementById('header-stars-display');
+    const headerRatingTextEl = document.getElementById('header-rating-text');
+    const avgNumEl = document.getElementById('reviews-avg-num');
+    const avgStarsEl = document.getElementById('reviews-avg-stars');
+    const totalCountEl = document.getElementById('reviews-total-count');
+    const guestPromptEl = document.getElementById('recipe-review-guest-prompt');
+    const reviewFormEl = document.getElementById('recipe-review-form') as HTMLFormElement | null;
+    const reviewFormHeading = document.getElementById('review-form-heading');
+    const myReviewStatusPill = document.getElementById('my-review-status-pill');
+    const reviewBanner = document.getElementById('review-form-banner');
+    const ratingInput = document.getElementById('review-rating-input') as HTMLInputElement | null;
+    const ratingLabel = document.getElementById('review-rating-label');
+    const titleInput = document.getElementById('review-title-input') as HTMLInputElement | null;
+    const commentInput = document.getElementById('review-comment-input') as HTMLTextAreaElement | null;
+    const submitBtn = document.getElementById('review-submit-btn') as HTMLButtonElement | null;
+    const approvedListEl = document.getElementById('approved-reviews-list');
+
+    function starsString(rating: number) {
+      const rounded = Math.max(0, Math.min(5, Math.round(rating)));
+      return '★'.repeat(rounded) + '☆'.repeat(5 - rounded);
+    }
+
+    function setStarPicker(val: number) {
+      const safe = Math.max(1, Math.min(5, Math.round(val)));
+      if (ratingInput) ratingInput.value = String(safe);
+      if (ratingLabel) ratingLabel.textContent = `${safe} out of 5 stars`;
+      document.querySelectorAll<HTMLButtonElement>('[data-star-pick]').forEach((btn) => {
+        const bStar = Number(btn.getAttribute('data-star-pick') || '0');
+        btn.textContent = bStar <= safe ? '★' : '☆';
+        btn.setAttribute('aria-checked', bStar === safe ? 'true' : 'false');
+      });
+    }
+
+    document.querySelectorAll<HTMLButtonElement>('[data-star-pick]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const star = Number(btn.getAttribute('data-star-pick') || '5');
+        setStarPicker(star);
+      });
+    });
+
+    async function loadRecipeReviews() {
+      if (!recipeSlug) return;
+      try {
+        const res = await fetch(`/api/community/reviews/?recipeSlug=${encodeURIComponent(recipeSlug)}`, {
+          credentials: 'same-origin',
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const total = Number(data.totalApproved || 0);
+        const avg = Number(data.averageRating || 0);
+
+        if (total > 0) {
+          if (headerStarsEl) headerStarsEl.textContent = starsString(avg);
+          if (headerRatingTextEl) {
+            headerRatingTextEl.textContent = `${avg.toFixed(1)} (${total} ${total === 1 ? 'review' : 'reviews'})`;
+          }
+          if (avgNumEl) avgNumEl.textContent = avg.toFixed(1);
+          if (avgStarsEl) avgStarsEl.textContent = starsString(avg);
+          if (totalCountEl) totalCountEl.textContent = `Based on ${total} approved ${total === 1 ? 'review' : 'reviews'}`;
+        } else {
+          if (headerStarsEl) headerStarsEl.textContent = '☆☆☆☆☆';
+          if (headerRatingTextEl) headerRatingTextEl.textContent = 'Be the first to review';
+          if (avgNumEl) avgNumEl.textContent = '—';
+          if (avgStarsEl) avgStarsEl.textContent = '☆☆☆☆☆';
+          if (totalCountEl) totalCountEl.textContent = 'No approved reviews yet';
+        }
+
+        const dist = data.distribution || { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+        [5, 4, 3, 2, 1].forEach((star) => {
+          const cnt = Number(dist[star] || 0);
+          const pct = total > 0 ? Math.round((cnt / total) * 100) : 0;
+          const bar = document.querySelector<HTMLElement>(`[data-dist-bar="${star}"]`);
+          const countEl = document.querySelector<HTMLElement>(`[data-dist-count="${star}"]`);
+          if (bar) bar.style.width = `${pct}%`;
+          if (countEl) countEl.textContent = String(cnt);
+        });
+
+        // Pre-populate user's own review if present
+        if (data.myReview && reviewFormEl) {
+          setStarPicker(Number(data.myReview.rating || 5));
+          if (titleInput) titleInput.value = data.myReview.title || '';
+          if (commentInput) commentInput.value = data.myReview.comment || '';
+          if (reviewFormHeading) reviewFormHeading.textContent = 'Update Your Review';
+          if (submitBtn) submitBtn.textContent = 'Update Review';
+          if (myReviewStatusPill) {
+            myReviewStatusPill.hidden = false;
+            myReviewStatusPill.textContent =
+              data.myReview.status === 'approved'
+                ? '✓ Approved'
+                : data.myReview.status === 'rejected'
+                  ? 'Not Approved'
+                  : '⏳ Pending Moderation';
+          }
+        }
+
+        // Render approved reviews list safely using DOM nodes
+        if (approvedListEl) {
+          const list = Array.isArray(data.reviews) ? data.reviews : [];
+          if (list.length === 0) {
+            approvedListEl.innerHTML =
+              '<div class="rounded-2xl border border-dashed border-line p-8 text-center text-sm text-ink-soft">No approved reviews yet. Be the first to cook and review this recipe!</div>';
+          } else {
+            approvedListEl.innerHTML = '';
+            list.forEach((rev: any) => {
+              const card = document.createElement('article');
+              card.className = 'rounded-2xl border border-line bg-cream/30 p-5';
+
+              const top = document.createElement('div');
+              top.className = 'flex flex-wrap items-center justify-between gap-2';
+
+              const authorWrap = document.createElement('div');
+              const authorStrong = document.createElement('strong');
+              authorStrong.className = 'text-sm font-semibold text-forest';
+              authorStrong.textContent = rev.authorDisplayName || 'Community Cook';
+              const dateSpan = document.createElement('span');
+              dateSpan.className = 'ml-2 text-xs text-ink-soft';
+              dateSpan.textContent = new Date(rev.createdAt).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              });
+              authorWrap.appendChild(authorStrong);
+              authorWrap.appendChild(dateSpan);
+
+              const starSpan = document.createElement('span');
+              starSpan.className = 'text-sm font-bold tracking-wider text-terracotta-deep';
+              starSpan.textContent = starsString(Number(rev.rating || 5));
+
+              top.appendChild(authorWrap);
+              top.appendChild(starSpan);
+
+              const h4 = document.createElement('h4');
+              h4.className = 'mt-2 font-display text-base font-semibold text-ink';
+              h4.innerHTML = rev.title || '';
+
+              const p = document.createElement('p');
+              p.className = 'mt-1 whitespace-pre-line text-sm text-ink-soft';
+              p.innerHTML = rev.comment || '';
+
+              card.appendChild(top);
+              card.appendChild(h4);
+              card.appendChild(p);
+              approvedListEl.appendChild(card);
+            });
+          }
+        }
+      } catch {
+        // Ignore network errors silently
+      }
+    }
+
+    function syncAuthUI(auth: any) {
+      if (auth && auth.authenticated) {
+        if (guestPromptEl) guestPromptEl.hidden = true;
+        if (reviewFormEl) reviewFormEl.hidden = false;
+
+        // Record recently viewed recipe for signed-in user
+        fetch('/api/community/recently-viewed/', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-csrf-token': auth.csrfToken || '',
+          },
+          body: JSON.stringify({ recipeSlug, csrfToken: auth.csrfToken || '' }),
+        }).catch(() => {});
+      } else {
+        if (guestPromptEl) guestPromptEl.hidden = false;
+        if (reviewFormEl) reviewFormEl.hidden = true;
+      }
+    }
+
+    if ((window as any).__CROCKBITES_AUTH__) {
+      syncAuthUI((window as any).__CROCKBITES_AUTH__);
+    }
+    window.addEventListener('crockbites:auth-ready', (e: any) => {
+      syncAuthUI(e.detail);
+    });
+
+    loadRecipeReviews();
+
+    if (reviewFormEl) {
+      reviewFormEl.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const auth = (window as any).__CROCKBITES_AUTH__;
+        if (!auth || !auth.authenticated) {
+          window.location.href = `/login/?returnTo=${encodeURIComponent(window.location.pathname + '#recipe-reviews')}`;
+          return;
+        }
+
+        if (submitBtn) submitBtn.disabled = true;
+        try {
+          const res = await fetch('/api/community/reviews/', {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              'x-csrf-token': auth.csrfToken || '',
+            },
+            body: JSON.stringify({
+              recipeSlug,
+              rating: Number(ratingInput?.value || 5),
+              title: titleInput?.value || '',
+              comment: commentInput?.value || '',
+              csrfToken: auth.csrfToken || '',
+            }),
+          });
+          const data = await res.json();
+          if (reviewBanner) {
+            reviewBanner.hidden = false;
+            reviewBanner.textContent = data.message || data.error || 'Review submitted.';
+            reviewBanner.className = res.ok
+              ? 'rounded-xl border border-forest/30 bg-forest/10 px-3.5 py-2.5 text-xs font-semibold text-forest'
+              : 'rounded-xl border border-terracotta-deep/40 bg-terracotta/10 px-3.5 py-2.5 text-xs font-semibold text-terracotta-deep';
+          }
+          if (res.ok) {
+            await loadRecipeReviews();
+          }
+        } finally {
+          if (submitBtn) submitBtn.disabled = false;
+        }
+      });
+    }
+
+    // Add to Collection Popover
+    const colBtn = document.getElementById('recipe-collection-btn');
+    const colPopover = document.getElementById('recipe-collection-popover');
+    const closeColBtn = document.getElementById('close-collection-popover');
+    const colListEl = document.getElementById('collection-popover-list');
+    const quickColForm = document.getElementById('quick-create-collection-form') as HTMLFormElement | null;
+
+    async function refreshCollectionsPopover() {
+      const auth = (window as any).__CROCKBITES_AUTH__;
+      if (!auth || !auth.authenticated || !colListEl) return;
+
+      colListEl.innerHTML = '<p class="text-xs text-ink-soft">Loading collections...</p>';
+      try {
+        const res = await fetch(`/api/community/collections/?recipeSlug=${encodeURIComponent(recipeSlug)}`, {
+          credentials: 'same-origin',
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const cols = Array.isArray(data.collections) ? data.collections : [];
+
+        if (cols.length === 0) {
+          colListEl.innerHTML = '<p class="text-xs text-ink-soft">No collections yet. Create one below!</p>';
+          return;
+        }
+
+        colListEl.innerHTML = '';
+        cols.forEach((c: any) => {
+          const label = document.createElement('label');
+          label.className = 'flex items-center justify-between gap-2 rounded-lg p-1.5 hover:bg-cream cursor-pointer text-xs';
+
+          const left = document.createElement('span');
+          left.className = 'flex items-center gap-2 font-medium text-ink';
+
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.checked = Boolean(c.containsTargetRecipe);
+          cb.className = 'h-4 w-4 rounded border-line text-forest';
+
+          cb.addEventListener('change', async () => {
+            cb.disabled = true;
+            try {
+              await fetch(`/api/community/collections/${encodeURIComponent(c.id)}/`, {
+                method: 'PATCH',
+                headers: {
+                  'content-type': 'application/json',
+                  'x-csrf-token': auth.csrfToken || '',
+                },
+                body: JSON.stringify({
+                  action: cb.checked ? 'addRecipe' : 'removeRecipe',
+                  recipeSlug,
+                  csrfToken: auth.csrfToken || '',
+                }),
+              });
+            } finally {
+              cb.disabled = false;
+            }
+          });
+
+          const nameSpan = document.createElement('span');
+          nameSpan.innerHTML = c.name;
+
+          left.appendChild(cb);
+          left.appendChild(nameSpan);
+
+          const countBadge = document.createElement('span');
+          countBadge.className = 'text-[11px] text-ink-soft';
+          countBadge.textContent = String(c.recipeCount || 0);
+
+          label.appendChild(left);
+          label.appendChild(countBadge);
+          colListEl.appendChild(label);
+        });
+      } catch {
+        colListEl.innerHTML = '<p class="text-xs text-terracotta-deep">Could not load collections.</p>';
+      }
+    }
+
+    colBtn?.addEventListener('click', () => {
+      const auth = (window as any).__CROCKBITES_AUTH__;
+      if (!auth || !auth.authenticated) {
+        window.location.href = `/login/?returnTo=${encodeURIComponent(window.location.pathname)}`;
+        return;
+      }
+      if (!colPopover) return;
+      const isHidden = colPopover.hidden;
+      colPopover.hidden = !isHidden;
+      colBtn.setAttribute('aria-expanded', String(!isHidden));
+      if (isHidden) {
+        refreshCollectionsPopover();
+      }
+    });
+
+    closeColBtn?.addEventListener('click', () => {
+      if (colPopover) {
+        colPopover.hidden = true;
+        colBtn?.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    quickColForm?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const auth = (window as any).__CROCKBITES_AUTH__;
+      if (!auth || !auth.authenticated) return;
+      const formData = new FormData(quickColForm);
+      const name = String(formData.get('name') || '').trim();
+      if (!name) return;
+
+      const res = await fetch('/api/community/collections/', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-csrf-token': auth.csrfToken || '',
+        },
+        body: JSON.stringify({ name, isPublic: false, csrfToken: auth.csrfToken || '' }),
+      });
+      if (res.ok) {
+        const created = await res.json();
+        if (created.collection?.id) {
+          await fetch(`/api/community/collections/${encodeURIComponent(created.collection.id)}/`, {
+            method: 'PATCH',
+            headers: {
+              'content-type': 'application/json',
+              'x-csrf-token': auth.csrfToken || '',
+            },
+            body: JSON.stringify({
+              action: 'addRecipe',
+              recipeSlug,
+              csrfToken: auth.csrfToken || '',
+            }),
+          });
+        }
+        quickColForm.reset();
+        await refreshCollectionsPopover();
+      }
+    });
+  }
 </script>

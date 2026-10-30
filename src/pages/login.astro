@@ -1,0 +1,152 @@
+---
+export const prerender = false;
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { resolveUserSession } from '../lib/community-server';
+import { sanitizeReturnUrl } from '../lib/user-auth';
+
+const { user, csrfToken } = await resolveUserSession(Astro.cookies, Astro.locals, Astro.url.protocol);
+const returnTo = sanitizeReturnUrl(Astro.url.searchParams.get('returnTo'), '/account/');
+
+if (user) {
+  return Astro.redirect(returnTo);
+}
+---
+<BaseLayout title="Sign In" path="/login/" description="Sign in to your CrockBites community account to access saved recipes, collections, and reviews." noindex>
+  <div class="container-page py-12">
+    <div class="mx-auto max-w-md rounded-3xl border border-line bg-paper p-6 shadow-[var(--shadow-card)] sm:p-10">
+      <p class="text-xs font-bold uppercase tracking-widest text-terracotta-deep">Welcome Back</p>
+      <h1 class="mt-2 text-3xl text-forest">Sign in to CrockBites</h1>
+      <p class="mt-2 text-sm text-ink-soft">
+        Access your saved slow cooker favorites, custom collections, and recipe reviews.
+      </p>
+
+      <form id="login-form" class="mt-6 space-y-4" novalidate>
+        <input type="hidden" name="csrfToken" value={csrfToken} />
+        <input type="hidden" name="returnTo" value={returnTo} />
+
+        <div>
+          <label for="login-identifier" class="mb-1 block text-sm font-semibold text-forest">Email or Username</label>
+          <input
+            id="login-identifier"
+            name="identifier"
+            type="text"
+            required
+            autocomplete="username"
+            placeholder="you@example.com or username"
+            class="field w-full"
+          />
+        </div>
+
+        <div>
+          <div class="mb-1 flex items-center justify-between">
+            <label for="login-password" class="text-sm font-semibold text-forest">Password</label>
+            <button type="button" id="toggle-login-pw" class="link-text text-xs font-semibold">Show password</button>
+          </div>
+          <input
+            id="login-password"
+            name="password"
+            type="password"
+            required
+            autocomplete="current-password"
+            placeholder="Your password"
+            class="field w-full"
+          />
+        </div>
+
+        <div class="flex items-center justify-between pt-1">
+          <label class="flex items-center gap-2 text-sm text-ink-soft cursor-pointer">
+            <input id="login-remember" name="rememberMe" type="checkbox" class="size-4 accent-forest" />
+            <span>Keep me signed in for 30 days</span>
+          </label>
+        </div>
+
+        <div id="login-feedback" class="hidden rounded-xl border p-3.5 text-sm font-medium" role="alert" aria-live="polite"></div>
+
+        <button type="submit" id="login-submit" class="btn w-full justify-center py-3 text-base">
+          Sign In
+        </button>
+      </form>
+
+      <p class="mt-6 border-t border-line pt-5 text-center text-sm text-ink-soft">
+        New to CrockBites?{' '}
+        <a href={`/register/?returnTo=${encodeURIComponent(returnTo)}`} class="link-text font-semibold text-forest">
+          Create a free account
+        </a>
+      </p>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  const form = document.getElementById('login-form') as HTMLFormElement;
+  const pwInput = document.getElementById('login-password') as HTMLInputElement;
+  const toggleBtn = document.getElementById('toggle-login-pw') as HTMLButtonElement;
+  const feedback = document.getElementById('login-feedback')!;
+  const submitBtn = document.getElementById('login-submit') as HTMLButtonElement;
+
+  toggleBtn?.addEventListener('click', () => {
+    const isHidden = pwInput.type === 'password';
+    pwInput.type = isHidden ? 'text' : 'password';
+    toggleBtn.textContent = isHidden ? 'Hide password' : 'Show password';
+  });
+
+  function showMessage(msg: string, isError = true) {
+    feedback.textContent = msg;
+    feedback.className = isError
+      ? 'rounded-xl border border-red-300 bg-red-50 p-3.5 text-sm font-medium text-red-800'
+      : 'rounded-xl border border-emerald-300 bg-emerald-50 p-3.5 text-sm font-medium text-emerald-900';
+  }
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(form);
+    const identifier = String(formData.get('identifier') ?? '').trim();
+    const password = String(formData.get('password') ?? '');
+    const rememberMe = (document.getElementById('login-remember') as HTMLInputElement)?.checked ?? false;
+    const csrfToken = String(formData.get('csrfToken') ?? '');
+    const returnTo = String(formData.get('returnTo') ?? '/account/');
+
+    if (!identifier || !password) {
+      showMessage('Please enter both your email/username and password.');
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Signing in...';
+    feedback.className = 'hidden';
+
+    try {
+      const res = await fetch('/api/auth/login/', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-csrf-token': csrfToken,
+        },
+        body: JSON.stringify({
+          identifier,
+          password,
+          rememberMe,
+          returnTo,
+          csrfToken,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        showMessage(data.error || 'Sign-in failed.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign In';
+        return;
+      }
+
+      showMessage('Signed in! Redirecting...', false);
+      window.location.href = data.redirectTo || '/account/';
+    } catch {
+      showMessage('Network error. Please try again.');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Sign In';
+    }
+  });
+</script>
+
