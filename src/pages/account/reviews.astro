@@ -37,7 +37,7 @@ const [{ bySlug }, reviews] = await Promise.all([
           My Recipe Reviews ({reviews.length})
         </h2>
         <p class="mt-1 text-sm text-stone-600">
-          New or edited reviews are placed in <strong>Pending Moderation</strong> before appearing publicly on recipe pages.
+          Your reviews are published immediately on recipe pages. You can edit or delete your reviews below at any time.
         </p>
       </div>
     </div>
@@ -47,18 +47,8 @@ const [{ bySlug }, reviews] = await Promise.all([
         {reviews.map((rev) => {
           const recipe = bySlug.get(rev.recipeSlug);
           const recipeTitle = recipe ? recipe.data.title : rev.recipeSlug;
-          const statusStyles =
-            rev.status === 'approved'
-              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-              : rev.status === 'rejected'
-                ? 'bg-rose-50 text-rose-800 border-rose-200'
-                : 'bg-amber-50 text-amber-800 border-amber-200';
-          const statusLabel =
-            rev.status === 'approved'
-              ? 'Approved & Public'
-              : rev.status === 'rejected'
-                ? 'Not Approved'
-                : 'Pending Moderation';
+          const statusStyles = 'bg-emerald-50 text-emerald-800 border-emerald-200';
+          const statusLabel = 'Published';
 
           return (
             <article
@@ -69,7 +59,7 @@ const [{ bySlug }, reviews] = await Promise.all([
                 <div>
                   <div class="flex flex-wrap items-center gap-2.5">
                     <a
-                      href={`/recipes/${rev.recipeSlug}/#recipe-reviews`}
+                      href={`/recipe/${rev.recipeSlug}/#recipe-reviews`}
                       class="font-serif text-lg font-semibold text-stone-900 hover:text-brand-800 hover:underline"
                     >
                       {recipeTitle}
@@ -164,13 +154,13 @@ const [{ bySlug }, reviews] = await Promise.all([
 
                 <div class="flex items-center justify-between">
                   <p class="text-xs text-stone-500">
-                    Saving changes will resubmit this review for moderation.
+                    Changes update your public review immediately.
                   </p>
                   <button
                     type="submit"
                     class="rounded-xl bg-brand-800 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-900"
                   >
-                    Save & Resubmit
+                    Save Changes
                   </button>
                 </div>
               </form>

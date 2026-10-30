@@ -483,7 +483,7 @@ function mapRowToReview(row: Record<string, unknown>): ReviewItem {
     rating: Number(row.rating),
     title: String(row.title),
     comment: String(row.comment),
-    status: (row.status as ReviewItem['status']) || 'pending',
+    status: (row.status as ReviewItem['status']) || 'approved',
     moderatedBy: row.moderated_by ? String(row.moderated_by) : null,
     moderatedAt: row.moderated_at ? String(row.moderated_at) : null,
     createdAt: String(row.created_at),
@@ -491,9 +491,22 @@ function mapRowToReview(row: Record<string, unknown>): ReviewItem {
   };
 }
 
-export async function submitOrUpdateReview(
+/**
+ * Non-destructively converts any existing 'pending' reviews to 'approved'
+ * while preserving review content, author information, ratings, and timestamps.
+ */
+export async function migratePendingReviewsToApproved(
   db: D1Database,
-  user: SafeUser,
+): Promise<{ migratedCount: number }> {
+  const res = await db
+    .prepare(`UPDATE reviews SET status = 'approved' WHERE status = 'pending'`)
+    .run();
+  return { migratedCount: Number(res.meta?.changes ?? 0) };
+}
+
+export async function submitReview(
+  db: D1Database,
+  user: SafeUser | null | undefined,
   input: {
     recipeSlug: unknown;
     rating: unknown;
@@ -501,7 +514,18 @@ export async function submitOrUpdateReview(
     comment: unknown;
   },
   publishedSlugs?: Set<string>,
-): Promise<{ ok: true; review: ReviewItem; isUpdate: boolean } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; review: ReviewItem; isUpdate: false }
+  | { ok: false; error: string; duplicate?: boolean; unauthorized?: boolean }
+> {
+  if (!user || !user.id) {
+    return {
+      ok: false,
+      error: 'Authentication required. Please sign in to submit a review.',
+      unauthorized: true,
+    };
+  }
+
   const sCheck = validatePublishedSlug(input.recipeSlug, publishedSlugs);
   if (!sCheck.valid) return { ok: false, error: sCheck.error! };
 
@@ -524,42 +548,48 @@ export async function submitOrUpdateReview(
   const safeComment = sanitizePlainText(rawComment, 2000);
   const nowIso = new Date().toISOString();
 
-  // Check if user already has a review for this recipe (one review per user per recipe)
+  // Enforce one review per user per recipe and reject duplicate review submissions
   const existing = await db
     .prepare(`SELECT id FROM reviews WHERE user_id = ? AND recipe_slug = ? LIMIT 1`)
     .bind(user.id, sCheck.slug)
     .first<{ id: string }>();
 
   if (existing) {
-    // Update existing review and reset status to 'pending' for moderation
-    await db
-      .prepare(
-        `UPDATE reviews
-         SET rating = ?, title = ?, comment = ?, author_display_name = ?, author_username = ?,
-             status = 'pending', moderated_by = NULL, moderated_at = NULL, updated_at = ?
-         WHERE id = ? AND user_id = ?`,
-      )
-      .bind(ratingNum, safeTitle, safeComment, user.displayName, user.username, nowIso, existing.id, user.id)
-      .run();
-
-    const updated = await db.prepare(`SELECT * FROM reviews WHERE id = ?`).bind(existing.id).first<Record<string, unknown>>();
-    return { ok: true, review: mapRowToReview(updated!), isUpdate: true };
+    return {
+      ok: false,
+      error: 'You have already submitted a review for this recipe.',
+      duplicate: true,
+    };
   }
 
   const id = generateId();
-  await db
-    .prepare(
-      `INSERT INTO reviews (
-        id, user_id, author_display_name, author_username, recipe_slug,
-        rating, title, comment, status, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
-    )
-    .bind(id, user.id, user.displayName, user.username, sCheck.slug, ratingNum, safeTitle, safeComment, nowIso, nowIso)
-    .run();
+  try {
+    await db
+      .prepare(
+        `INSERT INTO reviews (
+          id, user_id, author_display_name, author_username, recipe_slug,
+          rating, title, comment, status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'approved', ?, ?)`,
+      )
+      .bind(id, user.id, user.displayName, user.username, sCheck.slug, ratingNum, safeTitle, safeComment, nowIso, nowIso)
+      .run();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/unique/i.test(msg)) {
+      return {
+        ok: false,
+        error: 'You have already submitted a review for this recipe.',
+        duplicate: true,
+      };
+    }
+    throw err;
+  }
 
   const created = await db.prepare(`SELECT * FROM reviews WHERE id = ?`).bind(id).first<Record<string, unknown>>();
   return { ok: true, review: mapRowToReview(created!), isUpdate: false };
 }
+
+export const submitOrUpdateReview = submitReview;
 
 export async function updateOwnReviewById(
   db: D1Database,
@@ -599,7 +629,7 @@ export async function updateOwnReviewById(
     .prepare(
       `UPDATE reviews
        SET rating = ?, title = ?, comment = ?, author_display_name = ?, author_username = ?,
-           status = 'pending', moderated_by = NULL, moderated_at = NULL, updated_at = ?
+           status = 'approved', updated_at = ?
        WHERE id = ? AND user_id = ?`,
     )
     .bind(ratingNum, safeTitle, safeComment, user.displayName, user.username, nowIso, reviewId, user.id)
@@ -639,7 +669,7 @@ export async function getPublicRecipeReviews(
   const safePageSize = Math.max(1, Math.min(50, Math.floor(Number(pageSize) || 10)));
   const offset = (safePage - 1) * safePageSize;
 
-  // Aggregate strictly over approved reviews ONLY
+  // Aggregate strictly over approved reviews
   const distRes = await db
     .prepare(
       `SELECT rating, COUNT(*) AS cnt
@@ -726,21 +756,21 @@ export async function listUserReviews(
 }
 
 // ============================================================================
-// 5. ADMIN MODERATION
+// 5. ADMIN REVIEW MANAGEMENT (SEARCH, FILTER & DELETE)
 // ============================================================================
 
-export async function listModerationReviews(
+export async function listAdminReviews(
   db: D1Database,
   filters: {
-    status?: string;
     recipeSlug?: string;
+    rating?: number;
     q?: string;
     page?: number;
     pageSize?: number;
   } = {},
 ): Promise<{
   reviews: ReviewItem[];
-  counts: { pending: number; approved: number; rejected: number; total: number };
+  counts: { approved: number; total: number };
   page: number;
   totalPages: number;
 }> {
@@ -748,30 +778,31 @@ export async function listModerationReviews(
     .prepare(`SELECT status, COUNT(*) AS cnt FROM reviews GROUP BY status`)
     .all<{ status: string; cnt: number }>();
 
-  const counts = { pending: 0, approved: 0, rejected: 0, total: 0 };
+  const counts = { approved: 0, total: 0 };
   for (const row of countRes.results ?? []) {
     const c = Number(row.cnt);
     counts.total += c;
-    if (row.status === 'pending') counts.pending = c;
-    else if (row.status === 'approved') counts.approved = c;
-    else if (row.status === 'rejected') counts.rejected = c;
+    if (row.status === 'approved') counts.approved = c;
   }
 
   const conditions: string[] = [];
   const params: unknown[] = [];
 
-  if (filters.status && ['pending', 'approved', 'rejected'].includes(filters.status)) {
-    conditions.push(`status = ?`);
-    params.push(filters.status);
-  }
   if (filters.recipeSlug && filters.recipeSlug.trim()) {
     conditions.push(`recipe_slug = ?`);
     params.push(filters.recipeSlug.trim().toLowerCase());
   }
+  const ratingFilter = Number(filters.rating);
+  if (Number.isInteger(ratingFilter) && ratingFilter >= 1 && ratingFilter <= 5) {
+    conditions.push(`rating = ?`);
+    params.push(ratingFilter);
+  }
   if (filters.q && filters.q.trim()) {
     const like = `%${filters.q.trim().toLowerCase()}%`;
-    conditions.push(`(LOWER(title) LIKE ? OR LOWER(comment) LIKE ? OR LOWER(author_display_name) LIKE ? OR LOWER(recipe_slug) LIKE ?)`);
-    params.push(like, like, like, like);
+    conditions.push(
+      `(LOWER(title) LIKE ? OR LOWER(comment) LIKE ? OR LOWER(author_display_name) LIKE ? OR LOWER(author_username) LIKE ? OR LOWER(recipe_slug) LIKE ?)`,
+    );
+    params.push(like, like, like, like, like);
   }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -788,7 +819,7 @@ export async function listModerationReviews(
   const rowsRes = await db
     .prepare(
       `SELECT * FROM reviews ${whereClause}
-       ORDER BY CASE WHEN status = 'pending' THEN 0 ELSE 1 END, created_at DESC
+       ORDER BY created_at DESC
        LIMIT ? OFFSET ?`,
     )
     .bind(...params, safePageSize, offset)
@@ -802,34 +833,7 @@ export async function listModerationReviews(
   };
 }
 
-export async function moderateReview(
-  db: D1Database,
-  reviewId: string,
-  newStatus: 'approved' | 'rejected',
-  moderatorUsername = 'admin',
-): Promise<{ ok: true; review: ReviewItem } | { ok: false; error: string }> {
-  if (newStatus !== 'approved' && newStatus !== 'rejected') {
-    return { ok: false, error: 'Invalid moderation status.' };
-  }
-
-  const existing = await db.prepare(`SELECT id FROM reviews WHERE id = ? LIMIT 1`).bind(reviewId).first();
-  if (!existing) {
-    return { ok: false, error: 'Review not found.' };
-  }
-
-  const nowIso = new Date().toISOString();
-  await db
-    .prepare(
-      `UPDATE reviews
-       SET status = ?, moderated_by = ?, moderated_at = ?, updated_at = ?
-       WHERE id = ?`,
-    )
-    .bind(newStatus, moderatorUsername, nowIso, nowIso, reviewId)
-    .run();
-
-  const updated = await db.prepare(`SELECT * FROM reviews WHERE id = ?`).bind(reviewId).first<Record<string, unknown>>();
-  return { ok: true, review: mapRowToReview(updated!) };
-}
+export const listModerationReviews = listAdminReviews;
 
 export async function adminDeleteReview(
   db: D1Database,

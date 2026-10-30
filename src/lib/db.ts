@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS reviews (
   rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
   title TEXT NOT NULL,
   comment TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  status TEXT NOT NULL DEFAULT 'approved' CHECK (status IN ('pending', 'approved', 'rejected')),
   moderated_by TEXT,
   moderated_at TEXT,
   created_at TEXT NOT NULL,
@@ -368,6 +368,8 @@ export async function ensureCommunitySchema(db: D1Database): Promise<void> {
     if (typeof db.batch === 'function' && ddlStatements.length > 0) {
       try {
         await db.batch(ddlStatements.map((stmt) => db.prepare(stmt)));
+        // Non-destructively convert any existing pending reviews to approved
+        await db.prepare(`UPDATE reviews SET status = 'approved' WHERE status = 'pending'`).run();
         globalThis.__CROCKBITES_SCHEMA_INITIALIZED__.add(db as unknown as object);
         return;
       } catch {
@@ -385,6 +387,11 @@ export async function ensureCommunitySchema(db: D1Database): Promise<void> {
           error: stmtErr instanceof Error ? stmtErr.message : String(stmtErr),
         });
       }
+    }
+    try {
+      await db.prepare(`UPDATE reviews SET status = 'approved' WHERE status = 'pending'`).run();
+    } catch {
+      // Ignore if table not ready
     }
     globalThis.__CROCKBITES_SCHEMA_INITIALIZED__.add(db as unknown as object);
   } catch (err) {

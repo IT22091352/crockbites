@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { getPublicRecipeReviews, submitOrUpdateReview } from '../../../../lib/community';
+import { getPublicRecipeReviews, submitReview } from '../../../../lib/community';
 import {
   getPublishedRecipesMap,
   jsonResponse,
@@ -58,7 +58,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
   }
 
   const { slugSet } = await getPublishedRecipesMap();
-  const res = await submitOrUpdateReview(
+  const res = await submitReview(
     auth.db,
     auth.user,
     {
@@ -70,16 +70,18 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     slugSet,
   );
 
-  if (!res.ok) return jsonResponse({ error: res.error }, 400);
+  if (!res.ok) {
+    return jsonResponse({ error: res.error }, res.duplicate ? 409 : 400);
+  }
+
   return jsonResponse(
     {
       ok: true,
       review: res.review,
-      isUpdate: res.isUpdate,
-      message:
-        'Thank you! Your review has been submitted and is pending moderation before appearing publicly.',
+      isUpdate: false,
+      message: 'Thank you! Your review has been published.',
     },
-    res.isUpdate ? 200 : 201,
+    201,
   );
 };
 

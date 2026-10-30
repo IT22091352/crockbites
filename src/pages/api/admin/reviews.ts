@@ -7,7 +7,7 @@ import {
   parseAdminSessionCookie,
   verifySessionCookie,
 } from '../../../lib/admin';
-import { adminDeleteReview, listModerationReviews, moderateReview } from '../../../lib/community';
+import { adminDeleteReview, listAdminReviews } from '../../../lib/community';
 import { jsonResponse } from '../../../lib/community-server';
 import { getDb } from '../../../lib/db';
 
@@ -42,43 +42,15 @@ export const GET: APIRoute = async ({ request, cookies, locals, url }) => {
     return jsonResponse({ error: 'Community database (Cloudflare D1 binding "DB") is not configured.' }, 503);
   }
 
-  const data = await listModerationReviews(db, {
-    status: url.searchParams.get('status') ?? undefined,
+  const ratingParam = url.searchParams.get('rating');
+  const data = await listAdminReviews(db, {
     recipeSlug: url.searchParams.get('recipeSlug') ?? undefined,
+    rating: ratingParam ? Number(ratingParam) : undefined,
     q: url.searchParams.get('q') ?? undefined,
     page: Number(url.searchParams.get('page') ?? 1),
   });
 
   return jsonResponse({ ok: true, ...data });
-};
-
-export const PATCH: APIRoute = async ({ request, cookies, locals }) => {
-  const adminSession = await authorizeAdmin(request, cookies, true);
-  if (!adminSession) {
-    return jsonResponse({ error: 'Unauthorized or CSRF validation failed.' }, 401);
-  }
-
-  const db = await getDb(locals);
-  if (!db) {
-    return jsonResponse({ error: 'Community database (Cloudflare D1 binding "DB") is not configured.' }, 503);
-  }
-
-  let body: Record<string, unknown> = {};
-  try {
-    body = await request.json();
-  } catch {
-    return jsonResponse({ error: 'Invalid request body.' }, 400);
-  }
-
-  const reviewId = String(body.reviewId ?? '').trim();
-  const status = String(body.status ?? '') as 'approved' | 'rejected';
-
-  const res = await moderateReview(db, reviewId, status, adminSession.username);
-  if (!res.ok) {
-    return jsonResponse({ error: res.error }, 400);
-  }
-
-  return jsonResponse({ ok: true, review: res.review });
 };
 
 export const DELETE: APIRoute = async ({ request, cookies, locals }) => {
@@ -106,5 +78,21 @@ export const DELETE: APIRoute = async ({ request, cookies, locals }) => {
   }
 
   return jsonResponse({ ok: true });
+};
+
+export const POST: APIRoute = async (ctx) => {
+  const cloned = ctx.request.clone();
+  let body: Record<string, unknown> = {};
+  try {
+    body = await cloned.json();
+  } catch {
+    return jsonResponse({ error: 'Invalid request body.' }, 400);
+  }
+
+  if (body.action === 'delete') {
+    return DELETE(ctx);
+  }
+
+  return jsonResponse({ error: 'Unsupported admin review action.' }, 400);
 };
 

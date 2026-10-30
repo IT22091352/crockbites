@@ -29,18 +29,21 @@ import {
   MAX_RECENTLY_VIEWED,
   addFavorite,
   addRecipeToCollection,
+  adminDeleteReview,
   createCollection,
   deleteCollection,
   deleteOwnReview,
   getCollectionDetails,
   getPublicRecipeReviews,
+  listAdminReviews,
   listRecentlyViewed,
   listUserCollections,
   listUserFavorites,
-  moderateReview,
+  migratePendingReviewsToApproved,
   recordRecentlyViewed,
   removeRecipeFromCollection,
   submitOrUpdateReview,
+  submitReview,
   toggleFavorite,
   updateCollection,
   updateOwnReviewById,
@@ -386,8 +389,28 @@ await test('10. Recently viewed recipes: deduplicates repeated views and enforce
   assert.equal(listAfter[0].recipeSlug, 'published-recipe-10');
 });
 
-await test('11. Reviews & Admin Moderation: pending by default, excluded from public stats until approved, XSS escaped, 1 per user per recipe', async () => {
+await test('11. Instant Review Publishing: guest rejection, immediate approval, duplicate prevention, validation, rating stats, and admin/user deletion rules', async () => {
   const { db } = await createTestDb();
+
+  // 1. Guest users cannot submit reviews (unauthenticated session resolves to null & submitReview rejects null user)
+  const guestUser = await getAuthenticatedUser(db, undefined);
+  assert.equal(guestUser, null);
+  const guestSubmit = await submitReview(
+    db,
+    guestUser,
+    {
+      recipeSlug: 'slow-cooker-beef-stew',
+      rating: 5,
+      title: 'Guest attempt',
+      comment: 'Guests are not allowed to submit reviews.',
+    },
+    PUBLISHED_SLUGS,
+  );
+  assert.equal(guestSubmit.ok, false);
+  if (!guestSubmit.ok) {
+    assert.equal(guestSubmit.unauthorized, true);
+  }
+
   const u1 = await registerUser(db, {
     username: 'reviewer_one',
     email: 'r1@example.com',
@@ -402,8 +425,8 @@ await test('11. Reviews & Admin Moderation: pending by default, excluded from pu
   });
   assert.ok(u1.ok && u2.ok);
 
-  // Invalid rating (0 or 6) rejected
-  const invalidRating = await submitOrUpdateReview(
+  // 5. Invalid ratings, empty/short comments, and unpublished slugs are rejected
+  const invalidRatingHigh = await submitReview(
     db,
     u1.user,
     {
@@ -414,10 +437,49 @@ await test('11. Reviews & Admin Moderation: pending by default, excluded from pu
     },
     PUBLISHED_SLUGS,
   );
-  assert.equal(invalidRating.ok, false);
+  assert.equal(invalidRatingHigh.ok, false);
 
-  // Submit review with HTML tags to verify XSS escaping
-  const rev1 = await submitOrUpdateReview(
+  const invalidRatingLow = await submitReview(
+    db,
+    u1.user,
+    {
+      recipeSlug: 'slow-cooker-beef-stew',
+      rating: 0,
+      title: 'Zero stars',
+      comment: 'This should also be rejected by validation.',
+    },
+    PUBLISHED_SLUGS,
+  );
+  assert.equal(invalidRatingLow.ok, false);
+
+  const emptyComment = await submitReview(
+    db,
+    u1.user,
+    {
+      recipeSlug: 'slow-cooker-beef-stew',
+      rating: 5,
+      title: 'Valid headline',
+      comment: '   ',
+    },
+    PUBLISHED_SLUGS,
+  );
+  assert.equal(emptyComment.ok, false);
+
+  const draftRecipeReview = await submitReview(
+    db,
+    u1.user,
+    {
+      recipeSlug: 'unpublished-draft-recipe',
+      rating: 5,
+      title: 'Draft review',
+      comment: 'Cannot review a draft or non-existent recipe.',
+    },
+    PUBLISHED_SLUGS,
+  );
+  assert.equal(draftRecipeReview.ok, false);
+
+  // 2 & 3. Authenticated user submits review -> immediately approved and publicly visible (XSS escaped)
+  const rev1 = await submitReview(
     db,
     u1.user,
     {
@@ -430,24 +492,37 @@ await test('11. Reviews & Admin Moderation: pending by default, excluded from pu
   );
   assert.equal(rev1.ok, true);
   if (rev1.ok) {
-    assert.equal(rev1.review.status, 'pending');
+    assert.equal(rev1.review.status, 'approved');
     assert.ok(!rev1.review.title.includes('<script>'));
     assert.ok(rev1.review.title.includes('&lt;script&gt;'));
   }
 
-  // While pending, public stats must show 0 approved reviews and 0 averageRating
-  const publicBefore = await getPublicRecipeReviews(db, 'slow-cooker-beef-stew');
-  assert.equal(publicBefore.totalApproved, 0);
-  assert.equal(publicBefore.averageRating, 0);
-  assert.equal(publicBefore.reviews.length, 0);
+  // Immediately visible in public reviews without any admin moderation step
+  const publicImmediate = await getPublicRecipeReviews(db, 'slow-cooker-beef-stew');
+  assert.equal(publicImmediate.totalApproved, 1);
+  assert.equal(publicImmediate.averageRating, 5);
+  assert.equal(publicImmediate.reviews.length, 1);
+  assert.equal(publicImmediate.reviews[0].authorDisplayName, 'Reviewer One');
 
-  // Admin approves review 1
-  const rev1Id = rev1.ok ? rev1.review.id : '';
-  const modApprove = await moderateReview(db, rev1Id, 'approved', 'admin_editor');
-  assert.equal(modApprove.ok, true);
+  // 4. Duplicate reviews by the same user for the same recipe are rejected
+  const duplicateRev = await submitOrUpdateReview(
+    db,
+    u1.user,
+    {
+      recipeSlug: 'slow-cooker-beef-stew',
+      rating: 4,
+      title: 'Second duplicate review attempt',
+      comment: 'Trying to submit a second review for the same recipe.',
+    },
+    PUBLISHED_SLUGS,
+  );
+  assert.equal(duplicateRev.ok, false);
+  if (!duplicateRev.ok) {
+    assert.equal(duplicateRev.duplicate, true);
+  }
 
-  // User 2 submits a 3-star review and admin approves it
-  const rev2 = await submitOrUpdateReview(
+  // 6. User 2 submits a 3-star review -> immediately updates count (2) and averageRating ((5 + 3) / 2 = 4.0)
+  const rev2 = await submitReview(
     db,
     u2.user,
     {
@@ -459,16 +534,16 @@ await test('11. Reviews & Admin Moderation: pending by default, excluded from pu
     PUBLISHED_SLUGS,
   );
   assert.ok(rev2.ok);
-  await moderateReview(db, rev2.review.id, 'approved', 'admin_editor');
+  assert.equal(rev2.review.status, 'approved');
 
-  // Public stats now reflect both approved reviews: (5 + 3) / 2 = 4.0
-  const publicAfter = await getPublicRecipeReviews(db, 'slow-cooker-beef-stew');
-  assert.equal(publicAfter.totalApproved, 2);
-  assert.equal(publicAfter.averageRating, 4);
-  assert.equal(publicAfter.distribution[5], 1);
-  assert.equal(publicAfter.distribution[3], 1);
+  const publicAfterTwo = await getPublicRecipeReviews(db, 'slow-cooker-beef-stew');
+  assert.equal(publicAfterTwo.totalApproved, 2);
+  assert.equal(publicAfterTwo.averageRating, 4);
+  assert.equal(publicAfterTwo.distribution[5], 1);
+  assert.equal(publicAfterTwo.distribution[3], 1);
 
-  // User 2 cannot edit or delete User 1's review
+  // 8. Non-admin users cannot edit or delete other users' reviews
+  const rev1Id = rev1.ok ? rev1.review.id : '';
   const unauthorizedEdit = await updateOwnReviewById(db, u2.user, rev1Id, {
     rating: 1,
     title: 'Hacked title',
@@ -479,24 +554,90 @@ await test('11. Reviews & Admin Moderation: pending by default, excluded from pu
   const unauthorizedDel = await deleteOwnReview(db, u2.user.id, rev1Id);
   assert.equal(unauthorizedDel.ok, false);
 
-  // If User 1 updates their own review, it resets status to 'pending' until re-moderated
-  const updatedOwn = await submitOrUpdateReview(
-    db,
-    u1.user,
-    {
-      recipeSlug: 'slow-cooker-beef-stew',
-      rating: 4,
-      title: 'Updated headline',
-      comment: 'Updated comment after making it a second time.',
-    },
-    PUBLISHED_SLUGS,
-  );
+  // User 1 can edit their own review by ID and it stays approved & public immediately
+  const updatedOwn = await updateOwnReviewById(db, u1.user, rev1Id, {
+    rating: 4,
+    title: 'Updated headline',
+    comment: 'Updated comment after making it a second time.',
+  });
   assert.ok(updatedOwn.ok);
-  assert.equal(updatedOwn.isUpdate, true);
-  assert.equal(updatedOwn.review.status, 'pending');
+  assert.equal(updatedOwn.review.status, 'approved');
+
+  const publicAfterEdit = await getPublicRecipeReviews(db, 'slow-cooker-beef-stew');
+  assert.equal(publicAfterEdit.totalApproved, 2);
+  assert.equal(publicAfterEdit.averageRating, 3.5);
+
+  // 7. Admins can search/list reviews and delete inappropriate reviews
+  const adminList = await listAdminReviews(db, { recipeSlug: 'slow-cooker-beef-stew' });
+  assert.equal(adminList.counts.total, 2);
+  assert.equal(adminList.reviews.length, 2);
+
+  const adminDel = await adminDeleteReview(db, rev2.review.id);
+  assert.equal(adminDel.ok, true);
+
+  const publicAfterAdminDelete = await getPublicRecipeReviews(db, 'slow-cooker-beef-stew');
+  assert.equal(publicAfterAdminDelete.totalApproved, 1);
+  assert.equal(publicAfterAdminDelete.averageRating, 4);
 });
 
-await test('12. Account deletion purges PII/sessions/favorites/collections and anonymizes approved reviews to "Deleted User"', async () => {
+await test('12. Existing pending reviews migration: converts pending reviews to approved without losing content, author, rating, or timestamps', async () => {
+  const { db } = await createTestDb();
+  const u = await registerUser(db, {
+    username: 'legacy_reviewer',
+    email: 'legacy@example.com',
+    password: 'Password123',
+    displayName: 'Legacy Cook',
+  });
+  assert.ok(u.ok);
+
+  const legacyCreatedAt = '2026-01-15T10:30:00.000Z';
+  const legacyUpdatedAt = '2026-01-15T10:30:00.000Z';
+
+  // Insert a legacy 'pending' review directly into the table
+  await db
+    .prepare(
+      `INSERT INTO reviews (
+        id, user_id, author_display_name, author_username, recipe_slug,
+        rating, title, comment, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+    )
+    .bind(
+      'rev_legacy_pending_01',
+      u.user.id,
+      'Legacy Cook',
+      'legacy_reviewer',
+      'honey-garlic-pork-tenderloin',
+      5,
+      'Legacy Pending Headline',
+      'This review was submitted before instant publishing was enabled.',
+      legacyCreatedAt,
+      legacyUpdatedAt,
+    )
+    .run();
+
+  // Run the non-destructive migration
+  const migResult = await migratePendingReviewsToApproved(db);
+  assert.equal(migResult.migratedCount, 1);
+
+  // Verify the migrated review is now approved, publicly visible, and all fields/timestamps are preserved
+  const pubStats = await getPublicRecipeReviews(db, 'honey-garlic-pork-tenderloin');
+  assert.equal(pubStats.totalApproved, 1);
+  assert.equal(pubStats.averageRating, 5);
+  assert.equal(pubStats.reviews.length, 1);
+
+  const migrated = pubStats.reviews[0];
+  assert.equal(migrated.id, 'rev_legacy_pending_01');
+  assert.equal(migrated.status, 'approved');
+  assert.equal(migrated.authorDisplayName, 'Legacy Cook');
+  assert.equal(migrated.authorUsername, 'legacy_reviewer');
+  assert.equal(migrated.rating, 5);
+  assert.equal(migrated.title, 'Legacy Pending Headline');
+  assert.equal(migrated.comment, 'This review was submitted before instant publishing was enabled.');
+  assert.equal(migrated.createdAt, legacyCreatedAt);
+  assert.equal(migrated.updatedAt, legacyUpdatedAt);
+});
+
+await test('13. Account deletion purges PII/sessions/favorites/collections and anonymizes published reviews to "Deleted User"', async () => {
   const { db } = await createTestDb();
   const u = await registerUser(db, {
     username: 'privacy_cook',
@@ -511,8 +652,8 @@ await test('12. Account deletion purges PII/sessions/favorites/collections and a
   await createCollection(db, u.user.id, { name: 'My Secret Recipes', isPublic: false });
   await recordRecentlyViewed(db, u.user.id, 'slow-cooker-beef-stew', PUBLISHED_SLUGS);
 
-  // Create one approved review and one pending review
-  const rApproved = await submitOrUpdateReview(
+  // Create a published review
+  const rPublished = await submitReview(
     db,
     u.user,
     {
@@ -523,21 +664,8 @@ await test('12. Account deletion purges PII/sessions/favorites/collections and a
     },
     PUBLISHED_SLUGS,
   );
-  assert.ok(rApproved.ok);
-  await moderateReview(db, rApproved.review.id, 'approved', 'admin');
-
-  const rPending = await submitOrUpdateReview(
-    db,
-    u.user,
-    {
-      recipeSlug: 'creamy-garlic-herb-chicken',
-      rating: 4,
-      title: 'Pending review',
-      comment: 'Unapproved review should be deleted with account.',
-    },
-    PUBLISHED_SLUGS,
-  );
-  assert.ok(rPending.ok);
+  assert.ok(rPublished.ok);
+  assert.equal(rPublished.review.status, 'approved');
 
   // Wrong password fails account deletion
   const badDel = await deleteUserAccount(db, u.user.id, 'WrongPassword');
@@ -547,16 +675,13 @@ await test('12. Account deletion purges PII/sessions/favorites/collections and a
   const goodDel = await deleteUserAccount(db, u.user.id, 'DeleteMePass99');
   assert.equal(goodDel.ok, true);
 
-  // Session, favorites, collections, recently viewed, and pending review are gone
+  // Session, favorites, collections, and recently viewed are gone
   assert.equal(await getAuthenticatedUser(db, session.sessionToken), null);
   assert.equal((await listUserFavorites(db, u.user.id)).length, 0);
   assert.equal((await listUserCollections(db, u.user.id)).length, 0);
   assert.equal((await listRecentlyViewed(db, u.user.id)).length, 0);
 
-  const pendingCheck = await db.prepare(`SELECT id FROM reviews WHERE id = ?`).bind(rPending.review.id).first();
-  assert.equal(pendingCheck, null);
-
-  // Approved review is retained with user_id = NULL and author_display_name = 'Deleted User'
+  // Published review is retained with user_id = NULL and author_display_name = 'Deleted User'
   const pubReviews = await getPublicRecipeReviews(db, 'slow-cooker-beef-stew');
   assert.equal(pubReviews.totalApproved, 1);
   assert.equal(pubReviews.reviews[0].authorDisplayName, 'Deleted User');

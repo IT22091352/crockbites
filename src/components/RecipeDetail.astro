@@ -709,8 +709,8 @@ const allergenNames: Record<string, string> = {
                 ></textarea>
               </div>
 
-              <p class="text-xs text-ink-soft">
-                Reviews are moderated before appearing publicly to keep CrockBites helpful and spam-free.
+              <p id="review-form-helper-note" class="text-xs text-ink-soft">
+                Your review will be published immediately to help fellow CrockBites home cooks.
               </p>
 
               <button
@@ -723,14 +723,15 @@ const allergenNames: Record<string, string> = {
             </form>
           </div>
 
-          <!-- Right Column: Approved Reviews List -->
+          <!-- Right Column: Published Reviews List -->
           <div>
-            <h3 class="font-display text-xl font-semibold text-forest">Approved Community Reviews</h3>
+            <h3 class="font-display text-xl font-semibold text-forest">Community Reviews</h3>
             <div id="approved-reviews-list" class="mt-4 space-y-4">
               <div class="rounded-2xl border border-dashed border-line p-8 text-center text-sm text-ink-soft">
-                No approved reviews yet. Be the first to cook and review this recipe!
+                No reviews yet. Be the first to cook and review this recipe!
               </div>
             </div>
+            <div id="reviews-pagination-controls" hidden class="mt-5 flex items-center justify-between gap-3 text-xs"></div>
           </div>
         </div>
       </section>
@@ -1300,7 +1301,10 @@ const allergenNames: Record<string, string> = {
     const titleInput = document.getElementById('review-title-input') as HTMLInputElement | null;
     const commentInput = document.getElementById('review-comment-input') as HTMLTextAreaElement | null;
     const submitBtn = document.getElementById('review-submit-btn') as HTMLButtonElement | null;
+    const helperNoteEl = document.getElementById('review-form-helper-note');
     const approvedListEl = document.getElementById('approved-reviews-list');
+    const paginationEl = document.getElementById('reviews-pagination-controls');
+    let currentReviewPage = 1;
 
     function starsString(rating: number) {
       const rounded = Math.max(0, Math.min(5, Math.round(rating)));
@@ -1325,17 +1329,22 @@ const allergenNames: Record<string, string> = {
       });
     });
 
-    async function loadRecipeReviews() {
+    async function loadRecipeReviews(page = 1) {
       if (!recipeSlug) return;
+      currentReviewPage = Math.max(1, page);
       try {
-        const res = await fetch(`/api/community/reviews/?recipeSlug=${encodeURIComponent(recipeSlug)}`, {
-          credentials: 'same-origin',
-        });
+        const res = await fetch(
+          `/api/community/reviews/?recipeSlug=${encodeURIComponent(recipeSlug)}&page=${currentReviewPage}`,
+          {
+            credentials: 'same-origin',
+          },
+        );
         if (!res.ok) return;
         const data = await res.json();
 
         const total = Number(data.totalApproved || 0);
         const avg = Number(data.averageRating || 0);
+        const totalPages = Math.max(1, Number(data.totalPages || 1));
 
         if (total > 0) {
           if (headerStarsEl) headerStarsEl.textContent = starsString(avg);
@@ -1344,13 +1353,13 @@ const allergenNames: Record<string, string> = {
           }
           if (avgNumEl) avgNumEl.textContent = avg.toFixed(1);
           if (avgStarsEl) avgStarsEl.textContent = starsString(avg);
-          if (totalCountEl) totalCountEl.textContent = `Based on ${total} approved ${total === 1 ? 'review' : 'reviews'}`;
+          if (totalCountEl) totalCountEl.textContent = `Based on ${total} ${total === 1 ? 'review' : 'reviews'}`;
         } else {
           if (headerStarsEl) headerStarsEl.textContent = '☆☆☆☆☆';
           if (headerRatingTextEl) headerRatingTextEl.textContent = 'Be the first to review';
           if (avgNumEl) avgNumEl.textContent = '—';
           if (avgStarsEl) avgStarsEl.textContent = '☆☆☆☆☆';
-          if (totalCountEl) totalCountEl.textContent = 'No approved reviews yet';
+          if (totalCountEl) totalCountEl.textContent = 'No reviews yet';
         }
 
         const dist = data.distribution || { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
@@ -1368,25 +1377,24 @@ const allergenNames: Record<string, string> = {
           setStarPicker(Number(data.myReview.rating || 5));
           if (titleInput) titleInput.value = data.myReview.title || '';
           if (commentInput) commentInput.value = data.myReview.comment || '';
-          if (reviewFormHeading) reviewFormHeading.textContent = 'Update Your Review';
-          if (submitBtn) submitBtn.textContent = 'Update Review';
+          if (reviewFormHeading) reviewFormHeading.textContent = 'Your Published Review';
+          if (submitBtn) submitBtn.textContent = 'Review Published';
+          if (helperNoteEl) {
+            helperNoteEl.innerHTML =
+              'You have already reviewed this recipe. You can edit or delete your review anytime in <a href="/account/reviews/" class="font-semibold text-forest underline">My Reviews</a>.';
+          }
           if (myReviewStatusPill) {
             myReviewStatusPill.hidden = false;
-            myReviewStatusPill.textContent =
-              data.myReview.status === 'approved'
-                ? '✓ Approved'
-                : data.myReview.status === 'rejected'
-                  ? 'Not Approved'
-                  : '⏳ Pending Moderation';
+            myReviewStatusPill.textContent = '✓ Published';
           }
         }
 
-        // Render approved reviews list safely using DOM nodes
+        // Render published reviews list safely using DOM nodes
         if (approvedListEl) {
           const list = Array.isArray(data.reviews) ? data.reviews : [];
           if (list.length === 0) {
             approvedListEl.innerHTML =
-              '<div class="rounded-2xl border border-dashed border-line p-8 text-center text-sm text-ink-soft">No approved reviews yet. Be the first to cook and review this recipe!</div>';
+              '<div class="rounded-2xl border border-dashed border-line p-8 text-center text-sm text-ink-soft">No reviews yet. Be the first to cook and review this recipe!</div>';
           } else {
             approvedListEl.innerHTML = '';
             list.forEach((rev: any) => {
@@ -1430,6 +1438,42 @@ const allergenNames: Record<string, string> = {
               card.appendChild(p);
               approvedListEl.appendChild(card);
             });
+          }
+        }
+
+        if (paginationEl) {
+          if (totalPages > 1) {
+            paginationEl.hidden = false;
+            paginationEl.innerHTML = '';
+
+            const prevBtn = document.createElement('button');
+            prevBtn.type = 'button';
+            prevBtn.textContent = '← Previous';
+            prevBtn.className = 'btn btn-outline btn-small';
+            prevBtn.disabled = currentReviewPage <= 1;
+            prevBtn.addEventListener('click', () => {
+              if (currentReviewPage > 1) loadRecipeReviews(currentReviewPage - 1);
+            });
+
+            const pageLabel = document.createElement('span');
+            pageLabel.className = 'font-semibold text-ink-soft';
+            pageLabel.textContent = `Page ${currentReviewPage} of ${totalPages}`;
+
+            const nextBtn = document.createElement('button');
+            nextBtn.type = 'button';
+            nextBtn.textContent = 'Next →';
+            nextBtn.className = 'btn btn-outline btn-small';
+            nextBtn.disabled = currentReviewPage >= totalPages;
+            nextBtn.addEventListener('click', () => {
+              if (currentReviewPage < totalPages) loadRecipeReviews(currentReviewPage + 1);
+            });
+
+            paginationEl.appendChild(prevBtn);
+            paginationEl.appendChild(pageLabel);
+            paginationEl.appendChild(nextBtn);
+          } else {
+            paginationEl.hidden = true;
+            paginationEl.innerHTML = '';
           }
         }
       } catch {

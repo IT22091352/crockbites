@@ -11,7 +11,7 @@ import {
   verifySessionCookie,
 } from '../../../lib/admin';
 import { getDb } from '../../../lib/db';
-import { listModerationReviews } from '../../../lib/community';
+import { listAdminReviews } from '../../../lib/community';
 
 const adminCookie = Astro.cookies.get(ADMIN_COOKIE_NAME)?.value ?? '';
 const session = parseAdminSessionCookie(adminCookie);
@@ -34,8 +34,8 @@ Astro.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
   maxAge: 60 * 60 * 12,
 });
 
-const statusFilter = Astro.url.searchParams.get('status') ?? '';
 const recipeFilter = Astro.url.searchParams.get('recipe') ?? '';
+const ratingFilter = Astro.url.searchParams.get('rating') ?? '';
 const queryFilter = Astro.url.searchParams.get('q') ?? '';
 const pageParam = Math.max(1, Number(Astro.url.searchParams.get('page') ?? '1') || 1);
 
@@ -47,17 +47,17 @@ for (const r of recipes) {
 }
 
 const db = await getDb(Astro.locals);
-const moderationData = db
-  ? await listModerationReviews(db, {
-      status: statusFilter,
+const reviewData = db
+  ? await listAdminReviews(db, {
       recipeSlug: recipeFilter,
+      rating: ratingFilter ? Number(ratingFilter) : undefined,
       q: queryFilter,
       page: pageParam,
       pageSize: 30,
     })
   : {
       reviews: [],
-      counts: { pending: 0, approved: 0, rejected: 0, total: 0 },
+      counts: { approved: 0, total: 0 },
       page: 1,
       totalPages: 1,
     };
@@ -67,7 +67,7 @@ const moderationData = db
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Review Moderation | CrockBites Admin</title>
+    <title>Community Reviews | CrockBites Admin</title>
     <style>
       :root {
         --forest: #243A2D;
@@ -77,7 +77,6 @@ const moderationData = db
         --line: rgba(36,58,45,0.12);
         --muted: rgba(36,58,45,0.72);
         --green: #1b5e20;
-        --amber: #b45309;
         --red: #b71c1c;
       }
       * { box-sizing: border-box; }
@@ -93,7 +92,7 @@ const moderationData = db
       .content { padding: 1.5rem; max-width: 1200px; }
       .topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
       .title { font-size: clamp(1.6rem, 2.5vw, 2.2rem); margin: 0; }
-      .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+      .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
       .card { background: rgba(255,255,255,0.88); border: 1px solid var(--line); border-radius: 16px; padding: 1rem 1.15rem; }
       .label { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; }
       .number { font-size: 1.85rem; font-weight: 800; margin-top: 0.25rem; }
@@ -103,15 +102,9 @@ const moderationData = db
       .btn { border: none; border-radius: 10px; padding: 0.65rem 0.95rem; cursor: pointer; font-weight: 700; font-size: 0.85rem; }
       .btn-primary { background: var(--forest); color: #fff; }
       .btn-subtle { background: rgba(36,58,45,0.08); color: var(--forest); }
-      .btn-approve { background: #e8f5e9; color: var(--green); border: 1px solid rgba(27,94,32,0.25); }
-      .btn-reject { background: #fff8e1; color: var(--amber); border: 1px solid rgba(180,83,9,0.25); }
       .btn-delete { background: #ffebee; color: var(--red); border: 1px solid rgba(183,28,28,0.25); }
       .review-list { display: grid; gap: 1rem; }
       .review-card { background: rgba(255,255,255,0.92); border: 1px solid var(--line); border-radius: 16px; padding: 1.25rem; display: grid; gap: 0.75rem; }
-      .badge { display: inline-flex; align-items: center; padding: 0.25rem 0.65rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
-      .badge-pending { background: #fef3c7; color: #92400e; }
-      .badge-approved { background: #dcfce7; color: #166534; }
-      .badge-rejected { background: #fee2e2; color: #991b1b; }
       .stars { color: #d97706; font-weight: 800; letter-spacing: 0.05em; }
       @media (max-width: 900px) { .shell { grid-template-columns: 1fr; } }
     </style>
@@ -136,7 +129,7 @@ const moderationData = db
         <div class="topbar">
           <div>
             <p style="margin:0 0 0.35rem; font-size:0.8rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted);">
-              Community Moderation
+              Community Feedback
             </p>
             <h1 class="title">Recipe Reviews &amp; Ratings</h1>
           </div>
@@ -151,28 +144,20 @@ const moderationData = db
           <div class="card" style="margin-bottom:1.5rem; border-color:#f59e0b; background:#fffbeb;">
             <strong>Cloudflare D1 binding ("DB") is not configured in this environment.</strong>
             <p style="margin:0.35rem 0 0; font-size:0.9rem;">
-              Configure the D1 binding in Cloudflare Pages / <code>wrangler.toml</code> to moderate live community reviews.
+              Configure the D1 binding in Cloudflare Pages / <code>wrangler.jsonc</code> to view and manage live community reviews.
             </p>
           </div>
         )}
 
         <section class="cards">
-          <a href="/admin/reviews/?status=pending" class="card">
-            <div class="label">Pending Moderation</div>
-            <div class="number" style="color:var(--amber);">{moderationData.counts.pending}</div>
-          </a>
-          <a href="/admin/reviews/?status=approved" class="card">
-            <div class="label">Approved (Public)</div>
-            <div class="number" style="color:var(--green);">{moderationData.counts.approved}</div>
-          </a>
-          <a href="/admin/reviews/?status=rejected" class="card">
-            <div class="label">Rejected</div>
-            <div class="number" style="color:var(--red);">{moderationData.counts.rejected}</div>
-          </a>
-          <a href="/admin/reviews/" class="card">
-            <div class="label">Total Reviews</div>
-            <div class="number">{moderationData.counts.total}</div>
-          </a>
+          <div class="card">
+            <div class="label">Published Reviews</div>
+            <div class="number" style="color:var(--green);">{reviewData.counts.total}</div>
+          </div>
+          <div class="card">
+            <div class="label">Showing on This Page</div>
+            <div class="number">{reviewData.reviews.length}</div>
+          </div>
         </section>
 
         <form method="GET" action="/admin/reviews/" class="filter-bar">
@@ -184,11 +169,13 @@ const moderationData = db
             class="input"
           />
 
-          <select name="status" class="select" aria-label="Filter by moderation status">
-            <option value="" selected={statusFilter === ''}>All Statuses</option>
-            <option value="pending" selected={statusFilter === 'pending'}>Pending Only</option>
-            <option value="approved" selected={statusFilter === 'approved'}>Approved Only</option>
-            <option value="rejected" selected={statusFilter === 'rejected'}>Rejected Only</option>
+          <select name="rating" class="select" aria-label="Filter by star rating">
+            <option value="" selected={ratingFilter === ''}>All Ratings</option>
+            {[5, 4, 3, 2, 1].map((star) => (
+              <option value={String(star)} selected={ratingFilter === String(star)}>
+                {star} {star === 1 ? 'Star' : 'Stars'}
+              </option>
+            ))}
           </select>
 
           <select name="recipe" class="select" aria-label="Filter by recipe">
@@ -201,21 +188,15 @@ const moderationData = db
           </select>
 
           <button type="submit" class="btn btn-primary">Filter</button>
-          {(statusFilter || recipeFilter || queryFilter) && (
+          {(ratingFilter || recipeFilter || queryFilter) && (
             <a href="/admin/reviews/" class="btn btn-subtle">Reset</a>
           )}
         </form>
 
-        {moderationData.reviews.length > 0 ? (
+        {reviewData.reviews.length > 0 ? (
           <div class="review-list">
-            {moderationData.reviews.map((rev) => {
+            {reviewData.reviews.map((rev) => {
               const rTitle = recipeTitleBySlug.get(rev.recipeSlug.toLowerCase()) ?? rev.recipeSlug;
-              const badgeClass =
-                rev.status === 'approved'
-                  ? 'badge-approved'
-                  : rev.status === 'rejected'
-                    ? 'badge-rejected'
-                    : 'badge-pending';
 
               return (
                 <article class="review-card" data-admin-review-id={rev.id}>
@@ -223,21 +204,18 @@ const moderationData = db
                     <div>
                       <div style="display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;">
                         <a
-                          href={`/recipes/${rev.recipeSlug}/`}
+                          href={`/recipe/${rev.recipeSlug}/#recipe-reviews`}
                           target="_blank"
                           style="font-weight:800; font-size:1.05rem; text-decoration:underline;"
                         >
                           {rTitle}
                         </a>
-                        <span class={`badge ${badgeClass}`} data-status-badge={rev.id}>
-                          {rev.status}
-                        </span>
                         <span class="stars" aria-label={`${rev.rating} stars`}>
                           {'★'.repeat(rev.rating)}{'☆'.repeat(5 - rev.rating)} ({rev.rating}/5)
                         </span>
                       </div>
                       <div style="font-size:0.82rem; color:var(--muted); margin-top:0.3rem;">
-                        By <strong>{rev.authorDisplayName}</strong> (@{rev.authorUsername}) • Submitted{' '}
+                        By <strong>{rev.authorDisplayName}</strong> (@{rev.authorUsername}) • Published{' '}
                         {new Date(rev.createdAt).toLocaleString('en-US', {
                           month: 'short',
                           day: 'numeric',
@@ -245,34 +223,14 @@ const moderationData = db
                           hour: 'numeric',
                           minute: '2-digit',
                         })}
-                        {rev.moderatedBy && (
-                          <span> • Moderated by {rev.moderatedBy}</span>
-                        )}
                       </div>
                     </div>
 
                     <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
                       <button
                         type="button"
-                        class="btn btn-approve"
-                        data-moderate-action="approve"
-                        data-review-id={rev.id}
-                      >
-                        ✓ Approve
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-reject"
-                        data-moderate-action="reject"
-                        data-review-id={rev.id}
-                      >
-                        ✕ Reject
-                      </button>
-                      <button
-                        type="button"
                         class="btn btn-delete"
-                        data-moderate-action="delete"
-                        data-review-id={rev.id}
+                        data-delete-review-id={rev.id}
                       >
                         Delete
                       </button>
@@ -291,7 +249,7 @@ const moderationData = db
           <div class="card" style="text-align:center; padding:2.5rem;">
             <h2 style="margin:0 0 0.4rem; font-size:1.25rem;">No matching reviews found</h2>
             <p style="margin:0; color:var(--muted); font-size:0.92rem;">
-              When community members submit ratings and reviews on recipe pages, they appear here for moderation.
+              Community reviews are published immediately when signed-in users submit them on recipe pages.
             </p>
           </div>
         )}
@@ -303,39 +261,42 @@ const moderationData = db
         const shell = document.querySelector('[data-admin-csrf]');
         const csrfToken = shell ? shell.getAttribute('data-admin-csrf') || '' : '';
 
-        document.querySelectorAll('[data-moderate-action]').forEach((btn) => {
+        document.querySelectorAll('[data-delete-review-id]').forEach((btn) => {
           btn.addEventListener('click', async () => {
-            const action = btn.getAttribute('data-moderate-action');
-            const reviewId = btn.getAttribute('data-review-id');
-            if (!action || !reviewId) return;
+            const reviewId = btn.getAttribute('data-delete-review-id');
+            if (!reviewId) return;
 
-            if (action === 'delete' && !window.confirm('Permanently delete this review?')) {
+            if (!window.confirm('Permanently delete this review?')) {
               return;
             }
 
             btn.disabled = true;
             try {
               const res = await fetch('/api/admin/reviews/', {
-                method: 'POST',
+                method: 'DELETE',
                 headers: {
                   'content-type': 'application/json',
                   'x-csrf-token': csrfToken,
                 },
                 body: JSON.stringify({
-                  action,
                   reviewId,
                   csrfToken,
                 }),
               });
               if (res.ok) {
-                window.location.reload();
+                const card = document.querySelector(`[data-admin-review-id="${reviewId}"]`);
+                if (card) {
+                  card.remove();
+                } else {
+                  window.location.reload();
+                }
               } else {
                 const err = await res.json().catch(() => ({}));
-                alert(err.error || 'Moderation action failed.');
+                alert(err.error || 'Failed to delete review.');
                 btn.disabled = false;
               }
             } catch {
-              alert('Network error performing moderation action.');
+              alert('Network error deleting review.');
               btn.disabled = false;
             }
           });

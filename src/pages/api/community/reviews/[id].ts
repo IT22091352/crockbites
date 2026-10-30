@@ -26,9 +26,11 @@ export const PUT: APIRoute = async ({ params, request, cookies, locals }) => {
   return jsonResponse({
     ok: true,
     review: res.review,
-    message: 'Your review has been updated and queued for moderation.',
+    message: 'Your review has been updated and published.',
   });
 };
+
+export const PATCH: APIRoute = PUT;
 
 export const DELETE: APIRoute = async ({ params, request, cookies, locals }) => {
   const auth = await requireAuthenticatedUserApi(request, cookies, locals, true);
