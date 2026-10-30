@@ -6,7 +6,7 @@
     {
       "binding": "DB",
       "database_name": "crockbites-community",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "f6b910f8-d8d0-44d6-995a-c2c0b65879ff",
       "migrations_dir": "migrations"
     }
   ]
