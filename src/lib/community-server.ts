@@ -1,5 +1,5 @@
 import { getAllRecipes, recipeSlug, type Recipe } from '../utils/recipes';
-import { getDb, type D1Database } from './db';
+import { getD1BindingStatus, getDb, type D1Database } from './db';
 import {
   USER_CSRF_COOKIE,
   USER_SESSION_COOKIE,
@@ -8,6 +8,22 @@ import {
   verifyUserCsrfToken,
   type SafeUser,
 } from './user-auth';
+
+/**
+ * Safe server-side diagnostic logger for Cloudflare Workers / Pages.
+ * Logs structured error context without ever exposing passwords, tokens, cookies, secrets, or PII.
+ */
+export function logServerDiagnostic(stage: string, err: unknown, extra: Record<string, unknown> = {}): void {
+  const d1Status = getD1BindingStatus();
+  console.error('[CrockBites Auth/Community Diagnostic]', {
+    stage,
+    d1Mode: d1Status.mode,
+    isD1Bound: d1Status.isD1Bound,
+    errorName: err instanceof Error ? err.name : 'UnknownError',
+    errorMessage: err instanceof Error ? err.message : String(err),
+    ...extra,
+  });
+}
 
 export const PRIVATE_JSON_HEADERS: Record<string, string> = {
   'content-type': 'application/json; charset=utf-8',
@@ -54,9 +70,21 @@ export async function resolveUserSession(
   sessionToken: string;
   csrfToken: string;
 }> {
-  const db = await getDb(locals);
+  let db: D1Database | null = null;
+  let user: SafeUser | null = null;
   const sessionToken = cookies.get(USER_SESSION_COOKIE)?.value ?? '';
-  const user = await getAuthenticatedUser(db, sessionToken);
+
+  try {
+    db = await getDb(locals);
+    if (db && sessionToken) {
+      user = await getAuthenticatedUser(db, sessionToken);
+    }
+  } catch (err) {
+    logServerDiagnostic('resolveUserSession', err, {
+      hasSessionCookie: Boolean(sessionToken),
+    });
+    throw err;
+  }
 
   if (sessionToken && !user) {
     cookies.delete(USER_SESSION_COOKIE, { path: '/' });

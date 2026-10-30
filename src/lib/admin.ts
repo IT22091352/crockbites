@@ -26,12 +26,24 @@ export function getRuntimeSecret(name: string, fallback?: string) {
     ? (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {}
     : {};
 
-  // Cloudflare Workers/Pages secrets are only reachable through runtime bindings (see runtime-env.ts).
+  // Cloudflare Workers/Pages secrets are exposed through runtime bindings (see runtime-env.ts).
   const bindings = (globalThis as unknown as { __CROCKBITES_ENV__?: Record<string, unknown> }).__CROCKBITES_ENV__;
   const bound = bindings?.[name];
 
-  const candidate = env[name] ?? (typeof bound === 'string' ? bound : undefined) ?? (typeof process !== 'undefined' ? process.env?.[name] : undefined) ?? fallback ?? '';
-  const value = typeof candidate === 'string' ? candidate.trim() : '';
+  const candidates = [
+    typeof bound === 'string' ? bound : undefined,
+    typeof env[name] === 'string' ? env[name] : undefined,
+    typeof process !== 'undefined' ? process.env?.[name] : undefined,
+    fallback,
+  ];
+
+  let value = '';
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim().length > 0) {
+      value = c.trim();
+      break;
+    }
+  }
   if (!value) return '';
 
   const unescaped = value.replace(/\\([\\$])/g, '$1');

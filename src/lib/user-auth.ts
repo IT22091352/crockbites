@@ -110,7 +110,11 @@ export function verifyUserPassword(password: string, storedHash: string): boolea
   return timingSafeEqual(expectedBuf, actualBuf);
 }
 
-const DUMMY_PASSWORD_HASH = hashUserPassword('crockbites_constant_time_dummy_pass_99');
+// Pre-computed scrypt_u1$ hash of 'crockbites_constant_time_dummy_pass_99' (16-byte hex salt + 64-byte hex derived key)
+// for constant-time timing mitigation. Must remain a static string constant because Cloudflare Workers disallow
+// calling randomBytes() in global module scope.
+export const DUMMY_PASSWORD_HASH =
+  'scrypt_u1$7f4a8e9c1b2d3e5f6a7b8c9d0e1f2a3b$73e86f6ad15d1d9b1d750880068b483408eb48643c4a7a175450785584c1ccebb261931b1718dce0ca1c2e194bd18394d8b4857df1318d8f60f1c5d3011dde5b';
 
 export function performDummyPasswordVerify(password: string): void {
   verifyUserPassword(password, DUMMY_PASSWORD_HASH);

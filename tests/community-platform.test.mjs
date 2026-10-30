@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { createSqliteD1Adapter, ensureCommunitySchema } from '../src/lib/db.ts';
 import {
+  DUMMY_PASSWORD_HASH,
   USER_CSRF_COOKIE,
   USER_SESSION_COOKIE,
   authenticateUser,
@@ -85,12 +86,18 @@ await test('1. Admin and User cookie namespaces are strictly isolated', async ()
   assert.equal(ADMIN_COOKIE_NAME, 'crockbites_admin');
 });
 
-await test('2. Password hashing uses scrypt_u1$ and verifies constant-time without storing plain text', async () => {
+await test('2. Password hashing uses scrypt_u1$ and verifies constant-time without storing plain text, including static DUMMY_PASSWORD_HASH', async () => {
   const hash = hashUserPassword('SlowCooker2026');
   assert.ok(hash.startsWith('scrypt_u1$'));
   assert.ok(!hash.includes('SlowCooker2026'));
   assert.equal(verifyUserPassword('SlowCooker2026', hash), true);
   assert.equal(verifyUserPassword('WrongPassword123', hash), false);
+
+  // Verify static precomputed DUMMY_PASSWORD_HASH format and verification
+  assert.ok(DUMMY_PASSWORD_HASH.startsWith('scrypt_u1$'));
+  assert.equal(DUMMY_PASSWORD_HASH.split('$').length, 3);
+  assert.equal(verifyUserPassword('crockbites_constant_time_dummy_pass_99', DUMMY_PASSWORD_HASH), true);
+  assert.equal(verifyUserPassword('WrongDummyPass', DUMMY_PASSWORD_HASH), false);
 });
 
 await test('3. User registration validates inputs and blocks duplicate emails/usernames (case-insensitive)', async () => {

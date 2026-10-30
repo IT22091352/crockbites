@@ -348,21 +348,50 @@ export async function ensureCommunitySchema(db: D1Database): Promise<void> {
   }
 
   try {
-    const statements = COMMUNITY_SCHEMA_SQL
+    const rawStatements = COMMUNITY_SCHEMA_SQL
+      .replace(/--.*$/gm, '')
       .split(';')
       .map((s) => s.trim())
-      .filter((s) => s.length > 0 && !s.startsWith('--'));
+      .filter((s) => s.length > 0);
 
-    for (const stmt of statements) {
+    const pragmaStatements = rawStatements.filter((s) => /^PRAGMA\b/i.test(s));
+    const ddlStatements = rawStatements.filter((s) => !/^PRAGMA\b/i.test(s));
+
+    for (const pragma of pragmaStatements) {
+      try {
+        await db.prepare(pragma).run();
+      } catch {
+        // Cloudflare D1 manages foreign_keys automatically and may ignore PRAGMA in prepared statements
+      }
+    }
+
+    if (typeof db.batch === 'function' && ddlStatements.length > 0) {
+      try {
+        await db.batch(ddlStatements.map((stmt) => db.prepare(stmt)));
+        globalThis.__CROCKBITES_SCHEMA_INITIALIZED__.add(db as unknown as object);
+        return;
+      } catch {
+        // Fallback to sequential execution if batch fails
+      }
+    }
+
+    for (const stmt of ddlStatements) {
       try {
         await db.prepare(stmt).run();
-      } catch {
-        // Ignore individual statement errors (e.g. PRAGMA in D1 or already-existing index)
+      } catch (stmtErr) {
+        console.error('[CrockBites D1 Diagnostic] Schema statement failed:', {
+          stage: 'ensureCommunitySchema',
+          statementPrefix: stmt.slice(0, 60),
+          error: stmtErr instanceof Error ? stmtErr.message : String(stmtErr),
+        });
       }
     }
     globalThis.__CROCKBITES_SCHEMA_INITIALIZED__.add(db as unknown as object);
-  } catch {
-    // If schema already exists or exec handled externally via wrangler migrations
+  } catch (err) {
+    console.error('[CrockBites D1 Diagnostic] Schema initialization error:', {
+      stage: 'ensureCommunitySchema',
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 }
 
