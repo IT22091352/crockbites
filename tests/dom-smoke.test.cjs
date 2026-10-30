@@ -178,6 +178,128 @@ ok(Boolean(ratingPill), 'Phase 3: Recipe header star rating summary pill exists'
 const reviewsSection = d.getElementById('recipe-reviews');
 ok(Boolean(reviewsSection), 'Phase 3: Community Ratings & Reviews section (#recipe-reviews) exists');
 
+// Phase 3: Existing Review Management Card (Edit Review, Cancel, Delete Review) DOM elements
+const myReviewCard = d.getElementById('my-published-review-card');
+const myReviewViewMode = d.getElementById('my-review-view-mode');
+const myReviewEditForm = d.getElementById('my-review-edit-form');
+const myReviewEditBtn = d.getElementById('my-review-edit-btn');
+const myReviewDeleteBtn = d.getElementById('my-review-delete-btn');
+const editSaveBtn = d.getElementById('edit-review-save-btn');
+const editCancelBtn = d.getElementById('edit-review-cancel-btn');
+ok(
+  Boolean(myReviewCard && myReviewViewMode && myReviewEditForm && myReviewEditBtn && myReviewDeleteBtn && editSaveBtn && editCancelBtn),
+  'Phase 3: Recipe page existing review management UI (Edit Review, Delete Review, Save Changes, Cancel) exists',
+);
+
+// Interactive Review Edit & Cancel test in JSDOM
+(async () => {
+  let mockMyReview = {
+    id: 'rev_dom_test_1',
+    userId: 'user_dom_1',
+    authorDisplayName: 'Test Chef',
+    authorUsername: 'test_chef',
+    recipeSlug: targetSlug,
+    rating: 5,
+    title: 'Original Chili Title',
+    comment: 'Original chili comment from first cook.',
+    status: 'approved',
+    createdAt: '2026-10-30T10:00:00.000Z',
+    updatedAt: '2026-10-30T10:00:00.000Z',
+  };
+
+  dom.window.__CROCKBITES_AUTH__ = {
+    authenticated: true,
+    csrfToken: 'csrf_dom_token',
+    user: { id: 'user_dom_1', username: 'test_chef', displayName: 'Test Chef' },
+  };
+
+  dom.window.fetch = async (url, opts = {}) => {
+    const u = String(url);
+    if (u.startsWith('/api/community/reviews/?')) {
+      return {
+        ok: true,
+        json: async () => ({
+          ok: true,
+          recipeSlug: targetSlug,
+          averageRating: mockMyReview ? mockMyReview.rating : 0,
+          totalApproved: mockMyReview ? 1 : 0,
+          distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: mockMyReview ? 1 : 0 },
+          reviews: mockMyReview ? [mockMyReview] : [],
+          page: 1,
+          pageSize: 10,
+          totalPages: 1,
+          myReview: mockMyReview,
+        }),
+      };
+    }
+    if (u.includes('/api/community/reviews/rev_dom_test_1/') && opts.method === 'DELETE') {
+      mockMyReview = null;
+      return {
+        ok: true,
+        json: async () => ({ ok: true, message: 'Your review has been deleted.' }),
+      };
+    }
+    return { ok: true, json: async () => ({ ok: true }) };
+  };
+
+  dom.window.dispatchEvent(
+    new dom.window.CustomEvent('crockbites:auth-ready', {
+      detail: dom.window.__CROCKBITES_AUTH__,
+    }),
+  );
+
+  await new Promise((r) => setTimeout(r, 30));
+
+  const newReviewForm = d.getElementById('recipe-review-form');
+  ok(
+    !myReviewCard.hidden && newReviewForm.hidden,
+    'Phase 3: Existing review shows management card and hides duplicate submission form',
+  );
+  ok(
+    d.getElementById('my-review-display-title')?.textContent === 'Original Chili Title',
+    'Phase 3: Existing review card displays current review headline',
+  );
+
+  // Click Edit Review -> opens inline edit form pre-filled with existing review
+  myReviewEditBtn.click();
+  const editTitleInput = d.getElementById('edit-review-title-input');
+  const editCommentInput = d.getElementById('edit-review-comment-input');
+  ok(
+    !myReviewEditForm.hidden && myReviewViewMode.hidden && editTitleInput.value === 'Original Chili Title',
+    'Phase 3: Clicking Edit Review opens inline edit form pre-filled with existing values',
+  );
+
+  // Modify inputs and click Cancel -> restores original review without modifying data
+  editTitleInput.value = 'Unsaved Modified Title';
+  editCommentInput.value = 'Unsaved modified comment text.';
+  editCancelBtn.click();
+  ok(
+    myReviewEditForm.hidden &&
+      !myReviewViewMode.hidden &&
+      editTitleInput.value === 'Original Chili Title' &&
+      d.getElementById('my-review-display-title')?.textContent === 'Original Chili Title',
+    'Phase 3: Clicking Cancel restores original review without modifying data',
+  );
+
+  // Click Delete Review -> confirms with exact message, deletes review, and shows new-review form
+  let confirmPromptText = '';
+  dom.window.confirm = (msg) => {
+    confirmPromptText = msg;
+    return true;
+  };
+  myReviewDeleteBtn.click();
+  await new Promise((r) => setTimeout(r, 30));
+
+  ok(
+    confirmPromptText === 'Are you sure you want to delete your review? This action cannot be undone.',
+    'Phase 3: Delete Review shows confirmation dialog before deleting',
+  );
+  ok(
+    myReviewCard.hidden && !newReviewForm.hidden && d.getElementById('reviews-total-count')?.textContent === 'No reviews yet',
+    'Phase 3: Deleting review updates public review count and reveals new-review form',
+  );
+})();
+
 // ---- Mobile menu ----
 const menu = d.getElementById('mobile-menu');
 const open = d.getElementById('menu-open');

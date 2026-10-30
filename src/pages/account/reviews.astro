@@ -6,6 +6,15 @@ import AccountNav from '../../components/AccountNav.astro';
 import { getPublishedRecipesMap, resolveUserSession } from '../../lib/community-server';
 import { listUserReviews } from '../../lib/community';
 
+function unescapeHtmlEntities(str: string): string {
+  return String(str ?? '')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&gt;/g, '>')
+    .replace(/&lt;/g, '<')
+    .replace(/&amp;/g, '&');
+}
+
 const { db, user, csrfToken } = await resolveUserSession(
   Astro.cookies,
   Astro.locals,
@@ -34,13 +43,21 @@ const [{ bySlug }, reviews] = await Promise.all([
     <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
       <div>
         <h2 class="font-serif text-2xl font-semibold text-stone-900">
-          My Recipe Reviews ({reviews.length})
+          My Recipe Reviews (<span id="account-reviews-count">{reviews.length}</span>)
         </h2>
         <p class="mt-1 text-sm text-stone-600">
           Your reviews are published immediately on recipe pages. You can edit or delete your reviews below at any time.
         </p>
       </div>
     </div>
+
+    <div
+      id="account-reviews-banner"
+      hidden
+      role="status"
+      aria-live="polite"
+      class="mt-4 rounded-xl border px-4 py-3 text-xs font-semibold"
+    ></div>
 
     {reviews.length > 0 ? (
       <div class="mt-6 space-y-4">
@@ -134,7 +151,8 @@ const [{ bySlug }, reviews] = await Promise.all([
                       required
                       minlength="3"
                       maxlength="120"
-                      value={rev.title}
+                      value={unescapeHtmlEntities(rev.title)}
+                      data-orig-title={unescapeHtmlEntities(rev.title)}
                       class="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2 text-sm text-stone-900"
                     />
                   </div>
@@ -148,20 +166,31 @@ const [{ bySlug }, reviews] = await Promise.all([
                     required
                     minlength="10"
                     maxlength="2000"
+                    data-orig-comment={unescapeHtmlEntities(rev.comment)}
                     class="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2 text-sm text-stone-900"
-                  >{rev.comment}</textarea>
+                  >{unescapeHtmlEntities(rev.comment)}</textarea>
                 </div>
 
-                <div class="flex items-center justify-between">
+                <div class="flex flex-wrap items-center justify-between gap-3">
                   <p class="text-xs text-stone-500">
                     Changes update your public review immediately.
                   </p>
-                  <button
-                    type="submit"
-                    class="rounded-xl bg-brand-800 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-900"
-                  >
-                    Save Changes
-                  </button>
+                  <div class="flex items-center gap-2">
+                    <button
+                      type="button"
+                      data-cancel-edit-review={rev.id}
+                      data-orig-rating={rev.rating}
+                      class="rounded-xl border border-stone-300 bg-white px-4 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      class="rounded-xl bg-brand-800 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-900"
+                    >
+                      Save Changes
+                    </button>
+                  </div>
                 </div>
               </form>
             </article>
@@ -188,12 +217,39 @@ const [{ bySlug }, reviews] = await Promise.all([
     (() => {
       const container = document.querySelector('[data-csrf-token]');
       const csrfToken = container ? container.getAttribute('data-csrf-token') || '' : '';
+      const bannerEl = document.getElementById('account-reviews-banner');
+      const countEl = document.getElementById('account-reviews-count');
+
+      function showBanner(msg, ok) {
+        if (!bannerEl) return;
+        bannerEl.hidden = false;
+        bannerEl.textContent = msg;
+        bannerEl.className = ok
+          ? 'mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-800'
+          : 'mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-800';
+      }
 
       document.querySelectorAll('[data-edit-review-toggle]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const id = btn.getAttribute('data-edit-review-toggle');
           const form = document.querySelector(`[data-edit-review-form="${id}"]`);
           if (form) form.classList.toggle('hidden');
+        });
+      });
+
+      document.querySelectorAll('[data-cancel-edit-review]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-cancel-edit-review');
+          const origRating = btn.getAttribute('data-orig-rating');
+          const form = document.querySelector(`[data-edit-review-form="${id}"]`);
+          if (!form) return;
+          const ratingSelect = form.querySelector('select[name="rating"]');
+          const titleInput = form.querySelector('input[name="title"]');
+          const commentInput = form.querySelector('textarea[name="comment"]');
+          if (ratingSelect && origRating) ratingSelect.value = origRating;
+          if (titleInput) titleInput.value = titleInput.getAttribute('data-orig-title') || '';
+          if (commentInput) commentInput.value = commentInput.getAttribute('data-orig-comment') || '';
+          form.classList.add('hidden');
         });
       });
 
@@ -218,8 +274,11 @@ const [{ bySlug }, reviews] = await Promise.all([
             },
             body: JSON.stringify(payload),
           });
+          const data = await res.json().catch(() => ({}));
           if (res.ok) {
             window.location.reload();
+          } else {
+            showBanner(data.error || 'Failed to update review.', false);
           }
         });
       });
@@ -228,7 +287,7 @@ const [{ bySlug }, reviews] = await Promise.all([
         btn.addEventListener('click', async () => {
           const id = btn.getAttribute('data-delete-review');
           if (!id) return;
-          if (!window.confirm('Delete your review permanently?')) return;
+          if (!window.confirm('Are you sure you want to delete your review? This action cannot be undone.')) return;
           btn.disabled = true;
 
           try {
@@ -240,13 +299,22 @@ const [{ bySlug }, reviews] = await Promise.all([
               },
               body: JSON.stringify({ csrfToken }),
             });
+            const data = await res.json().catch(() => ({}));
             if (res.ok) {
               const card = document.querySelector(`[data-user-review-id="${id}"]`);
               if (card) card.remove();
+              const remaining = document.querySelectorAll('[data-user-review-id]').length;
+              if (countEl) countEl.textContent = String(remaining);
+              showBanner(data.message || 'Your review has been deleted.', true);
+              if (remaining === 0) {
+                window.location.reload();
+              }
             } else {
+              showBanner(data.error || 'Could not delete review.', false);
               btn.disabled = false;
             }
           } catch {
+            showBanner('Network error while deleting review.', false);
             btn.disabled = false;
           }
         });

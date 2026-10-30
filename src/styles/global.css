@@ -20,6 +20,18 @@
   --color-ink-soft: #4B5148;
   --color-line: #DDD2BA;
 
+  --color-brand-50: #F2F7F4;
+  --color-brand-100: #E3ECE6;
+  --color-brand-200: #C5D6CA;
+  --color-brand-300: #9BB7A4;
+  --color-brand-400: #6B9078;
+  --color-brand-500: #4E735C;
+  --color-brand-600: #3B5A47;
+  --color-brand-700: #2F4B3A;
+  --color-brand-800: #243A2D;
+  --color-brand-900: #1A2B21;
+  --color-brand-950: #111D16;
+
   --font-display: "Fraunces Variable", Georgia, "Times New Roman", serif;
   --font-sans: "Figtree Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 

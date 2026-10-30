@@ -630,7 +630,139 @@ const allergenNames: Record<string, string> = {
               </div>
             </div>
 
-            <!-- Authenticated Review Form -->
+            <!-- Authenticated Existing Review Management Card -->
+            <div
+              id="my-published-review-card"
+              hidden
+              class="space-y-4 rounded-2xl border border-line bg-cream/40 p-5"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <h3 class="font-display text-lg font-semibold text-forest">
+                  Your Published Review
+                </h3>
+                <span
+                  id="my-review-status-pill"
+                  class="rounded-full border border-forest/20 bg-forest/10 px-2.5 py-0.5 text-xs font-semibold text-forest"
+                >
+                  ✓ Published
+                </span>
+              </div>
+
+              <div
+                id="my-review-card-banner"
+                hidden
+                role="status"
+                aria-live="polite"
+                class="rounded-xl border px-3.5 py-2.5 text-xs font-medium"
+              ></div>
+
+              <!-- View Mode -->
+              <div id="my-review-view-mode" class="space-y-3 rounded-xl border border-line bg-paper p-4">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <div class="flex items-center gap-2">
+                    <span id="my-review-display-stars" class="text-base font-bold tracking-wider text-terracotta-deep">★★★★★</span>
+                    <span id="my-review-display-rating-text" class="text-xs font-semibold text-forest">5 out of 5 stars</span>
+                  </div>
+                  <span id="my-review-display-date" class="text-xs text-ink-soft"></span>
+                </div>
+
+                <div>
+                  <h4 id="my-review-display-title" class="font-display text-base font-semibold text-ink"></h4>
+                  <p id="my-review-display-comment" class="mt-1 whitespace-pre-line text-sm text-ink-soft"></p>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2.5 border-t border-line pt-3">
+                  <button
+                    type="button"
+                    id="my-review-edit-btn"
+                    class="btn btn-outline btn-small"
+                  >
+                    Edit Review
+                  </button>
+                  <button
+                    type="button"
+                    id="my-review-delete-btn"
+                    class="rounded-xl border border-terracotta-deep/40 bg-terracotta/10 px-3.5 py-1.5 text-xs font-semibold text-terracotta-deep transition hover:bg-terracotta/20"
+                  >
+                    Delete Review
+                  </button>
+                </div>
+              </div>
+
+              <!-- Inline Edit Form -->
+              <form id="my-review-edit-form" hidden class="space-y-4 rounded-xl border border-line bg-paper p-4">
+                <div>
+                  <span class="block text-xs font-semibold uppercase tracking-wider text-ink-soft">
+                    Update Rating *
+                  </span>
+                  <input type="hidden" name="rating" id="edit-review-rating-input" value="5" />
+                  <div class="mt-1.5 flex items-center gap-1" role="radiogroup" aria-label="Edit star rating">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        type="button"
+                        data-edit-star-pick={star}
+                        role="radio"
+                        aria-checked={star === 5 ? 'true' : 'false'}
+                        aria-label={`${star} ${star === 1 ? 'star' : 'stars'}`}
+                        class="rounded-lg p-1 text-2xl leading-none text-terracotta-deep transition hover:scale-110 focus:outline-hidden"
+                      >
+                        ★
+                      </button>
+                    ))}
+                    <span id="edit-review-rating-label" class="ml-2 text-xs font-semibold text-forest">5 out of 5 stars</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label for="edit-review-title-input" class="block text-xs font-semibold uppercase tracking-wider text-ink-soft">
+                    Review Headline *
+                  </label>
+                  <input
+                    id="edit-review-title-input"
+                    name="title"
+                    type="text"
+                    required
+                    minlength="3"
+                    maxlength="120"
+                    class="mt-1 w-full rounded-xl border border-line bg-paper px-3.5 py-2 text-sm text-ink focus:border-forest focus:outline-hidden"
+                  />
+                </div>
+
+                <div>
+                  <label for="edit-review-comment-input" class="block text-xs font-semibold uppercase tracking-wider text-ink-soft">
+                    Your Review *
+                  </label>
+                  <textarea
+                    id="edit-review-comment-input"
+                    name="comment"
+                    rows="4"
+                    required
+                    minlength="10"
+                    maxlength="2000"
+                    class="mt-1 w-full rounded-xl border border-line bg-paper px-3.5 py-2 text-sm text-ink focus:border-forest focus:outline-hidden"
+                  ></textarea>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2.5 pt-1">
+                  <button
+                    type="submit"
+                    id="edit-review-save-btn"
+                    class="btn btn-primary btn-small"
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    type="button"
+                    id="edit-review-cancel-btn"
+                    class="btn btn-outline btn-small"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <!-- Authenticated New Review Form -->
             <form
               id="recipe-review-form"
               hidden
@@ -640,11 +772,6 @@ const allergenNames: Record<string, string> = {
                 <h3 id="review-form-heading" class="font-display text-lg font-semibold text-forest">
                   Leave a Review
                 </h3>
-                <span
-                  id="my-review-status-pill"
-                  hidden
-                  class="rounded-full border border-line bg-paper px-2.5 py-0.5 text-xs font-semibold text-ink-soft"
-                ></span>
               </div>
 
               <div
@@ -1293,7 +1420,23 @@ const allergenNames: Record<string, string> = {
     const totalCountEl = document.getElementById('reviews-total-count');
     const guestPromptEl = document.getElementById('recipe-review-guest-prompt');
     const reviewFormEl = document.getElementById('recipe-review-form') as HTMLFormElement | null;
-    const reviewFormHeading = document.getElementById('review-form-heading');
+    const myReviewCardEl = document.getElementById('my-published-review-card');
+    const myReviewCardBannerEl = document.getElementById('my-review-card-banner');
+    const myReviewViewModeEl = document.getElementById('my-review-view-mode');
+    const myReviewEditFormEl = document.getElementById('my-review-edit-form') as HTMLFormElement | null;
+    const myReviewDisplayStarsEl = document.getElementById('my-review-display-stars');
+    const myReviewDisplayRatingTextEl = document.getElementById('my-review-display-rating-text');
+    const myReviewDisplayDateEl = document.getElementById('my-review-display-date');
+    const myReviewDisplayTitleEl = document.getElementById('my-review-display-title');
+    const myReviewDisplayCommentEl = document.getElementById('my-review-display-comment');
+    const myReviewEditBtn = document.getElementById('my-review-edit-btn') as HTMLButtonElement | null;
+    const myReviewDeleteBtn = document.getElementById('my-review-delete-btn') as HTMLButtonElement | null;
+    const editRatingInput = document.getElementById('edit-review-rating-input') as HTMLInputElement | null;
+    const editRatingLabel = document.getElementById('edit-review-rating-label');
+    const editTitleInput = document.getElementById('edit-review-title-input') as HTMLInputElement | null;
+    const editCommentInput = document.getElementById('edit-review-comment-input') as HTMLTextAreaElement | null;
+    const editSaveBtn = document.getElementById('edit-review-save-btn') as HTMLButtonElement | null;
+    const editCancelBtn = document.getElementById('edit-review-cancel-btn') as HTMLButtonElement | null;
     const myReviewStatusPill = document.getElementById('my-review-status-pill');
     const reviewBanner = document.getElementById('review-form-banner');
     const ratingInput = document.getElementById('review-rating-input') as HTMLInputElement | null;
@@ -1301,10 +1444,18 @@ const allergenNames: Record<string, string> = {
     const titleInput = document.getElementById('review-title-input') as HTMLInputElement | null;
     const commentInput = document.getElementById('review-comment-input') as HTMLTextAreaElement | null;
     const submitBtn = document.getElementById('review-submit-btn') as HTMLButtonElement | null;
-    const helperNoteEl = document.getElementById('review-form-helper-note');
     const approvedListEl = document.getElementById('approved-reviews-list');
     const paginationEl = document.getElementById('reviews-pagination-controls');
     let currentReviewPage = 1;
+    let currentMyReview: any = null;
+    let isAuthenticatedUser = Boolean((window as any).__CROCKBITES_AUTH__?.authenticated);
+
+    function decodeHtmlEntities(input: string): string {
+      if (!input) return '';
+      const txt = document.createElement('textarea');
+      txt.innerHTML = input;
+      return txt.value;
+    }
 
     function starsString(rating: number) {
       const rounded = Math.max(0, Math.min(5, Math.round(rating)));
@@ -1322,11 +1473,231 @@ const allergenNames: Record<string, string> = {
       });
     }
 
+    function setEditStarPicker(val: number) {
+      const safe = Math.max(1, Math.min(5, Math.round(val)));
+      if (editRatingInput) editRatingInput.value = String(safe);
+      if (editRatingLabel) editRatingLabel.textContent = `${safe} out of 5 stars`;
+      document.querySelectorAll<HTMLButtonElement>('[data-edit-star-pick]').forEach((btn) => {
+        const bStar = Number(btn.getAttribute('data-edit-star-pick') || '0');
+        btn.textContent = bStar <= safe ? '★' : '☆';
+        btn.setAttribute('aria-checked', bStar === safe ? 'true' : 'false');
+      });
+    }
+
     document.querySelectorAll<HTMLButtonElement>('[data-star-pick]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const star = Number(btn.getAttribute('data-star-pick') || '5');
         setStarPicker(star);
       });
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('[data-edit-star-pick]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const star = Number(btn.getAttribute('data-edit-star-pick') || '5');
+        setEditStarPicker(star);
+      });
+    });
+
+    function showBanner(el: HTMLElement | null, message: string, isSuccess: boolean) {
+      if (!el) return;
+      el.hidden = false;
+      el.textContent = message;
+      el.className = isSuccess
+        ? 'rounded-xl border border-forest/30 bg-forest/10 px-3.5 py-2.5 text-xs font-semibold text-forest'
+        : 'rounded-xl border border-terracotta-deep/40 bg-terracotta/10 px-3.5 py-2.5 text-xs font-semibold text-terracotta-deep';
+    }
+
+    function hideBanner(el: HTMLElement | null) {
+      if (!el) return;
+      el.hidden = true;
+      el.textContent = '';
+    }
+
+    function populateMyReviewView(rev: any) {
+      const rating = Math.max(1, Math.min(5, Number(rev.rating || 5)));
+      if (myReviewDisplayStarsEl) myReviewDisplayStarsEl.textContent = starsString(rating);
+      if (myReviewDisplayRatingTextEl) myReviewDisplayRatingTextEl.textContent = `${rating} out of 5 stars`;
+      if (myReviewDisplayDateEl && rev.createdAt) {
+        myReviewDisplayDateEl.textContent = new Date(rev.createdAt).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        });
+      }
+      if (myReviewDisplayTitleEl) myReviewDisplayTitleEl.innerHTML = rev.title || '';
+      if (myReviewDisplayCommentEl) myReviewDisplayCommentEl.innerHTML = rev.comment || '';
+      if (myReviewStatusPill) {
+        myReviewStatusPill.textContent = '✓ Published';
+      }
+    }
+
+    function populateEditFormFromReview(rev: any) {
+      if (!rev) return;
+      setEditStarPicker(Number(rev.rating || 5));
+      if (editTitleInput) editTitleInput.value = decodeHtmlEntities(rev.title || '');
+      if (editCommentInput) editCommentInput.value = decodeHtmlEntities(rev.comment || '');
+    }
+
+    function openEditReviewMode() {
+      if (!currentMyReview) return;
+      populateEditFormFromReview(currentMyReview);
+      if (myReviewViewModeEl) myReviewViewModeEl.hidden = true;
+      if (myReviewEditFormEl) myReviewEditFormEl.hidden = false;
+      hideBanner(myReviewCardBannerEl);
+      editTitleInput?.focus();
+    }
+
+    function cancelEditReviewMode() {
+      if (currentMyReview) {
+        populateEditFormFromReview(currentMyReview);
+        populateMyReviewView(currentMyReview);
+      }
+      if (myReviewEditFormEl) myReviewEditFormEl.hidden = true;
+      if (myReviewViewModeEl) myReviewViewModeEl.hidden = false;
+      hideBanner(myReviewCardBannerEl);
+    }
+
+    function updateReviewAuthAndOwnershipVisibility() {
+      if (!isAuthenticatedUser) {
+        if (guestPromptEl) guestPromptEl.hidden = false;
+        if (reviewFormEl) reviewFormEl.hidden = true;
+        if (myReviewCardEl) myReviewCardEl.hidden = true;
+        return;
+      }
+
+      if (guestPromptEl) guestPromptEl.hidden = true;
+      if (currentMyReview) {
+        // User already reviewed this recipe -> show interactive review management card, hide duplicate submission form
+        if (reviewFormEl) reviewFormEl.hidden = true;
+        if (myReviewCardEl) myReviewCardEl.hidden = false;
+        populateMyReviewView(currentMyReview);
+      } else {
+        // User has not reviewed this recipe -> show new review submission form
+        if (myReviewCardEl) myReviewCardEl.hidden = true;
+        if (reviewFormEl) reviewFormEl.hidden = false;
+      }
+    }
+
+    async function handleDeleteMyReview() {
+      if (!currentMyReview || !currentMyReview.id) return;
+      const auth = (window as any).__CROCKBITES_AUTH__;
+      if (!auth || !auth.authenticated) {
+        window.location.href = `/login/?returnTo=${encodeURIComponent(window.location.pathname + '#recipe-reviews')}`;
+        return;
+      }
+
+      const confirmed = window.confirm('Are you sure you want to delete your review? This action cannot be undone.');
+      if (!confirmed) return;
+
+      if (myReviewDeleteBtn) myReviewDeleteBtn.disabled = true;
+      if (myReviewEditBtn) myReviewEditBtn.disabled = true;
+
+      try {
+        const res = await fetch(`/api/community/reviews/${encodeURIComponent(currentMyReview.id)}/`, {
+          method: 'DELETE',
+          headers: {
+            'content-type': 'application/json',
+            'x-csrf-token': auth.csrfToken || '',
+          },
+          body: JSON.stringify({ csrfToken: auth.csrfToken || '' }),
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          showBanner(myReviewCardBannerEl, data.error || 'Could not delete your review.', false);
+          return;
+        }
+
+        // Clear current user review state & reset the new review form
+        currentMyReview = null;
+        if (myReviewEditFormEl) myReviewEditFormEl.hidden = true;
+        if (myReviewViewModeEl) myReviewViewModeEl.hidden = false;
+        hideBanner(myReviewCardBannerEl);
+
+        setStarPicker(5);
+        if (titleInput) titleInput.value = '';
+        if (commentInput) commentInput.value = '';
+
+        await loadRecipeReviews(1);
+        showBanner(
+          reviewBanner,
+          data.message || 'Your review has been deleted. You can submit a new review below anytime.',
+          true,
+        );
+      } catch {
+        showBanner(myReviewCardBannerEl, 'Network error while deleting your review.', false);
+      } finally {
+        if (myReviewDeleteBtn) myReviewDeleteBtn.disabled = false;
+        if (myReviewEditBtn) myReviewEditBtn.disabled = false;
+      }
+    }
+
+    myReviewEditBtn?.addEventListener('click', openEditReviewMode);
+    editCancelBtn?.addEventListener('click', cancelEditReviewMode);
+    myReviewDeleteBtn?.addEventListener('click', handleDeleteMyReview);
+
+    myReviewEditFormEl?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!currentMyReview || !currentMyReview.id) return;
+      const auth = (window as any).__CROCKBITES_AUTH__;
+      if (!auth || !auth.authenticated) {
+        window.location.href = `/login/?returnTo=${encodeURIComponent(window.location.pathname + '#recipe-reviews')}`;
+        return;
+      }
+
+      const ratingVal = Number(editRatingInput?.value || 5);
+      const titleVal = (editTitleInput?.value || '').trim();
+      const commentVal = (editCommentInput?.value || '').trim();
+
+      if (!Number.isInteger(ratingVal) || ratingVal < 1 || ratingVal > 5) {
+        showBanner(myReviewCardBannerEl, 'Rating must be a whole number from 1 to 5 stars.', false);
+        return;
+      }
+      if (titleVal.length < 3 || titleVal.length > 120) {
+        showBanner(myReviewCardBannerEl, 'Review title must be between 3 and 120 characters.', false);
+        return;
+      }
+      if (commentVal.length < 10 || commentVal.length > 2000) {
+        showBanner(myReviewCardBannerEl, 'Review comment must be between 10 and 2,000 characters.', false);
+        return;
+      }
+
+      if (editSaveBtn) editSaveBtn.disabled = true;
+      if (editCancelBtn) editCancelBtn.disabled = true;
+
+      try {
+        const res = await fetch(`/api/community/reviews/${encodeURIComponent(currentMyReview.id)}/`, {
+          method: 'PUT',
+          headers: {
+            'content-type': 'application/json',
+            'x-csrf-token': auth.csrfToken || '',
+          },
+          body: JSON.stringify({
+            rating: ratingVal,
+            title: titleVal,
+            comment: commentVal,
+            csrfToken: auth.csrfToken || '',
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          showBanner(myReviewCardBannerEl, data.error || 'Failed to update review.', false);
+          return;
+        }
+
+        currentMyReview = data.review || currentMyReview;
+        if (myReviewEditFormEl) myReviewEditFormEl.hidden = true;
+        if (myReviewViewModeEl) myReviewViewModeEl.hidden = false;
+
+        await loadRecipeReviews(currentReviewPage);
+        showBanner(myReviewCardBannerEl, data.message || 'Your review has been updated and published.', true);
+      } catch {
+        showBanner(myReviewCardBannerEl, 'Network error updating your review.', false);
+      } finally {
+        if (editSaveBtn) editSaveBtn.disabled = false;
+        if (editCancelBtn) editCancelBtn.disabled = false;
+      }
     });
 
     async function loadRecipeReviews(page = 1) {
@@ -1372,22 +1743,8 @@ const allergenNames: Record<string, string> = {
           if (countEl) countEl.textContent = String(cnt);
         });
 
-        // Pre-populate user's own review if present
-        if (data.myReview && reviewFormEl) {
-          setStarPicker(Number(data.myReview.rating || 5));
-          if (titleInput) titleInput.value = data.myReview.title || '';
-          if (commentInput) commentInput.value = data.myReview.comment || '';
-          if (reviewFormHeading) reviewFormHeading.textContent = 'Your Published Review';
-          if (submitBtn) submitBtn.textContent = 'Review Published';
-          if (helperNoteEl) {
-            helperNoteEl.innerHTML =
-              'You have already reviewed this recipe. You can edit or delete your review anytime in <a href="/account/reviews/" class="font-semibold text-forest underline">My Reviews</a>.';
-          }
-          if (myReviewStatusPill) {
-            myReviewStatusPill.hidden = false;
-            myReviewStatusPill.textContent = '✓ Published';
-          }
-        }
+        currentMyReview = data.myReview || null;
+        updateReviewAuthAndOwnershipVisibility();
 
         // Render published reviews list safely using DOM nodes
         if (approvedListEl) {
@@ -1400,16 +1757,18 @@ const allergenNames: Record<string, string> = {
             list.forEach((rev: any) => {
               const card = document.createElement('article');
               card.className = 'rounded-2xl border border-line bg-cream/30 p-5';
+              card.setAttribute('data-public-review-id', String(rev.id || ''));
 
               const top = document.createElement('div');
               top.className = 'flex flex-wrap items-center justify-between gap-2';
 
               const authorWrap = document.createElement('div');
+              authorWrap.className = 'flex flex-wrap items-center gap-2';
               const authorStrong = document.createElement('strong');
               authorStrong.className = 'text-sm font-semibold text-forest';
               authorStrong.textContent = rev.authorDisplayName || 'Community Cook';
               const dateSpan = document.createElement('span');
-              dateSpan.className = 'ml-2 text-xs text-ink-soft';
+              dateSpan.className = 'text-xs text-ink-soft';
               dateSpan.textContent = new Date(rev.createdAt).toLocaleDateString('en-US', {
                 month: 'short',
                 day: 'numeric',
@@ -1417,6 +1776,13 @@ const allergenNames: Record<string, string> = {
               });
               authorWrap.appendChild(authorStrong);
               authorWrap.appendChild(dateSpan);
+
+              if (currentMyReview && rev.id === currentMyReview.id) {
+                const ownBadge = document.createElement('span');
+                ownBadge.className = 'rounded-full border border-forest/20 bg-forest/10 px-2 py-0.5 text-[11px] font-semibold text-forest';
+                ownBadge.textContent = 'Your Review';
+                authorWrap.appendChild(ownBadge);
+              }
 
               const starSpan = document.createElement('span');
               starSpan.className = 'text-sm font-bold tracking-wider text-terracotta-deep';
@@ -1482,10 +1848,10 @@ const allergenNames: Record<string, string> = {
     }
 
     function syncAuthUI(auth: any) {
-      if (auth && auth.authenticated) {
-        if (guestPromptEl) guestPromptEl.hidden = true;
-        if (reviewFormEl) reviewFormEl.hidden = false;
+      isAuthenticatedUser = Boolean(auth && auth.authenticated);
+      updateReviewAuthAndOwnershipVisibility();
 
+      if (isAuthenticatedUser) {
         // Record recently viewed recipe for signed-in user
         fetch('/api/community/recently-viewed/', {
           method: 'POST',
@@ -1495,9 +1861,6 @@ const allergenNames: Record<string, string> = {
           },
           body: JSON.stringify({ recipeSlug, csrfToken: auth.csrfToken || '' }),
         }).catch(() => {});
-      } else {
-        if (guestPromptEl) guestPromptEl.hidden = false;
-        if (reviewFormEl) reviewFormEl.hidden = true;
       }
     }
 
@@ -1506,6 +1869,7 @@ const allergenNames: Record<string, string> = {
     }
     window.addEventListener('crockbites:auth-ready', (e: any) => {
       syncAuthUI(e.detail);
+      loadRecipeReviews(currentReviewPage);
     });
 
     loadRecipeReviews();
@@ -1519,6 +1883,7 @@ const allergenNames: Record<string, string> = {
           return;
         }
 
+        hideBanner(reviewBanner);
         if (submitBtn) submitBtn.disabled = true;
         try {
           const res = await fetch('/api/community/reviews/', {
@@ -1536,15 +1901,15 @@ const allergenNames: Record<string, string> = {
             }),
           });
           const data = await res.json();
-          if (reviewBanner) {
-            reviewBanner.hidden = false;
-            reviewBanner.textContent = data.message || data.error || 'Review submitted.';
-            reviewBanner.className = res.ok
-              ? 'rounded-xl border border-forest/30 bg-forest/10 px-3.5 py-2.5 text-xs font-semibold text-forest'
-              : 'rounded-xl border border-terracotta-deep/40 bg-terracotta/10 px-3.5 py-2.5 text-xs font-semibold text-terracotta-deep';
-          }
           if (res.ok) {
-            await loadRecipeReviews();
+            await loadRecipeReviews(1);
+            showBanner(
+              myReviewCardBannerEl,
+              data.message || 'Thank you! Your review has been published.',
+              true,
+            );
+          } else {
+            showBanner(reviewBanner, data.error || 'Could not submit review.', false);
           }
         } finally {
           if (submitBtn) submitBtn.disabled = false;

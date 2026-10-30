@@ -593,32 +593,53 @@ export const submitOrUpdateReview = submitReview;
 
 export async function updateOwnReviewById(
   db: D1Database,
-  user: SafeUser,
+  user: SafeUser | null | undefined,
   reviewId: string,
   input: { rating: unknown; title: unknown; comment: unknown },
-): Promise<{ ok: true; review: ReviewItem } | { ok: false; error: string }> {
+): Promise<{ ok: true; review: ReviewItem } | { ok: false; error: string; statusCode?: number }> {
+  if (!user || !user.id) {
+    return {
+      ok: false,
+      error: 'Authentication required. Please sign in to edit your review.',
+      statusCode: 401,
+    };
+  }
+
+  const cleanId = typeof reviewId === 'string' ? reviewId.trim() : '';
+  if (!cleanId) {
+    return { ok: false, error: 'Review ID is required.', statusCode: 400 };
+  }
+
   const existing = await db
-    .prepare(`SELECT * FROM reviews WHERE id = ? AND user_id = ? LIMIT 1`)
-    .bind(reviewId, user.id)
+    .prepare(`SELECT * FROM reviews WHERE id = ? LIMIT 1`)
+    .bind(cleanId)
     .first<Record<string, unknown>>();
 
   if (!existing) {
-    return { ok: false, error: 'Review not found or you do not have permission to edit it.' };
+    return { ok: false, error: 'Review not found.', statusCode: 404 };
+  }
+
+  if (String(existing.user_id ?? '') !== user.id) {
+    return {
+      ok: false,
+      error: 'Review not found or you do not have permission to edit it.',
+      statusCode: 403,
+    };
   }
 
   const ratingNum = Number(input.rating);
   if (!Number.isInteger(ratingNum) || ratingNum < 1 || ratingNum > 5) {
-    return { ok: false, error: 'Rating must be a whole number from 1 to 5 stars.' };
+    return { ok: false, error: 'Rating must be a whole number from 1 to 5 stars.', statusCode: 400 };
   }
 
   const rawTitle = typeof input.title === 'string' ? input.title.trim().replace(/\s+/g, ' ') : '';
   if (rawTitle.length < 3 || rawTitle.length > 120) {
-    return { ok: false, error: 'Review title must be between 3 and 120 characters.' };
+    return { ok: false, error: 'Review title must be between 3 and 120 characters.', statusCode: 400 };
   }
 
   const rawComment = typeof input.comment === 'string' ? input.comment.trim() : '';
   if (rawComment.length < 10 || rawComment.length > 2000) {
-    return { ok: false, error: 'Review comment must be between 10 and 2,000 characters.' };
+    return { ok: false, error: 'Review comment must be between 10 and 2,000 characters.', statusCode: 400 };
   }
 
   const safeTitle = escapeHtml(rawTitle);
@@ -632,28 +653,49 @@ export async function updateOwnReviewById(
            status = 'approved', updated_at = ?
        WHERE id = ? AND user_id = ?`,
     )
-    .bind(ratingNum, safeTitle, safeComment, user.displayName, user.username, nowIso, reviewId, user.id)
+    .bind(ratingNum, safeTitle, safeComment, user.displayName, user.username, nowIso, cleanId, user.id)
     .run();
 
-  const updated = await db.prepare(`SELECT * FROM reviews WHERE id = ?`).bind(reviewId).first<Record<string, unknown>>();
+  const updated = await db.prepare(`SELECT * FROM reviews WHERE id = ?`).bind(cleanId).first<Record<string, unknown>>();
   return { ok: true, review: mapRowToReview(updated!) };
 }
 
 export async function deleteOwnReview(
   db: D1Database,
-  userId: string,
+  userId: string | null | undefined,
   reviewId: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const existing = await db
-    .prepare(`SELECT id FROM reviews WHERE id = ? AND user_id = ? LIMIT 1`)
-    .bind(reviewId, userId)
-    .first();
-
-  if (!existing) {
-    return { ok: false, error: 'Review not found or you do not have permission to delete it.' };
+): Promise<{ ok: true } | { ok: false; error: string; statusCode?: number }> {
+  if (!userId || typeof userId !== 'string') {
+    return {
+      ok: false,
+      error: 'Authentication required. Please sign in to delete your review.',
+      statusCode: 401,
+    };
   }
 
-  await db.prepare(`DELETE FROM reviews WHERE id = ? AND user_id = ?`).bind(reviewId, userId).run();
+  const cleanId = typeof reviewId === 'string' ? reviewId.trim() : '';
+  if (!cleanId) {
+    return { ok: false, error: 'Review ID is required.', statusCode: 400 };
+  }
+
+  const existing = await db
+    .prepare(`SELECT id, user_id FROM reviews WHERE id = ? LIMIT 1`)
+    .bind(cleanId)
+    .first<{ id: string; user_id: string | null }>();
+
+  if (!existing) {
+    return { ok: false, error: 'Review not found.', statusCode: 404 };
+  }
+
+  if (String(existing.user_id ?? '') !== userId) {
+    return {
+      ok: false,
+      error: 'Review not found or you do not have permission to delete it.',
+      statusCode: 403,
+    };
+  }
+
+  await db.prepare(`DELETE FROM reviews WHERE id = ? AND user_id = ?`).bind(cleanId, userId).run();
   return { ok: true };
 }
 

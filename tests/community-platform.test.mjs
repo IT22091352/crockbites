@@ -542,7 +542,7 @@ await test('11. Instant Review Publishing: guest rejection, immediate approval, 
   assert.equal(publicAfterTwo.distribution[5], 1);
   assert.equal(publicAfterTwo.distribution[3], 1);
 
-  // 8. Non-admin users cannot edit or delete other users' reviews
+  // 7 & 8. Non-admin users cannot edit or delete other users' reviews (returns 403)
   const rev1Id = rev1.ok ? rev1.review.id : '';
   const unauthorizedEdit = await updateOwnReviewById(db, u2.user, rev1Id, {
     rating: 1,
@@ -550,11 +550,34 @@ await test('11. Instant Review Publishing: guest rejection, immediate approval, 
     comment: 'Trying to edit another user review.',
   });
   assert.equal(unauthorizedEdit.ok, false);
+  if (!unauthorizedEdit.ok) {
+    assert.equal(unauthorizedEdit.statusCode, 403);
+  }
 
   const unauthorizedDel = await deleteOwnReview(db, u2.user.id, rev1Id);
   assert.equal(unauthorizedDel.ok, false);
+  if (!unauthorizedDel.ok) {
+    assert.equal(unauthorizedDel.statusCode, 403);
+  }
 
-  // User 1 can edit their own review by ID and it stays approved & public immediately
+  // 9. Guest users cannot edit or delete reviews (returns 401)
+  const guestEdit = await updateOwnReviewById(db, null, rev1Id, {
+    rating: 1,
+    title: 'Guest edit attempt',
+    comment: 'Guests cannot edit any review.',
+  });
+  assert.equal(guestEdit.ok, false);
+  if (!guestEdit.ok) {
+    assert.equal(guestEdit.statusCode, 401);
+  }
+
+  const guestDel = await deleteOwnReview(db, null, rev1Id);
+  assert.equal(guestDel.ok, false);
+  if (!guestDel.ok) {
+    assert.equal(guestDel.statusCode, 401);
+  }
+
+  // 1 & 2 & 6. User 1 can edit their own review by ID; stays approved & public immediately; average rating and distribution recalculate
   const updatedOwn = await updateOwnReviewById(db, u1.user, rev1Id, {
     rating: 4,
     title: 'Updated headline',
@@ -562,12 +585,52 @@ await test('11. Instant Review Publishing: guest rejection, immediate approval, 
   });
   assert.ok(updatedOwn.ok);
   assert.equal(updatedOwn.review.status, 'approved');
+  assert.equal(updatedOwn.review.rating, 4);
+  assert.equal(updatedOwn.review.title, 'Updated headline');
 
   const publicAfterEdit = await getPublicRecipeReviews(db, 'slow-cooker-beef-stew');
   assert.equal(publicAfterEdit.totalApproved, 2);
   assert.equal(publicAfterEdit.averageRating, 3.5);
+  assert.equal(publicAfterEdit.distribution[5], 0);
+  assert.equal(publicAfterEdit.distribution[4], 1);
+  assert.equal(publicAfterEdit.distribution[3], 1);
 
-  // 7. Admins can search/list reviews and delete inappropriate reviews
+  // 4 & 5 & 6. User 1 can delete their own review; disappears from public results and recalculates averageRating & distribution
+  const ownDel = await deleteOwnReview(db, u1.user.id, rev1Id);
+  assert.equal(ownDel.ok, true);
+
+  const publicAfterOwnDelete = await getPublicRecipeReviews(db, 'slow-cooker-beef-stew', 1, 10, u1.user.id);
+  assert.equal(publicAfterOwnDelete.totalApproved, 1);
+  assert.equal(publicAfterOwnDelete.averageRating, 3);
+  assert.equal(publicAfterOwnDelete.distribution[4], 0);
+  assert.equal(publicAfterOwnDelete.distribution[3], 1);
+  assert.equal(publicAfterOwnDelete.myReview, null);
+  assert.equal(publicAfterOwnDelete.reviews.some((r) => r.id === rev1Id), false);
+
+  // 11. User 1 can submit a new review after deleting their previous review
+  const resubmittedRev = await submitReview(
+    db,
+    u1.user,
+    {
+      recipeSlug: 'slow-cooker-beef-stew',
+      rating: 5,
+      title: 'Fresh review after cooking again',
+      comment: 'Made this again for Sunday dinner and everyone loved it!',
+    },
+    PUBLISHED_SLUGS,
+  );
+  assert.equal(resubmittedRev.ok, true);
+  if (resubmittedRev.ok) {
+    assert.equal(resubmittedRev.review.status, 'approved');
+  }
+
+  const publicAfterResubmit = await getPublicRecipeReviews(db, 'slow-cooker-beef-stew', 1, 10, u1.user.id);
+  assert.equal(publicAfterResubmit.totalApproved, 2);
+  assert.equal(publicAfterResubmit.averageRating, 4);
+  assert.ok(publicAfterResubmit.myReview);
+  assert.equal(publicAfterResubmit.myReview.title, 'Fresh review after cooking again');
+
+  // 7 (Admin). Admins can search/list reviews and delete inappropriate reviews
   const adminList = await listAdminReviews(db, { recipeSlug: 'slow-cooker-beef-stew' });
   assert.equal(adminList.counts.total, 2);
   assert.equal(adminList.reviews.length, 2);
@@ -577,7 +640,7 @@ await test('11. Instant Review Publishing: guest rejection, immediate approval, 
 
   const publicAfterAdminDelete = await getPublicRecipeReviews(db, 'slow-cooker-beef-stew');
   assert.equal(publicAfterAdminDelete.totalApproved, 1);
-  assert.equal(publicAfterAdminDelete.averageRating, 4);
+  assert.equal(publicAfterAdminDelete.averageRating, 5);
 });
 
 await test('12. Existing pending reviews migration: converts pending reviews to approved without losing content, author, rating, or timestamps', async () => {
