@@ -67,8 +67,10 @@ export type FrontmatterRecipe = {
   allergenNotes?: string;
   nutrition?: RecipeNutrition;
   featured?: boolean;
+  popularRank?: number;
   related?: string[];
   reviewStatus?: 'draft' | 'tested';
+  body?: string;
 };
 
 export const allowedCategories = [
@@ -204,11 +206,169 @@ export function inferRecipeDraft(data: Partial<FrontmatterRecipe>) {
   return { issues, slug: slugify(title || data.slug || 'recipe') };
 }
 
+export function parseRecipeMarkdown(markdownContent: string): { frontmatter: Record<string, unknown>; body: string } {
+  const normalized = String(markdownContent ?? '').replace(/\r\n/g, '\n');
+  const match = normalized.match(/^---\n([\s\S]*?)\n---(?:\n([\s\S]*))?$/);
+  if (!match) {
+    return { frontmatter: {}, body: normalized.trim() };
+  }
+  try {
+    const parsed = YAML.parse(match[1]);
+    return {
+      frontmatter: parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {},
+      body: (match[2] ?? '').trim(),
+    };
+  } catch {
+    return { frontmatter: {}, body: (match[2] ?? '').trim() };
+  }
+}
+
+export function mergeExistingRecipeWithUpdates(
+  existingMarkdownOrData: string | Partial<FrontmatterRecipe>,
+  updates: Partial<FrontmatterRecipe> & Record<string, unknown>,
+): FrontmatterRecipe {
+  let existingFm: Record<string, unknown> = {};
+  let existingBody = '';
+
+  if (typeof existingMarkdownOrData === 'string') {
+    const parsed = parseRecipeMarkdown(existingMarkdownOrData);
+    existingFm = parsed.frontmatter;
+    existingBody = parsed.body;
+  } else if (existingMarkdownOrData && typeof existingMarkdownOrData === 'object') {
+    existingFm = { ...existingMarkdownOrData };
+    if (typeof existingMarkdownOrData.body === 'string') {
+      existingBody = existingMarkdownOrData.body;
+    }
+  }
+
+  const pickOptional = <T>(key: string, updatedVal: T | undefined, fallbackVal: unknown): T | undefined => {
+    if (Object.prototype.hasOwnProperty.call(updates, key)) {
+      if (updatedVal === null || (typeof updatedVal === 'string' && updatedVal.trim() === '')) {
+        return undefined;
+      }
+      return updatedVal;
+    }
+    return fallbackVal as T | undefined;
+  };
+
+  const mergedIngredients = (() => {
+    if (updates.ingredients === undefined) {
+      return existingFm.ingredients as FrontmatterRecipe['ingredients'];
+    }
+    const existingList = Array.isArray(existingFm.ingredients)
+      ? (existingFm.ingredients as FrontmatterRecipe['ingredients'])
+      : [];
+
+    return updates.ingredients.map((incoming, idx) => {
+      const normalizedItem = String(incoming.item ?? '').trim().toLowerCase();
+      const matched =
+        (existingList[idx] && String(existingList[idx].item ?? '').trim().toLowerCase() === normalizedItem
+          ? existingList[idx]
+          : existingList.find((ex) => String(ex.item ?? '').trim().toLowerCase() === normalizedItem)) ?? undefined;
+
+      return {
+        ...incoming,
+        group: Object.prototype.hasOwnProperty.call(incoming, 'group') && incoming.group !== undefined
+          ? (incoming.group || undefined)
+          : matched?.group,
+        alt: Object.prototype.hasOwnProperty.call(incoming, 'alt') && incoming.alt !== undefined
+          ? (incoming.alt || undefined)
+          : matched?.alt,
+        scale: Object.prototype.hasOwnProperty.call(incoming, 'scale') && incoming.scale !== undefined
+          ? incoming.scale
+          : matched?.scale,
+        itemPlural: Object.prototype.hasOwnProperty.call(incoming, 'itemPlural') && incoming.itemPlural !== undefined
+          ? (incoming.itemPlural || undefined)
+          : matched?.itemPlural,
+      };
+    });
+  })();
+
+  const mergedPubDate = (() => {
+    const raw = updates.pubDate !== undefined ? updates.pubDate : existingFm.pubDate;
+    if (raw instanceof Date) return raw.toISOString().slice(0, 10);
+    if (typeof raw === 'string' && raw.trim()) return raw.trim().slice(0, 10);
+    return new Date().toISOString().slice(0, 10);
+  })();
+
+  const mergedUpdatedDate = (() => {
+    const raw = updates.updatedDate !== undefined ? updates.updatedDate : existingFm.updatedDate;
+    if (raw instanceof Date) return raw.toISOString().slice(0, 10);
+    if (typeof raw === 'string' && raw.trim()) return raw.trim().slice(0, 10);
+    return undefined;
+  })();
+
+  const mergedRaw: Partial<FrontmatterRecipe> = {
+    title: (updates.title ?? existingFm.title) as string,
+    slug: (updates.slug ?? existingFm.slug) as string | undefined,
+    description: (updates.description ?? existingFm.description) as string,
+    category: (updates.category ?? existingFm.category) as string,
+    tags: (updates.tags !== undefined ? updates.tags : existingFm.tags) as string[],
+    image: (updates.image ?? existingFm.image) as string,
+    imageAlt: (updates.imageAlt ?? existingFm.imageAlt) as string,
+    gallery: pickOptional('gallery', updates.gallery, existingFm.gallery),
+    author: (updates.author ?? existingFm.author) as string,
+    pubDate: mergedPubDate,
+    updatedDate: mergedUpdatedDate,
+    prepMinutes: (updates.prepMinutes ?? existingFm.prepMinutes) as number,
+    cookMinutes: (updates.cookMinutes ?? existingFm.cookMinutes) as number,
+    totalMinutes: pickOptional('totalMinutes', updates.totalMinutes, existingFm.totalMinutes),
+    cookTimeNote: pickOptional('cookTimeNote', updates.cookTimeNote, existingFm.cookTimeNote),
+    servings: (updates.servings ?? existingFm.servings) as number,
+    servingsLabel: pickOptional('servingsLabel', updates.servingsLabel, existingFm.servingsLabel),
+    ingredients: mergedIngredients,
+    instructions: (updates.instructions !== undefined ? updates.instructions : existingFm.instructions) as FrontmatterRecipe['instructions'],
+    servingSuggestions: pickOptional('servingSuggestions', updates.servingSuggestions, existingFm.servingSuggestions),
+    tips: pickOptional('tips', updates.tips, existingFm.tips),
+    substitutions: pickOptional('substitutions', updates.substitutions, existingFm.substitutions),
+    storage: pickOptional('storage', updates.storage, existingFm.storage),
+    equipment: pickOptional('equipment', updates.equipment, existingFm.equipment),
+    foodSafety: pickOptional('foodSafety', updates.foodSafety, existingFm.foodSafety),
+    dietaryLabels: pickOptional('dietaryLabels', updates.dietaryLabels, existingFm.dietaryLabels),
+    dietaryVerified: pickOptional('dietaryVerified', updates.dietaryVerified, existingFm.dietaryVerified),
+    allergens: pickOptional('allergens', updates.allergens, existingFm.allergens),
+    allergenReviewed: pickOptional('allergenReviewed', updates.allergenReviewed, existingFm.allergenReviewed),
+    allergenNotes: pickOptional('allergenNotes', updates.allergenNotes, existingFm.allergenNotes),
+    nutrition: Object.prototype.hasOwnProperty.call(updates, 'nutrition')
+      ? (updates.nutrition ?? undefined)
+      : (existingFm.nutrition as RecipeNutrition | undefined),
+    featured: pickOptional('featured', updates.featured, existingFm.featured),
+    popularRank: pickOptional('popularRank', updates.popularRank, existingFm.popularRank),
+    related: pickOptional('related', updates.related, existingFm.related),
+    reviewStatus: (updates.reviewStatus ?? existingFm.reviewStatus) as 'draft' | 'tested' | undefined,
+    body: Object.prototype.hasOwnProperty.call(updates, 'body') && updates.body !== undefined
+      ? String(updates.body)
+      : existingBody,
+  };
+
+  return normalizeRecipePayload(mergedRaw);
+}
+
 export function normalizeRecipePayload(data: Partial<FrontmatterRecipe>): FrontmatterRecipe {
   const title = sanitizeRecipeString(data.title) || 'Untitled recipe';
   const slug = sanitizeRecipeString(data.slug) || slugify(title);
   const ingredientList = Array.isArray(data.ingredients) ? data.ingredients : [];
   const instructionList = Array.isArray(data.instructions) ? data.instructions : [];
+
+  const popularRankNum = data.popularRank != null && data.popularRank !== ('' as unknown)
+    ? Number(data.popularRank)
+    : undefined;
+  const popularRank = popularRankNum != null && Number.isFinite(popularRankNum) && popularRankNum > 0
+    ? Math.round(popularRankNum)
+    : undefined;
+
+  const storageObj: { fridge?: string; freezer?: string; reheating?: string } = {};
+  if (data.storage && typeof data.storage === 'object') {
+    if (data.storage.fridge && sanitizeRecipeString(data.storage.fridge)) {
+      storageObj.fridge = sanitizeRecipeString(data.storage.fridge);
+    }
+    if (data.storage.freezer && sanitizeRecipeString(data.storage.freezer)) {
+      storageObj.freezer = sanitizeRecipeString(data.storage.freezer);
+    }
+    if (data.storage.reheating && sanitizeRecipeString(data.storage.reheating)) {
+      storageObj.reheating = sanitizeRecipeString(data.storage.reheating);
+    }
+  }
 
   return {
     title,
@@ -233,7 +393,7 @@ export function normalizeRecipePayload(data: Partial<FrontmatterRecipe>): Frontm
     updatedDate: data.updatedDate ? sanitizeRecipeString(data.updatedDate) : undefined,
     prepMinutes: Number(data.prepMinutes ?? 0),
     cookMinutes: Number(data.cookMinutes ?? 0),
-    totalMinutes: data.totalMinutes != null ? Number(data.totalMinutes) : undefined,
+    totalMinutes: data.totalMinutes != null && Number.isFinite(Number(data.totalMinutes)) ? Number(data.totalMinutes) : undefined,
     cookTimeNote: data.cookTimeNote ? sanitizeRecipeString(data.cookTimeNote) : undefined,
     servings: Number(data.servings ?? 1),
     servingsLabel: sanitizeRecipeString(data.servingsLabel) || 'servings',
@@ -257,11 +417,7 @@ export function normalizeRecipePayload(data: Partial<FrontmatterRecipe>): Frontm
       ingredient: sanitizeRecipeString(entry.ingredient),
       swap: sanitizeRecipeString(entry.swap),
     })).filter((entry) => entry.ingredient && entry.swap) : [],
-    storage: data.storage ? {
-      fridge: data.storage.fridge ? sanitizeRecipeString(data.storage.fridge) : undefined,
-      freezer: data.storage.freezer ? sanitizeRecipeString(data.storage.freezer) : undefined,
-      reheating: data.storage.reheating ? sanitizeRecipeString(data.storage.reheating) : undefined,
-    } : {},
+    storage: storageObj,
     equipment: Array.isArray(data.equipment) ? data.equipment.map((item) => sanitizeRecipeString(item)).filter(Boolean) : [],
     foodSafety: Array.isArray(data.foodSafety) ? data.foodSafety.map((item) => sanitizeRecipeString(item)).filter(Boolean) : [],
     dietaryLabels: normalizeDietaryLabels(data.dietaryLabels),
@@ -271,8 +427,10 @@ export function normalizeRecipePayload(data: Partial<FrontmatterRecipe>): Frontm
     allergenNotes: data.allergenNotes ? sanitizeRecipeString(data.allergenNotes) : undefined,
     nutrition: normalizeNutrition(data.nutrition),
     featured: Boolean(data.featured),
+    popularRank,
     related: Array.isArray(data.related) ? data.related.map((item) => sanitizeRecipeString(item)).filter(Boolean) : [],
     reviewStatus: data.reviewStatus === 'tested' ? 'tested' : 'draft',
+    body: typeof data.body === 'string' ? data.body.trim() : undefined,
   };
 }
 
@@ -315,11 +473,12 @@ export function serializeRecipeToMarkdown(data: FrontmatterRecipe) {
     ...(normalized.allergenNotes ? { allergenNotes: normalized.allergenNotes } : {}),
     ...(normalized.nutrition ? { nutrition: normalized.nutrition } : {}),
     ...(normalized.featured !== undefined ? { featured: normalized.featured } : {}),
+    ...(normalized.popularRank != null ? { popularRank: normalized.popularRank } : {}),
     ...(normalized.related?.length ? { related: normalized.related } : {}),
     reviewStatus: normalized.reviewStatus ?? 'draft',
   };
 
-  const bodyText = typeof (data as any).body === 'string' ? (data as any).body.trim() : '';
+  const bodyText = typeof normalized.body === 'string' ? normalized.body.trim() : '';
   if (bodyText && bodyText !== normalized.description.trim()) {
     return `---\n${YAML.stringify(frontmatter, { lineWidth: 0 })}---\n\n${bodyText}\n`;
   }

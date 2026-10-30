@@ -1,5 +1,5 @@
 import type { D1Database } from './db.ts';
-import { escapeHtml, generateId, sanitizePlainText, type SafeUser } from './user-auth.ts';
+import { decodeHtmlEntities, escapeHtml, generateId, sanitizePlainText, type SafeUser } from './user-auth.ts';
 
 export interface CollectionSummary {
   id: string;
@@ -258,18 +258,17 @@ export async function addRecipeToCollection(
   }
 
   const nowIso = new Date().toISOString();
-  await db
-    .prepare(
-      `INSERT OR IGNORE INTO collection_recipes (id, collection_id, recipe_slug, created_at)
-       VALUES (?, ?, ?, ?)`,
-    )
-    .bind(generateId(), collectionId, sCheck.slug, nowIso)
-    .run();
-
-  await db
-    .prepare(`UPDATE collections SET updated_at = ? WHERE id = ?`)
-    .bind(nowIso, collectionId)
-    .run();
+  await db.batch([
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO collection_recipes (id, collection_id, recipe_slug, created_at)
+         VALUES (?, ?, ?, ?)`,
+      )
+      .bind(generateId(), collectionId, sCheck.slug, nowIso),
+    db
+      .prepare(`UPDATE collections SET updated_at = ? WHERE id = ?`)
+      .bind(nowIso, collectionId),
+  ]);
 
   return { ok: true, added: true };
 }
@@ -290,15 +289,15 @@ export async function removeRecipeFromCollection(
     return { ok: false, error: 'Collection not found or access denied.' };
   }
 
-  await db
-    .prepare(`DELETE FROM collection_recipes WHERE collection_id = ? AND recipe_slug = ?`)
-    .bind(collectionId, clean)
-    .run();
-
-  await db
-    .prepare(`UPDATE collections SET updated_at = ? WHERE id = ?`)
-    .bind(new Date().toISOString(), collectionId)
-    .run();
+  const nowIso = new Date().toISOString();
+  await db.batch([
+    db
+      .prepare(`DELETE FROM collection_recipes WHERE collection_id = ? AND recipe_slug = ?`)
+      .bind(collectionId, clean),
+    db
+      .prepare(`UPDATE collections SET updated_at = ? WHERE id = ?`)
+      .bind(nowIso, collectionId),
+  ]);
 
   return { ok: true };
 }
@@ -419,29 +418,28 @@ export async function recordRecentlyViewed(
 
   const nowIso = new Date().toISOString();
 
-  // Upsert without duplicate rows (INSERT OR REPLACE updates rowid & viewed_at deterministically)
-  await db
-    .prepare(
-      `INSERT OR REPLACE INTO recently_viewed (id, user_id, recipe_slug, viewed_at)
-       VALUES (?, ?, ?, ?)`,
-    )
-    .bind(generateId(), userId, sCheck.slug, nowIso)
-    .run();
-
-  // Keep only the latest 20 viewed recipes for this user
-  await db
-    .prepare(
-      `DELETE FROM recently_viewed
-       WHERE user_id = ?
-         AND id NOT IN (
-           SELECT id FROM recently_viewed
-           WHERE user_id = ?
-           ORDER BY viewed_at DESC, rowid DESC
-           LIMIT ?
-         )`,
-    )
-    .bind(userId, userId, MAX_RECENTLY_VIEWED)
-    .run();
+  await db.batch([
+    // Upsert without duplicate rows (INSERT OR REPLACE updates rowid & viewed_at deterministically)
+    db
+      .prepare(
+        `INSERT OR REPLACE INTO recently_viewed (id, user_id, recipe_slug, viewed_at)
+         VALUES (?, ?, ?, ?)`,
+      )
+      .bind(generateId(), userId, sCheck.slug, nowIso),
+    // Keep only the latest 20 viewed recipes for this user
+    db
+      .prepare(
+        `DELETE FROM recently_viewed
+         WHERE user_id = ?
+           AND id NOT IN (
+             SELECT id FROM recently_viewed
+             WHERE user_id = ?
+             ORDER BY viewed_at DESC, rowid DESC
+             LIMIT ?
+           )`,
+      )
+      .bind(userId, userId, MAX_RECENTLY_VIEWED),
+  ]);
 
   return { ok: true };
 }
@@ -477,7 +475,7 @@ function mapRowToReview(row: Record<string, unknown>): ReviewItem {
   return {
     id: String(row.id),
     userId: row.user_id ? String(row.user_id) : null,
-    authorDisplayName: String(row.author_display_name ?? 'Community Cook'),
+    authorDisplayName: decodeHtmlEntities(row.author_display_name ?? 'Community Cook').replace(/[<>]/g, ''),
     authorUsername: String(row.author_username ?? 'member'),
     recipeSlug: String(row.recipe_slug),
     rating: Number(row.rating),
@@ -534,12 +532,12 @@ export async function submitReview(
     return { ok: false, error: 'Rating must be a whole number from 1 to 5 stars.' };
   }
 
-  const rawTitle = typeof input.title === 'string' ? input.title.trim().replace(/\s+/g, ' ') : '';
+  const rawTitle = typeof input.title === 'string' ? decodeHtmlEntities(input.title).trim().replace(/\s+/g, ' ') : '';
   if (rawTitle.length < 3 || rawTitle.length > 120) {
     return { ok: false, error: 'Review title must be between 3 and 120 characters.' };
   }
 
-  const rawComment = typeof input.comment === 'string' ? input.comment.trim() : '';
+  const rawComment = typeof input.comment === 'string' ? decodeHtmlEntities(input.comment).trim() : '';
   if (rawComment.length < 10 || rawComment.length > 2000) {
     return { ok: false, error: 'Review comment must be between 10 and 2,000 characters.' };
   }
@@ -632,12 +630,12 @@ export async function updateOwnReviewById(
     return { ok: false, error: 'Rating must be a whole number from 1 to 5 stars.', statusCode: 400 };
   }
 
-  const rawTitle = typeof input.title === 'string' ? input.title.trim().replace(/\s+/g, ' ') : '';
+  const rawTitle = typeof input.title === 'string' ? decodeHtmlEntities(input.title).trim().replace(/\s+/g, ' ') : '';
   if (rawTitle.length < 3 || rawTitle.length > 120) {
     return { ok: false, error: 'Review title must be between 3 and 120 characters.', statusCode: 400 };
   }
 
-  const rawComment = typeof input.comment === 'string' ? input.comment.trim() : '';
+  const rawComment = typeof input.comment === 'string' ? decodeHtmlEntities(input.comment).trim() : '';
   if (rawComment.length < 10 || rawComment.length > 2000) {
     return { ok: false, error: 'Review comment must be between 10 and 2,000 characters.', statusCode: 400 };
   }
@@ -887,5 +885,75 @@ export async function adminDeleteReview(
   }
 
   await db.prepare(`DELETE FROM reviews WHERE id = ?`).bind(reviewId).run();
+  return { ok: true };
+}
+
+/**
+ * Atomically migrates all D1 community references (favorites, reviews,
+ * recently_viewed, and collection_recipes) when a recipe slug is renamed,
+ * preventing orphaned rows while avoiding UNIQUE constraint collisions.
+ */
+export async function migrateRecipeSlugInCommunityDb(
+  db: D1Database,
+  oldSlug: string,
+  newSlug: string,
+): Promise<{ ok: boolean }> {
+  const cleanOld = normalizeSlug(oldSlug);
+  const cleanNew = normalizeSlug(newSlug);
+  if (!cleanOld || !cleanNew || cleanOld === cleanNew) {
+    return { ok: true };
+  }
+
+  await db.batch([
+    // 1. Favorites: delete old rows where user already favorited newSlug, then rename remaining
+    db
+      .prepare(
+        `DELETE FROM favorites
+         WHERE recipe_slug = ?
+           AND user_id IN (SELECT user_id FROM favorites WHERE recipe_slug = ?)`,
+      )
+      .bind(cleanOld, cleanNew),
+    db
+      .prepare(`UPDATE favorites SET recipe_slug = ? WHERE recipe_slug = ?`)
+      .bind(cleanNew, cleanOld),
+
+    // 2. Reviews: delete old rows where non-null user_id already reviewed newSlug, then rename remaining
+    db
+      .prepare(
+        `DELETE FROM reviews
+         WHERE recipe_slug = ?
+           AND user_id IS NOT NULL
+           AND user_id IN (SELECT user_id FROM reviews WHERE recipe_slug = ? AND user_id IS NOT NULL)`,
+      )
+      .bind(cleanOld, cleanNew),
+    db
+      .prepare(`UPDATE reviews SET recipe_slug = ? WHERE recipe_slug = ?`)
+      .bind(cleanNew, cleanOld),
+
+    // 3. Recently Viewed: delete old rows where user already has newSlug, then rename remaining
+    db
+      .prepare(
+        `DELETE FROM recently_viewed
+         WHERE recipe_slug = ?
+           AND user_id IN (SELECT user_id FROM recently_viewed WHERE recipe_slug = ?)`,
+      )
+      .bind(cleanOld, cleanNew),
+    db
+      .prepare(`UPDATE recently_viewed SET recipe_slug = ? WHERE recipe_slug = ?`)
+      .bind(cleanNew, cleanOld),
+
+    // 4. Collection Recipes: delete old rows where collection already has newSlug, then rename remaining
+    db
+      .prepare(
+        `DELETE FROM collection_recipes
+         WHERE recipe_slug = ?
+           AND collection_id IN (SELECT collection_id FROM collection_recipes WHERE recipe_slug = ?)`,
+      )
+      .bind(cleanOld, cleanNew),
+    db
+      .prepare(`UPDATE collection_recipes SET recipe_slug = ? WHERE recipe_slug = ?`)
+      .bind(cleanNew, cleanOld),
+  ]);
+
   return { ok: true };
 }

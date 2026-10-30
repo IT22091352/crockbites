@@ -1,5 +1,12 @@
 import assert from 'node:assert/strict';
-import { inferRecipeDraft, normalizeNutrition, normalizeRecipePayload, serializeRecipeToMarkdown } from '../src/lib/recipe-admin.ts';
+import {
+  inferRecipeDraft,
+  mergeExistingRecipeWithUpdates,
+  normalizeNutrition,
+  normalizeRecipePayload,
+  parseRecipeMarkdown,
+  serializeRecipeToMarkdown,
+} from '../src/lib/recipe-admin.ts';
 import {
   getOptimizedCloudinaryUrl,
   isCloudinaryConfigured,
@@ -194,6 +201,187 @@ assert.ok(serializedMd.includes('saturatedFatGrams: 5.25'), 'markdown includes s
 assert.ok(serializedMd.includes('unsaturatedFatGrams: 10.5'), 'markdown includes unsaturated fat');
 assert.ok(serializedMd.includes('USDA FoodData Central #171057'), 'markdown includes nutrition source');
 assert.ok(!serializedMd.includes('undefined'), 'no undefined values in serialized markdown');
+
+// 10. Regression: Editing a recipe via Admin Editor preserves optional frontmatter fields & Markdown body
+const richExistingMarkdown = `---
+title: Classic Slow Cooker Beef Stew
+slug: slow-cooker-beef-stew
+description: Tender chuck roast simmered with carrots and potatoes.
+category: soups-stews
+tags:
+  - beef
+  - stew
+image: https://res.cloudinary.com/demo/image/upload/stew.jpg
+imageAlt: Bowl of beef stew
+author: CrockBites
+pubDate: 2026-02-14
+prepMinutes: 20
+cookMinutes: 480
+totalMinutes: 500
+cookTimeNote: 8 hours on LOW or 4 hours on HIGH
+servings: 6
+servingsLabel: generous bowls
+ingredients:
+  - quantity: 2
+    unit: lb
+    item: beef chuck roast
+    note: cut into 1.5-inch cubes
+    group: For the stew
+    alt: (900 g)
+instructions:
+  - title: Sear the beef
+    text: Brown the beef cubes in batches.
+servingSuggestions:
+  - Crusty sourdough bread
+  - Steamed green beans
+tips:
+  - Cut carrots thicker than potatoes so they finish at the same time.
+substitutions:
+  - ingredient: Beef broth
+    swap: Mushroom broth for a lighter base
+storage:
+  fridge: Up to 4 days in an airtight container.
+  freezer: Freeze for up to 3 months.
+  reheating: Reheat gently on the stovetop to 165°F (74°C).
+equipment:
+  - 6-quart slow cooker
+foodSafety:
+  - Cook beef to a minimum internal temperature of 160°F (71°C).
+  - Reheat leftovers to 165°F (74°C).
+featured: true
+popularRank: 1
+related:
+  - slow-cooker-beef-chili
+  - slow-cooker-pot-roast
+reviewStatus: tested
+---
+
+This rich slow-cooker beef stew is a cold-weather staple that fills the kitchen with savory aroma all afternoon.
+`;
+
+// Simulate an edit-save where the admin form only sends core fields (updating title & servings)
+const mergedAfterEdit = mergeExistingRecipeWithUpdates(richExistingMarkdown, {
+  title: 'Classic Slow Cooker Beef Stew (Updated)',
+  servings: 8,
+});
+
+const savedMarkdown = serializeRecipeToMarkdown(mergedAfterEdit);
+const reparsed = parseRecipeMarkdown(savedMarkdown);
+
+assert.equal(reparsed.frontmatter.title, 'Classic Slow Cooker Beef Stew (Updated)', 'updates modified title');
+assert.equal(reparsed.frontmatter.servings, 8, 'updates modified servings');
+assert.equal(reparsed.frontmatter.totalMinutes, 500, 'preserves totalMinutes');
+assert.equal(reparsed.frontmatter.cookTimeNote, '8 hours on LOW or 4 hours on HIGH', 'preserves cookTimeNote');
+assert.equal(reparsed.frontmatter.servingsLabel, 'generous bowls', 'preserves servingsLabel');
+assert.deepEqual(reparsed.frontmatter.foodSafety, [
+  'Cook beef to a minimum internal temperature of 160°F (71°C).',
+  'Reheat leftovers to 165°F (74°C).',
+], 'preserves foodSafety array');
+assert.deepEqual(reparsed.frontmatter.equipment, ['6-quart slow cooker'], 'preserves equipment array');
+assert.deepEqual(reparsed.frontmatter.tips, [
+  'Cut carrots thicker than potatoes so they finish at the same time.',
+], 'preserves tips array');
+assert.deepEqual(reparsed.frontmatter.servingSuggestions, [
+  'Crusty sourdough bread',
+  'Steamed green beans',
+], 'preserves servingSuggestions array');
+assert.deepEqual(reparsed.frontmatter.substitutions, [
+  { ingredient: 'Beef broth', swap: 'Mushroom broth for a lighter base' },
+], 'preserves substitutions');
+assert.deepEqual(reparsed.frontmatter.storage, {
+  fridge: 'Up to 4 days in an airtight container.',
+  freezer: 'Freeze for up to 3 months.',
+  reheating: 'Reheat gently on the stovetop to 165°F (74°C).',
+}, 'preserves storage instructions');
+assert.equal(reparsed.frontmatter.featured, true, 'preserves featured flag');
+assert.equal(reparsed.frontmatter.popularRank, 1, 'preserves popularRank');
+assert.deepEqual(reparsed.frontmatter.related, [
+  'slow-cooker-beef-chili',
+  'slow-cooker-pot-roast',
+], 'preserves related slugs');
+assert.ok(
+  reparsed.body.includes('This rich slow-cooker beef stew is a cold-weather staple'),
+  'preserves Markdown body content after edit-save',
+);
+
+// 10. Test explicit field clearing (cookTimeNote, allergenNotes, nutrition) and ingredient metadata preservation
+const markdownWithRichIngredientsAndNutrition = `---
+title: Slow Cooker Chicken Curry
+slug: slow-cooker-chicken-curry
+description: Creamy slow cooker chicken curry.
+category: slow-cooker-chicken
+tags:
+  - chicken
+  - curry
+image: ../../assets/recipes/chicken-curry.svg
+imageAlt: Bowl of chicken curry
+author: CrockBites
+pubDate: "2026-01-15"
+prepMinutes: 15
+cookMinutes: 300
+cookTimeNote: 5 hours on LOW
+servings: 4
+ingredients:
+  - quantity: 2
+    unit: lb
+    item: boneless chicken thighs
+    alt: (900 g)
+    group: Main
+    scale: true
+  - quantity: 2
+    item: bay leaf
+    itemPlural: bay leaves
+    group: Aromatics
+    scale: false
+instructions:
+  - title: Slow cook
+    text: Cook on LOW for 5 hours.
+allergens:
+  - milk
+allergenReviewed: true
+allergenNotes: Contains coconut milk and yogurt.
+nutrition:
+  calories: 420
+  proteinGrams: 34
+  source: USDA FoodData Central
+reviewStatus: tested
+---
+
+Rich and aromatic slow cooker curry.
+`;
+
+// 10a. When ingredient list is updated with only core UI fields (quantity, unit, item, note), metadata (group, alt, scale, itemPlural) is preserved
+const mergedPreservingIngMeta = mergeExistingRecipeWithUpdates(markdownWithRichIngredientsAndNutrition, {
+  ingredients: [
+    { quantity: 2.5, unit: 'lb', item: 'boneless chicken thighs', note: 'trimmed' },
+    { quantity: 3, item: 'bay leaf' },
+  ],
+});
+assert.equal(mergedPreservingIngMeta.ingredients[0].group, 'Main', 'preserves ingredient group');
+assert.equal(mergedPreservingIngMeta.ingredients[0].alt, '(900 g)', 'preserves ingredient alt');
+assert.equal(mergedPreservingIngMeta.ingredients[0].scale, true, 'preserves ingredient scale=true');
+assert.equal(mergedPreservingIngMeta.ingredients[1].group, 'Aromatics', 'preserves second ingredient group');
+assert.equal(mergedPreservingIngMeta.ingredients[1].itemPlural, 'bay leaves', 'preserves ingredient itemPlural');
+assert.equal(mergedPreservingIngMeta.ingredients[1].scale, false, 'preserves ingredient scale=false');
+assert.equal(mergedPreservingIngMeta.cookTimeNote, '5 hours on LOW', 'preserves omitted cookTimeNote');
+assert.equal(mergedPreservingIngMeta.allergenNotes, 'Contains coconut milk and yogurt.', 'preserves omitted allergenNotes');
+assert.equal(mergedPreservingIngMeta.nutrition?.calories, 420, 'preserves omitted nutrition');
+
+// 10b. Explicitly clearing cookTimeNote (""), allergenNotes (""), and nutrition (undefined / null) removes old values
+const mergedClearedOptional = mergeExistingRecipeWithUpdates(markdownWithRichIngredientsAndNutrition, {
+  cookTimeNote: '',
+  allergenNotes: '',
+  nutrition: undefined,
+});
+assert.equal(mergedClearedOptional.cookTimeNote, undefined, 'explicitly clears cookTimeNote when empty string passed');
+assert.equal(mergedClearedOptional.allergenNotes, undefined, 'explicitly clears allergenNotes when empty string passed');
+assert.equal(mergedClearedOptional.nutrition, undefined, 'explicitly clears nutrition when key is present with undefined/null');
+
+const clearedSerialized = serializeRecipeToMarkdown(mergedClearedOptional);
+const clearedReparsed = parseRecipeMarkdown(clearedSerialized);
+assert.equal(clearedReparsed.frontmatter.cookTimeNote, undefined, 'cleared cookTimeNote is omitted from serialized YAML');
+assert.equal(clearedReparsed.frontmatter.allergenNotes, undefined, 'cleared allergenNotes is omitted from serialized YAML');
+assert.equal(clearedReparsed.frontmatter.nutrition, undefined, 'cleared nutrition is omitted from serialized YAML');
 
 console.log('recipe-and-cloudinary tests passed');
 

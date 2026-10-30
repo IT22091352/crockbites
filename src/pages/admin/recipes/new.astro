@@ -185,6 +185,13 @@ const categories = [
               </label>
             </div>
 
+            <div style="margin-top: 1rem;">
+              <label>
+                Cook Time Note <span class="hint">(Optional plain-language range, e.g. 6 to 7 hours on LOW or 3 to 4 hours on HIGH)</span>
+                <input name="cookTimeNote" placeholder="e.g. 6 to 7 hours on LOW" />
+              </label>
+            </div>
+
             <div class="grid" style="margin-top: 1rem;">
               <label>
                 Servings
@@ -425,6 +432,29 @@ const categories = [
               <label style="margin-top: 0.75rem; display: block;">
                 Allergen Notes / Advisory (Optional)
                 <input type="text" name="allergenNotes" placeholder="e.g. Soy sauce can be substituted with coconut aminos." />
+              </label>
+            </div>
+          </div>
+
+          <!-- Submission Toolbar -->
+          <div class="section-box">
+            <h3>Additional Recipe Notes &amp; Food Safety (Optional)</h3>
+            <div class="stack">
+              <label>
+                Food Safety Notes <span class="hint">(One per line — e.g. Cook chicken to an internal temperature of 165°F / 74°C)</span>
+                <textarea name="foodSafety" placeholder="Cook poultry to a minimum internal temperature of 165°F (74°C)."></textarea>
+              </label>
+              <label>
+                Kitchen Tips <span class="hint">(One tip per line)</span>
+                <textarea name="tips" placeholder="Cut vegetables into even pieces so they cook at the same rate."></textarea>
+              </label>
+              <label>
+                Equipment <span class="hint">(One item per line — e.g. 6-quart slow cooker)</span>
+                <textarea name="equipment" style="min-height: 75px;" placeholder="6-quart slow cooker"></textarea>
+              </label>
+              <label>
+                Editorial Body / Story <span class="hint">(Optional Markdown content shown above the recipe card)</span>
+                <textarea name="body" placeholder="Optional recipe story or notes..."></textarea>
               </label>
             </div>
           </div>
@@ -740,6 +770,21 @@ const categories = [
         const isAllergenReviewed = (form.querySelector('input[name="allergenReviewed"]') as HTMLInputElement)?.checked ?? false;
         const allergenNotesVal = (form.querySelector('input[name="allergenNotes"]') as HTMLInputElement)?.value.trim() || undefined;
 
+        const cookTimeNoteVal = (form.querySelector('[name="cookTimeNote"]') as HTMLInputElement)?.value.trim() || undefined;
+        const foodSafetyLines = ((form.querySelector('[name="foodSafety"]') as HTMLTextAreaElement)?.value || '')
+          .split(/\r?\n/)
+          .map(s => s.trim())
+          .filter(Boolean);
+        const tipsLines = ((form.querySelector('[name="tips"]') as HTMLTextAreaElement)?.value || '')
+          .split(/\r?\n/)
+          .map(s => s.trim())
+          .filter(Boolean);
+        const equipmentLines = ((form.querySelector('[name="equipment"]') as HTMLTextAreaElement)?.value || '')
+          .split(/\r?\n/)
+          .map(s => s.trim())
+          .filter(Boolean);
+        const bodyVal = ((form.querySelector('[name="body"]') as HTMLTextAreaElement)?.value || '').trim() || undefined;
+
         const payload = {
           title: (form.querySelector('[name="title"]') as HTMLInputElement).value.trim(),
           slug: (form.querySelector('[name="slug"]') as HTMLInputElement).value.trim(),
@@ -748,6 +793,7 @@ const categories = [
           author: (form.querySelector('[name="author"]') as HTMLInputElement).value.trim(),
           prepMinutes: parseInt((form.querySelector('[name="prepMinutes"]') as HTMLInputElement).value) || 0,
           cookMinutes: parseInt((form.querySelector('[name="cookMinutes"]') as HTMLInputElement).value) || 0,
+          cookTimeNote: cookTimeNoteVal,
           servings: parseInt((form.querySelector('[name="servings"]') as HTMLInputElement).value) || 1,
           reviewStatus: (form.querySelector('[name="reviewStatus"]') as HTMLSelectElement).value,
           tags: (form.querySelector('[name="tags"]') as HTMLInputElement).value.split(',').map(s => s.trim()).filter(Boolean),
@@ -756,6 +802,10 @@ const categories = [
           gallery: images,
           ingredients,
           instructions,
+          foodSafety: foodSafetyLines,
+          tips: tipsLines,
+          equipment: equipmentLines,
+          body: bodyVal,
           dietaryLabels: selectedDietaryLabels,
           dietaryVerified: isDietaryVerified,
           allergens: selectedAllergens,

@@ -54,17 +54,17 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
       {
         ok: false,
         emailDeliveryConfigured: false,
-        error: emailProvider.details,
+        error: 'Email verification delivery is currently deferred until the custom sender domain is configured.',
       },
       503,
     );
   }
 
   await createEmailVerificationToken(auth.db, auth.user.id);
+
   return jsonResponse({
     ok: true,
     emailDeliveryConfigured: true,
-    message: 'Verification email queued for delivery.',
+    message: 'Verification token prepared.',
   });
 };
-

@@ -245,10 +245,21 @@ export function createSqliteD1Adapter(sqliteDb: any): D1Database {
     },
     async batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]> {
       const results: D1Result<T>[] = [];
-      for (const stmt of statements) {
-        results.push(await stmt.run<T>());
+      sqliteDb.exec('BEGIN IMMEDIATE');
+      try {
+        for (const stmt of statements) {
+          results.push(await stmt.run<T>());
+        }
+        sqliteDb.exec('COMMIT');
+        return results;
+      } catch (err) {
+        try {
+          sqliteDb.exec('ROLLBACK');
+        } catch {
+          // Ignore rollback error if transaction already closed
+        }
+        throw err;
       }
-      return results;
     },
     async exec(query: string) {
       sqliteDb.exec(query);

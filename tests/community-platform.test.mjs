@@ -12,6 +12,7 @@ import {
   createPasswordResetRequest,
   createSessionForUser,
   createUserCsrfToken,
+  decodeHtmlEntities,
   deleteUserAccount,
   getAuthenticatedUser,
   hashToken,
@@ -22,6 +23,8 @@ import {
   revokeAllUserSessions,
   revokeUserSession,
   sanitizeReturnUrl,
+  updateUserProfile,
+  validateDisplayName,
   verifyUserCsrfToken,
   verifyUserPassword,
 } from '../src/lib/user-auth.ts';
@@ -40,6 +43,7 @@ import {
   listUserCollections,
   listUserFavorites,
   migratePendingReviewsToApproved,
+  migrateRecipeSlugInCommunityDb,
   recordRecentlyViewed,
   removeRecipeFromCollection,
   submitOrUpdateReview,
@@ -753,6 +757,196 @@ await test('13. Account deletion purges PII/sessions/favorites/collections and a
   // Non-PII audit log entry recorded
   const auditRow = await db.prepare(`SELECT * FROM account_audit_log WHERE event_type = 'account_deleted' LIMIT 1`).first();
   assert.ok(auditRow);
+});
+
+await test('14. Display names, reviews, and Unicode/Sinhala text preserve apostrophes, quotes, and ampersands without double-escaping while neutralizing XSS', async () => {
+  const { db } = await createTestDb();
+
+  // Display name validation preserves apostrophes, ampersands, quotes, and Sinhala characters cleanly
+  const dn1 = validateDisplayName("Sam's Kitchen");
+  assert.equal(dn1.valid, true);
+  assert.equal(dn1.sanitized, "Sam's Kitchen");
+
+  const dn2 = validateDisplayName('Food & Family');
+  assert.equal(dn2.valid, true);
+  assert.equal(dn2.sanitized, 'Food & Family');
+
+  const dn3 = validateDisplayName('Chef "Alex"');
+  assert.equal(dn3.valid, true);
+  assert.equal(dn3.sanitized, 'Chef "Alex"');
+
+  const dnSinhala = validateDisplayName('ශ්‍රී ලංකා මුළුතැන්ගෙය');
+  assert.equal(dnSinhala.valid, true);
+  assert.equal(dnSinhala.sanitized, 'ශ්‍රී ලංකා මුළුතැන්ගෙය');
+
+  // Legacy pre-escaped display name is decoded cleanly without double-encoding
+  const dnLegacy = validateDisplayName('Sam&#39;s &amp; &quot;Alex&quot;');
+  assert.equal(dnLegacy.valid, true);
+  assert.equal(dnLegacy.sanitized, 'Sam\'s & "Alex"');
+
+  // Register user with apostrophe and ampersand in display name
+  const reg = await registerUser(db, {
+    username: 'sams_kitchen',
+    email: 'sam@example.com',
+    password: 'SafePassword123',
+    displayName: "Sam's & Family Kitchen",
+  });
+  assert.equal(reg.ok, true);
+  if (reg.ok) {
+    assert.equal(reg.user.displayName, "Sam's & Family Kitchen");
+    assert.ok(!reg.user.displayName.includes('&#39;'));
+    assert.ok(!reg.user.displayName.includes('&amp;'));
+  }
+
+  // Update profile with quotes and Sinhala text
+  const profUpdate = await updateUserProfile(db, reg.user.id, {
+    displayName: 'Chef "Alex" & Co.',
+    bio: "Slow cooking for Sam's family & friends — ශ්‍රී ලංකා පොල් සම්බෝල",
+  });
+  assert.equal(profUpdate.ok, true);
+  if (profUpdate.ok) {
+    assert.equal(profUpdate.user.displayName, 'Chef "Alex" & Co.');
+    assert.equal(profUpdate.user.bio, "Slow cooking for Sam's family & friends — ශ්‍රී ලංකා පොල් සම්බෝල");
+  }
+
+  // Submit review with apostrophes, ampersands, quotes, Sinhala, and an XSS attempt
+  const rev = await submitReview(
+    db,
+    profUpdate.user,
+    {
+      recipeSlug: 'slow-cooker-beef-stew',
+      rating: 5,
+      title: `Sam's "Best" Beef & Stew — රසවත්! <script>alert(1)</script>`,
+      comment: `My family's favorite "comfort food" & so easy! ශ්‍රී ලංකා <img src=x onerror=alert(1)>`,
+    },
+    PUBLISHED_SLUGS,
+  );
+  assert.equal(rev.ok, true);
+  if (rev.ok) {
+    // Raw <script> tags are neutralized in stored HTML-escaped review text
+    assert.ok(!rev.review.title.includes('<script>'));
+    assert.ok(!rev.review.comment.includes('<img'));
+    // And when decoded for textContent / Astro expression rendering, there is zero double-escaping (&amp;#39; or &amp;amp;)
+    assert.ok(!rev.review.title.includes('&amp;#39;'));
+    assert.ok(!rev.review.title.includes('&amp;amp;'));
+    assert.ok(!rev.review.comment.includes('&amp;#39;'));
+    assert.equal(
+      decodeHtmlEntities(rev.review.title),
+      `Sam's "Best" Beef & Stew — රසවත්! <script>alert(1)</script>`,
+    );
+    assert.equal(rev.review.authorDisplayName, 'Chef "Alex" & Co.');
+  }
+
+  // Editing a review that previously had HTML entities does not double-escape them
+  const edited = await updateOwnReviewById(db, profUpdate.user, rev.review.id, {
+    rating: 5,
+    title: rev.review.title, // Passing already-escaped string back in
+    comment: rev.review.comment,
+  });
+  assert.equal(edited.ok, true);
+  if (edited.ok) {
+    assert.ok(!edited.review.title.includes('&amp;quot;'));
+    assert.ok(!edited.review.title.includes('&amp;#39;'));
+    assert.ok(!edited.review.title.includes('&amp;amp;'));
+    assert.equal(
+      decodeHtmlEntities(edited.review.title),
+      `Sam's "Best" Beef & Stew — රසවත්! <script>alert(1)</script>`,
+    );
+  }
+});
+
+await test('15. Local SQLite db.batch() executes inside a transaction and rolls back earlier statements on failure', async () => {
+  const { db } = await createTestDb();
+  const u = await registerUser(db, {
+    username: 'batch_tester',
+    email: 'batch@example.com',
+    password: 'StrongPassword123',
+    displayName: 'Batch Tester',
+  });
+  assert.ok(u.ok);
+
+  // Attempt a batch where statement 1 inserts a favorite and statement 2 fails due to invalid SQL / constraint
+  await assert.rejects(async () => {
+    await db.batch([
+      db
+        .prepare(`INSERT INTO favorites (id, user_id, recipe_slug, created_at) VALUES (?, ?, ?, ?)`)
+        .bind('fav_rollback_test', u.user.id, 'slow-cooker-beef-stew', new Date().toISOString()),
+      // Second statement violates NOT NULL constraint on users.username
+      db.prepare(`INSERT INTO users (id, username) VALUES (?, NULL)`).bind('bad_user_id'),
+    ]);
+  });
+
+  // Because batch() rolled back on error, statement 1's favorite row must not exist
+  const favs = await listUserFavorites(db, u.user.id);
+  assert.equal(favs.length, 0, 'rolled back statement 1 when statement 2 failed in db.batch()');
+});
+
+await test('16. Recipe slug rename atomically migrates D1 references across favorites, reviews, recently_viewed, and collection_recipes', async () => {
+  const { db } = await createTestDb();
+  const u1 = await registerUser(db, {
+    username: 'rename_cook_1',
+    email: 'rename1@example.com',
+    password: 'StrongPassword123',
+    displayName: 'Rename Cook One',
+  });
+  const u2 = await registerUser(db, {
+    username: 'rename_cook_2',
+    email: 'rename2@example.com',
+    password: 'StrongPassword123',
+    displayName: 'Rename Cook Two',
+  });
+  assert.ok(u1.ok && u2.ok);
+
+  const oldSlug = 'slow-cooker-beef-stew';
+  const newSlug = 'classic-slow-cooker-beef-stew';
+  const slugsWithNew = new Set([...PUBLISHED_SLUGS, newSlug]);
+
+  // User 1 has favorite, review, recently viewed, and collection item on oldSlug
+  await addFavorite(db, u1.user.id, oldSlug, slugsWithNew);
+  await recordRecentlyViewed(db, u1.user.id, oldSlug, slugsWithNew);
+  const col = await createCollection(db, u1.user.id, { name: 'Winter Stews', isPublic: false });
+  assert.ok(col.ok);
+  await addRecipeToCollection(db, u1.user.id, col.collection.id, oldSlug, slugsWithNew);
+  const rev1 = await submitReview(
+    db,
+    u1.user,
+    {
+      recipeSlug: oldSlug,
+      rating: 5,
+      title: 'Great stew before rename',
+      comment: 'This review should seamlessly move to the renamed recipe slug.',
+    },
+    slugsWithNew,
+  );
+  assert.ok(rev1.ok);
+
+  // User 2 has BOTH oldSlug and newSlug in favorites to verify collision-free deduplication during rename
+  await addFavorite(db, u2.user.id, oldSlug, slugsWithNew);
+  await addFavorite(db, u2.user.id, newSlug, slugsWithNew);
+
+  const mig = await migrateRecipeSlugInCommunityDb(db, oldSlug, newSlug);
+  assert.equal(mig.ok, true);
+
+  // Verify User 1's references now point to newSlug
+  const u1Favs = await listUserFavorites(db, u1.user.id);
+  assert.deepEqual(u1Favs.map((f) => f.recipeSlug), [newSlug]);
+
+  const u1Recent = await listRecentlyViewed(db, u1.user.id);
+  assert.deepEqual(u1Recent.map((r) => r.recipeSlug), [newSlug]);
+
+  const u1Col = await getCollectionDetails(db, col.collection.id, u1.user.id);
+  assert.deepEqual(u1Col?.recipeSlugs, [newSlug]);
+
+  const newReviews = await getPublicRecipeReviews(db, newSlug);
+  assert.equal(newReviews.totalApproved, 1);
+  assert.equal(newReviews.reviews[0].title, 'Great stew before rename');
+
+  const oldReviews = await getPublicRecipeReviews(db, oldSlug);
+  assert.equal(oldReviews.totalApproved, 0);
+
+  // Verify User 2 has exactly one favorite for newSlug without UNIQUE constraint failure
+  const u2Favs = await listUserFavorites(db, u2.user.id);
+  assert.deepEqual(u2Favs.map((f) => f.recipeSlug), [newSlug]);
 });
 
 console.log(`\nAll ${passed} Phase 3 Community Platform test suites passed!`);

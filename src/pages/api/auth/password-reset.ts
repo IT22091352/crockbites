@@ -58,13 +58,14 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
       {
         ok: false,
         emailDeliveryConfigured: false,
-        error: emailProvider.details,
+        error: 'Password reset by email is currently unavailable while custom domain email delivery is deferred.',
       },
       503,
     );
   }
 
   const res = await createPasswordResetRequest(db, body.email);
+
   // Never expose _internalRawToken in HTTP response
   return jsonResponse({
     ok: true,
@@ -72,4 +73,3 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     message: res.message,
   });
 };
-

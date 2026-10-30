@@ -1,26 +1,102 @@
 ---
 import TextPage from '../layouts/TextPage.astro';
-import { site } from '../config/site';
 ---
-<TextPage title="Privacy Policy" path="/privacy-policy/" template description="How CrockBites handles information. Template for review before publication."
-  lead="A plain-language starting point. Edit it so it matches what the site really does.">
-  <p><strong>Last updated:</strong> [add date when you finalize this page]</p>
-  <h2>Summary</h2>
-  <p>As built, the CrockBites site is a static website. It has no user accounts, no comments, no contact form and no database. It does not set its own cookies. Recipe search runs entirely in your browser.</p>
-  <h2>Information you send us</h2>
-  <p>If you email <a href={`mailto:${site.contactEmail}`}>{site.contactEmail}</a>, we receive your email address and whatever you write. We use it to reply. [Add how long you keep emails and who can access them.]</p>
-  <h2>Hosting and server logs</h2>
-  <p>The site is intended to be hosted on Cloudflare Pages. Hosting providers typically process technical data such as IP address, browser type and requested pages to deliver the site and keep it secure. [Check Cloudflare’s current documentation and describe what applies.]</p>
-  <h2>Analytics and advertising (only if you enable them)</h2>
-  <p>The site can be connected to Google Analytics and Google AdSense later. These are <strong>not active</strong> unless you add the IDs in the site configuration. If you enable them, update this page to say so, list what is collected and why, and add a consent mechanism where the law requires one. See <a href="/cookies-and-advertising/">Cookies and advertising</a>.</p>
-  <h2>Newsletter (only if you connect a provider)</h2>
-  <p>There is no email list today. If you add one, name the provider, say what you collect (usually an email address), and explain how people unsubscribe.</p>
-  <h2>Your rights</h2>
-  <p>[Depending on where your readers live, laws such as the GDPR/UK GDPR, CCPA/CPRA and others may give people rights over their data. Describe the rights that apply and how to exercise them.]</p>
-  <h2>Children</h2>
-  <p>The site is not directed at children under 13, and we do not knowingly collect their personal information. [Confirm this fits your plans.]</p>
-  <h2>Changes</h2>
-  <p>We may update this policy and will change the date above when we do.</p>
-  <h2>Contact</h2>
-  <p>Questions about privacy: <a href={`mailto:${site.contactEmail}`}>{site.contactEmail}</a>.</p>
+
+<TextPage
+  title="Privacy Policy"
+  description="How CrockBites collects, uses, protects, and deletes account, review, and browsing data."
+  path="/privacy-policy/"
+  lead="Clear information about how CrockBites handles member accounts, community reviews, saved recipes, and cookies."
+  updated="October 30, 2026"
+>
+  <h2>1. Overview</h2>
+  <p>
+    CrockBites (&ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;) operates <a href="https://crockbites.pages.dev/">crockbites.pages.dev</a> (and our canonical domain <a href="https://crockbites.com/">crockbites.com</a>), an international slow-cooker and everyday recipe platform. This Privacy Policy explains what information we collect when you browse recipes, create a member account, save favorite recipes, or publish community reviews, and how you can access or delete your data at any time.
+  </p>
+
+  <h2>2. Information We Collect</h2>
+  <h3>Information You Provide Directly</h3>
+  <ul>
+    <li>
+      <strong>Member Account Registration:</strong> When you create a CrockBites account, we collect your username, email address, display name, optional profile bio, and a cryptographically hashed password (using scrypt). We never store plaintext passwords.
+    </li>
+    <li>
+      <strong>Community Features:</strong> When signed in, we store the recipes you save to your Favorites list and your Recently Viewed recipe history (automatically capped at your 20 most recent recipes).
+    </li>
+    <li>
+      <strong>Public Recipe Reviews &amp; Ratings:</strong> When you submit a star rating, headline, and review comment on a published recipe, your review is published immediately on that recipe page alongside your display name and username. You can edit or permanently delete your own reviews at any time from the recipe page or your <a href="/account/reviews/">My Reviews</a> dashboard.
+    </li>
+    <li>
+      <strong>Direct Correspondence:</strong> If you email us with recipe questions, privacy requests, or site feedback, we receive your email address and the contents of your message so we can reply.
+    </li>
+  </ul>
+
+  <h3>Information Collected Automatically</h3>
+  <ul>
+    <li>
+      <strong>Essential Session &amp; Security Cookies:</strong> When you sign in, we set a secure, HTTP-only session cookie (<code>crockbites_user_session</code>) and a Cross-Site Request Forgery protection cookie (<code>crockbites_user_csrf</code>) so you remain authenticated and protected against unauthorized requests. Site administrators use separate isolated cookies (<code>crockbites_admin</code> and <code>crockbites_admin_csrf</code>).
+    </li>
+    <li>
+      <strong>Local Browser Preferences:</strong> Features such as Cooking Mode, serving size adjustments, US/Metric unit selection, and ingredient checkboxes may use your browser&rsquo;s local storage so your kitchen settings persist while you cook.
+    </li>
+    <li>
+      <strong>Edge Delivery &amp; Rate-Limiting Logs:</strong> Our hosting and security provider, Cloudflare, processes standard technical metadata—such as IP address, browser user-agent, requested URL, timestamp, and referrer—to deliver pages, prevent automated abuse, and enforce login and submission rate limits.
+    </li>
+  </ul>
+
+  <h2>3. How We Use Your Information</h2>
+  <ul>
+    <li>To provide, maintain, and personalize your member account, saved favorites, and recently viewed recipes.</li>
+    <li>To display public community ratings and reviews on recipe pages and calculate aggregate recipe ratings.</li>
+    <li>To authenticate sessions, verify CSRF tokens, enforce rate limits, and protect the platform against spam or unauthorized access.</li>
+    <li>To send essential transactional emails (such as password reset or email verification links) once a verified custom sender domain and email provider are enabled.</li>
+    <li>To respond to support inquiries, food-safety questions, or privacy requests.</li>
+  </ul>
+
+  <h2>4. Infrastructure &amp; Third-Party Service Providers</h2>
+  <p>
+    We do not sell or rent your personal information. We rely on trusted infrastructure providers to operate CrockBites:
+  </p>
+  <ul>
+    <li>
+      <strong>Cloudflare (Pages, Workers, D1 Database, and KV):</strong> Hosts our web application, stores account and community review records in Cloudflare D1, and enforces abuse rate limits using Cloudflare Workers KV.
+    </li>
+    <li>
+      <strong>Cloudinary:</strong> Hosts and optimizes recipe photography and responsive images delivered across the site.
+    </li>
+    <li>
+      <strong>GitHub:</strong> Stores version-controlled recipe Markdown content and editorial updates.
+    </li>
+    <li>
+      <strong>Google AdSense (When Enabled):</strong> May display contextual or personalized advertisements on public pages in accordance with our <a href="/cookies-and-advertising/">Cookies &amp; Advertising Policy</a>.
+    </li>
+  </ul>
+
+  <h2>5. Data Retention &amp; Self-Service Account Deletion</h2>
+  <ul>
+    <li>
+      <strong>Active Accounts:</strong> We retain your account profile, saved favorites, and recently viewed recipes for as long as your account remains active.
+    </li>
+    <li>
+      <strong>Editing or Deleting Reviews:</strong> Signed-in users can edit or permanently delete any review they have written directly on the recipe page or from <a href="/account/reviews/">My Reviews</a>. Administrators may also remove reviews that violate community guidelines or contain spam.
+    </li>
+    <li>
+      <strong>Self-Service Account Deletion:</strong> You can permanently delete your account at any time from <a href="/account/profile/">Profile &amp; Settings</a> by confirming your password. Deleting your account immediately purges your email address, password hash, profile details, active sessions, saved favorites, and recently viewed history from our database. Any public reviews you did not delete prior to closing your account have their account link removed and their author attribution anonymized to &ldquo;Deleted User.&rdquo;
+    </li>
+  </ul>
+
+  <h2>6. Your Privacy Rights</h2>
+  <p>
+    Depending on your location (including the European Economic Area, the United Kingdom, California, and other jurisdictions), you may have the right to access, correct, export, or erase your personal data, or object to certain processing. Most of these actions can be completed immediately inside your <a href="/account/">Account Dashboard</a>, or by contacting us via our <a href="/contact/">Contact page</a>.
+  </p>
+
+  <h2>7. Children&rsquo;s Privacy</h2>
+  <p>
+    CrockBites is intended for general audiences of home cooks and is not directed to children under the age of 13 (or 16 where applicable by law). We do not knowingly collect personal information from children.
+  </p>
+
+  <h2>8. Contact Us</h2>
+  <p>
+    If you have questions about this Privacy Policy or wish to submit a data privacy request, please reach out through our <a href="/contact/">Contact page</a>.
+  </p>
 </TextPage>

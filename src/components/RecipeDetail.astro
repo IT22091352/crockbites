@@ -40,7 +40,8 @@ const total = totalMinutes(recipe);
 const fmtDate = (dt: Date) => dt.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
 const isRemote = isRemoteImage(d.image);
 const imageUrl = typeof d.image === 'string' ? d.image : (d.image as any).src;
-const gallery = (d as any).gallery as Array<{ url: string; alt: string; width?: number; height?: number }> | undefined;
+const rawGallery = (d as any).gallery as Array<{ url: string; alt: string; width?: number; height?: number; isPrimary?: boolean }> | undefined;
+const gallery = rawGallery?.filter((img) => img.url && img.url !== imageUrl);
 
 // Group ingredients under their optional headings, keeping the original order.
 const groups: { name?: string; items: typeof d.ingredients }[] = [];
@@ -192,6 +193,8 @@ const allergenNames: Record<string, string> = {
               <img
                 src={getOptimizedCloudinaryUrl(img.url, 600)}
                 alt={img.alt}
+                width={img.width ?? 600}
+                height={img.height ?? 450}
                 loading="lazy"
                 decoding="async"
                 class="aspect-[4/3] w-full object-cover transition-transform duration-300 hover:scale-105"
@@ -1472,8 +1475,8 @@ const allergenNames: Record<string, string> = {
           year: 'numeric',
         });
       }
-      if (myReviewDisplayTitleEl) myReviewDisplayTitleEl.innerHTML = rev.title || '';
-      if (myReviewDisplayCommentEl) myReviewDisplayCommentEl.innerHTML = rev.comment || '';
+      if (myReviewDisplayTitleEl) myReviewDisplayTitleEl.textContent = decodeHtmlEntities(rev.title || '');
+      if (myReviewDisplayCommentEl) myReviewDisplayCommentEl.textContent = decodeHtmlEntities(rev.comment || '');
       if (myReviewStatusPill) {
         myReviewStatusPill.textContent = '✓ Published';
       }
@@ -1714,7 +1717,7 @@ const allergenNames: Record<string, string> = {
               authorWrap.className = 'flex flex-wrap items-center gap-2';
               const authorStrong = document.createElement('strong');
               authorStrong.className = 'text-sm font-semibold text-forest';
-              authorStrong.textContent = rev.authorDisplayName || 'Community Cook';
+              authorStrong.textContent = decodeHtmlEntities(rev.authorDisplayName || 'Community Cook');
               const dateSpan = document.createElement('span');
               dateSpan.className = 'text-xs text-ink-soft';
               dateSpan.textContent = new Date(rev.createdAt).toLocaleDateString('en-US', {
@@ -1741,11 +1744,11 @@ const allergenNames: Record<string, string> = {
 
               const h4 = document.createElement('h4');
               h4.className = 'mt-2 font-display text-base font-semibold text-ink';
-              h4.innerHTML = rev.title || '';
+              h4.textContent = decodeHtmlEntities(rev.title || '');
 
               const p = document.createElement('p');
               p.className = 'mt-1 whitespace-pre-line text-sm text-ink-soft';
-              p.innerHTML = rev.comment || '';
+              p.textContent = decodeHtmlEntities(rev.comment || '');
 
               card.appendChild(top);
               card.appendChild(h4);

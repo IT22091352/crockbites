@@ -158,6 +158,7 @@ Run in the build environment with Node 22.23.4:
 9. Choose a consent platform before enabling analytics or ads for EEA/UK visitors.
 10. When eligible, follow the AdSense checklist. Approval is up to Google.
 11. Decide on an email provider if you want a real newsletter.
+12. **TODO:** Implement and test email verification and password reset after purchasing the custom domain and configuring a verified Resend sender domain.
 
 ## Credits
 

@@ -60,9 +60,19 @@ export function escapeHtml(input: unknown): string {
     .replace(/'/g, '&#39;');
 }
 
+export function decodeHtmlEntities(input: unknown): string {
+  const str = typeof input === 'string' ? input : String(input ?? '');
+  return str
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&gt;/g, '>')
+    .replace(/&lt;/g, '<')
+    .replace(/&amp;/g, '&');
+}
+
 export function sanitizePlainText(input: unknown, maxLength = 500): string {
   if (typeof input !== 'string') return '';
-  return escapeHtml(input.trim().replace(/\r\n/g, '\n').slice(0, maxLength));
+  return escapeHtml(decodeHtmlEntities(input).trim().replace(/\r\n/g, '\n').slice(0, maxLength));
 }
 
 export function sanitizeReturnUrl(returnTo: unknown, fallback = '/account/'): string {
@@ -162,11 +172,15 @@ export function validatePasswordStrength(password: unknown): { valid: boolean; e
 }
 
 export function validateDisplayName(displayName: unknown): { valid: boolean; sanitized: string; error?: string } {
-  const raw = typeof displayName === 'string' ? displayName.trim().replace(/\s+/g, ' ') : '';
+  const raw = typeof displayName === 'string' ? decodeHtmlEntities(displayName).trim().replace(/\s+/g, ' ') : '';
   if (raw.length < 2 || raw.length > 50) {
     return { valid: false, sanitized: '', error: 'Display name must be between 2 and 50 characters.' };
   }
-  return { valid: true, sanitized: escapeHtml(raw) };
+  const clean = raw.replace(/[<>]/g, '');
+  if (clean.length < 2) {
+    return { valid: false, sanitized: '', error: 'Display name must be between 2 and 50 characters.' };
+  }
+  return { valid: true, sanitized: clean };
 }
 
 // ---- User CSRF Protection (Isolated from Admin CSRF) ----
@@ -328,9 +342,9 @@ function mapRowToSafeUser(row: Record<string, unknown>): SafeUser {
     id: String(row.id),
     username: String(row.username),
     email: String(row.email),
-    displayName: String(row.display_name),
+    displayName: decodeHtmlEntities(row.display_name).replace(/[<>]/g, ''),
     avatarUrl: String(row.avatar_url ?? ''),
-    bio: String(row.bio ?? ''),
+    bio: decodeHtmlEntities(row.bio ?? '').replace(/[<>]/g, ''),
     role: row.role === 'moderator' ? 'moderator' : 'user',
     emailVerified: Number(row.email_verified) === 1,
     status: (row.status as SafeUser['status']) || 'active',
@@ -530,11 +544,10 @@ export async function revokeUserSession(db: D1Database, sessionToken: string | u
 
 export async function revokeAllUserSessions(db: D1Database, userId: string): Promise<void> {
   const nowIso = new Date().toISOString();
-  await db.prepare(`DELETE FROM user_sessions WHERE user_id = ?`).bind(userId).run();
-  await db
-    .prepare(`UPDATE users SET session_version = session_version + 1, updated_at = ? WHERE id = ?`)
-    .bind(nowIso, userId)
-    .run();
+  await db.batch([
+    db.prepare(`DELETE FROM user_sessions WHERE user_id = ?`).bind(userId),
+    db.prepare(`UPDATE users SET session_version = session_version + 1, updated_at = ? WHERE id = ?`).bind(nowIso, userId),
+  ]);
 }
 
 export async function updateUserProfile(
@@ -593,20 +606,19 @@ export async function updateUserProfile(
   }
 
   const nowIso = new Date().toISOString();
-  await db
-    .prepare(
-      `UPDATE users
-       SET username = ?, display_name = ?, bio = ?, avatar_url = ?, updated_at = ?
-       WHERE id = ?`,
-    )
-    .bind(newUsername, newDisplayName, newBio, newAvatarUrl, nowIso, userId)
-    .run();
-
-  // Keep denormalized author fields on active user's reviews in sync
-  await db
-    .prepare(`UPDATE reviews SET author_display_name = ?, author_username = ? WHERE user_id = ?`)
-    .bind(newDisplayName, newUsername, userId)
-    .run();
+  await db.batch([
+    db
+      .prepare(
+        `UPDATE users
+         SET username = ?, display_name = ?, bio = ?, avatar_url = ?, updated_at = ?
+         WHERE id = ?`,
+      )
+      .bind(newUsername, newDisplayName, newBio, newAvatarUrl, nowIso, userId),
+    // Keep denormalized author fields on active user's reviews in sync
+    db
+      .prepare(`UPDATE reviews SET author_display_name = ?, author_username = ? WHERE user_id = ?`)
+      .bind(newDisplayName, newUsername, userId),
+  ]);
 
   const updated = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(userId).first<Record<string, unknown>>();
   return { ok: true, user: mapRowToSafeUser(updated!) };
@@ -633,13 +645,11 @@ export async function changeUserPassword(
   const newHash = hashUserPassword(String(newPassword));
   const nowIso = new Date().toISOString();
 
-  await db
-    .prepare(`UPDATE users SET password_hash = ?, session_version = session_version + 1, updated_at = ? WHERE id = ?`)
-    .bind(newHash, nowIso, userId)
-    .run();
+  await db.batch([
+    db.prepare(`UPDATE users SET password_hash = ?, session_version = session_version + 1, updated_at = ? WHERE id = ?`).bind(newHash, nowIso, userId),
+    db.prepare(`DELETE FROM user_sessions WHERE user_id = ?`).bind(userId),
+  ]);
 
-  // Revoke all previous sessions and issue a fresh rotated session
-  await db.prepare(`DELETE FROM user_sessions WHERE user_id = ?`).bind(userId).run();
   const freshSession = await createSessionForUser(db, userId, USER_SESSION_TTL_SECONDS);
 
   return {
@@ -674,38 +684,30 @@ export async function deleteUserAccount(
   const nowIso = new Date().toISOString();
   const userIdHash = hashToken(`deleted_user:${userId}`);
 
-  // 1. Delete unapproved (pending/rejected) reviews by this user
-  await db.prepare(`DELETE FROM reviews WHERE user_id = ? AND status != 'approved'`).bind(userId).run();
-
-  // 2. Anonymize approved reviews so no PII remains
-  await db
-    .prepare(
+  await db.batch([
+    // 1. Delete unapproved (pending/rejected) reviews by this user
+    db.prepare(`DELETE FROM reviews WHERE user_id = ? AND status != 'approved'`).bind(userId),
+    // 2. Anonymize approved reviews so no PII remains
+    db.prepare(
       `UPDATE reviews
        SET user_id = NULL, author_display_name = 'Deleted User', author_username = 'deleted', updated_at = ?
        WHERE user_id = ? AND status = 'approved'`,
-    )
-    .bind(nowIso, userId)
-    .run();
-
-  // 3. Delete all user-owned collections, favorites, recently viewed, sessions, tokens
-  await db.prepare(`DELETE FROM favorites WHERE user_id = ?`).bind(userId).run();
-  await db.prepare(`DELETE FROM collections WHERE user_id = ?`).bind(userId).run();
-  await db.prepare(`DELETE FROM recently_viewed WHERE user_id = ?`).bind(userId).run();
-  await db.prepare(`DELETE FROM user_sessions WHERE user_id = ?`).bind(userId).run();
-  await db.prepare(`DELETE FROM email_verification_tokens WHERE user_id = ?`).bind(userId).run();
-  await db.prepare(`DELETE FROM password_reset_tokens WHERE user_id = ?`).bind(userId).run();
-
-  // 4. Record non-PII compliance audit event
-  await db
-    .prepare(
+    ).bind(nowIso, userId),
+    // 3. Delete all user-owned collections, favorites, recently viewed, sessions, tokens
+    db.prepare(`DELETE FROM favorites WHERE user_id = ?`).bind(userId),
+    db.prepare(`DELETE FROM collections WHERE user_id = ?`).bind(userId),
+    db.prepare(`DELETE FROM recently_viewed WHERE user_id = ?`).bind(userId),
+    db.prepare(`DELETE FROM user_sessions WHERE user_id = ?`).bind(userId),
+    db.prepare(`DELETE FROM email_verification_tokens WHERE user_id = ?`).bind(userId),
+    db.prepare(`DELETE FROM password_reset_tokens WHERE user_id = ?`).bind(userId),
+    // 4. Record non-PII compliance audit event
+    db.prepare(
       `INSERT INTO account_audit_log (id, user_id_hash, event_type, details, created_at)
        VALUES (?, ?, 'account_deleted', 'User requested account deletion; PII purged and approved reviews anonymized.', ?)`,
-    )
-    .bind(generateId(), userIdHash, nowIso)
-    .run();
-
-  // 5. Remove user record
-  await db.prepare(`DELETE FROM users WHERE id = ?`).bind(userId).run();
+    ).bind(generateId(), userIdHash, nowIso),
+    // 5. Remove user record
+    db.prepare(`DELETE FROM users WHERE id = ?`).bind(userId),
+  ]);
 
   return { ok: true };
 }
@@ -738,19 +740,18 @@ export async function createEmailVerificationToken(
   const now = new Date();
   const expiresAt = new Date(now.getTime() + EMAIL_VERIFY_TTL_SECONDS * 1000).toISOString();
 
-  // Invalidate prior unused tokens for this user
-  await db
-    .prepare(`DELETE FROM email_verification_tokens WHERE user_id = ? AND used_at IS NULL`)
-    .bind(userId)
-    .run();
-
-  await db
-    .prepare(
-      `INSERT INTO email_verification_tokens (id, user_id, token_hash, expires_at, created_at)
-       VALUES (?, ?, ?, ?, ?)`,
-    )
-    .bind(generateId(), userId, tokenHash, expiresAt, now.toISOString())
-    .run();
+  // Invalidate prior unused tokens for this user and insert the new token atomically
+  await db.batch([
+    db
+      .prepare(`DELETE FROM email_verification_tokens WHERE user_id = ? AND used_at IS NULL`)
+      .bind(userId),
+    db
+      .prepare(
+        `INSERT INTO email_verification_tokens (id, user_id, token_hash, expires_at, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .bind(generateId(), userId, tokenHash, expiresAt, now.toISOString()),
+  ]);
 
   return {
     rawToken,
@@ -784,15 +785,10 @@ export async function confirmEmailVerificationToken(
     return { ok: false, error: 'This verification link is invalid or has expired.' };
   }
 
-  await db
-    .prepare(`UPDATE email_verification_tokens SET used_at = ? WHERE id = ?`)
-    .bind(nowIso, row.id)
-    .run();
-
-  await db
-    .prepare(`UPDATE users SET email_verified = 1, updated_at = ? WHERE id = ?`)
-    .bind(nowIso, row.user_id)
-    .run();
+  await db.batch([
+    db.prepare(`UPDATE email_verification_tokens SET used_at = ? WHERE id = ?`).bind(nowIso, row.id),
+    db.prepare(`UPDATE users SET email_verified = 1, updated_at = ? WHERE id = ?`).bind(nowIso, row.user_id),
+  ]);
 
   return { ok: true };
 }
@@ -830,18 +826,17 @@ export async function createPasswordResetRequest(
   const now = new Date();
   const expiresAt = new Date(now.getTime() + PASSWORD_RESET_TTL_SECONDS * 1000).toISOString();
 
-  await db
-    .prepare(`DELETE FROM password_reset_tokens WHERE user_id = ? AND used_at IS NULL`)
-    .bind(user.id)
-    .run();
-
-  await db
-    .prepare(
-      `INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_at)
-       VALUES (?, ?, ?, ?, ?)`,
-    )
-    .bind(generateId(), user.id, tokenHash, expiresAt, now.toISOString())
-    .run();
+  await db.batch([
+    db
+      .prepare(`DELETE FROM password_reset_tokens WHERE user_id = ? AND used_at IS NULL`)
+      .bind(user.id),
+    db
+      .prepare(
+        `INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .bind(generateId(), user.id, tokenHash, expiresAt, now.toISOString()),
+  ]);
 
   return {
     ok: true,
@@ -882,20 +877,14 @@ export async function confirmPasswordResetToken(
 
   const newHash = hashUserPassword(String(newPassword));
 
-  // Mark token used (single-use)
-  await db
-    .prepare(`UPDATE password_reset_tokens SET used_at = ? WHERE id = ?`)
-    .bind(nowIso, row.id)
-    .run();
-
-  // Update password and increment session_version
-  await db
-    .prepare(`UPDATE users SET password_hash = ?, session_version = session_version + 1, updated_at = ? WHERE id = ?`)
-    .bind(newHash, nowIso, row.user_id)
-    .run();
-
-  // Revoke all existing sessions for this user
-  await db.prepare(`DELETE FROM user_sessions WHERE user_id = ?`).bind(row.user_id).run();
+  await db.batch([
+    // Mark token used (single-use)
+    db.prepare(`UPDATE password_reset_tokens SET used_at = ? WHERE id = ?`).bind(nowIso, row.id),
+    // Update password and increment session_version
+    db.prepare(`UPDATE users SET password_hash = ?, session_version = session_version + 1, updated_at = ? WHERE id = ?`).bind(newHash, nowIso, row.user_id),
+    // Revoke all existing sessions for this user
+    db.prepare(`DELETE FROM user_sessions WHERE user_id = ?`).bind(row.user_id),
+  ]);
 
   return { ok: true };
 }

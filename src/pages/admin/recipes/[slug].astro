@@ -61,16 +61,29 @@ const initialRecipe = {
   pubDate: recipe.data.pubDate.toISOString().slice(0, 10),
   prepMinutes: recipe.data.prepMinutes,
   cookMinutes: recipe.data.cookMinutes,
+  totalMinutes: recipe.data.totalMinutes,
+  cookTimeNote: recipe.data.cookTimeNote || '',
   servings: recipe.data.servings,
+  servingsLabel: recipe.data.servingsLabel || 'servings',
   reviewStatus: recipe.data.reviewStatus,
   ingredients: recipe.data.ingredients,
   instructions: recipe.data.instructions,
+  servingSuggestions: recipe.data.servingSuggestions || [],
+  tips: recipe.data.tips || [],
+  substitutions: recipe.data.substitutions || [],
+  storage: recipe.data.storage || {},
+  equipment: recipe.data.equipment || [],
+  foodSafety: recipe.data.foodSafety || [],
   nutrition: recipe.data.nutrition,
   dietaryLabels: recipe.data.dietaryLabels || [],
   dietaryVerified: Boolean(recipe.data.dietaryVerified),
   allergens: recipe.data.allergens || [],
   allergenReviewed: Boolean(recipe.data.allergenReviewed),
   allergenNotes: recipe.data.allergenNotes || '',
+  featured: Boolean(recipe.data.featured),
+  popularRank: recipe.data.popularRank,
+  related: recipe.data.related || [],
+  body: recipe.body || '',
 };
 ---
 <html lang="en">
@@ -221,6 +234,13 @@ const initialRecipe = {
               <label>
                 Cook Minutes
                 <input name="cookMinutes" type="number" min="0" value={initialRecipe.cookMinutes} required />
+              </label>
+            </div>
+
+            <div style="margin-top: 1rem;">
+              <label>
+                Cook Time Note <span class="hint">(Optional plain-language range, e.g. 6 to 7 hours on LOW or 3 to 4 hours on HIGH)</span>
+                <input name="cookTimeNote" value={initialRecipe.cookTimeNote} placeholder="e.g. 6 to 7 hours on LOW" />
               </label>
             </div>
 
@@ -470,6 +490,29 @@ const initialRecipe = {
           </div>
 
           <!-- Submission Toolbar -->
+          <div class="section-box">
+            <h3>Additional Recipe Notes &amp; Food Safety (Optional)</h3>
+            <div class="stack">
+              <label>
+                Food Safety Notes <span class="hint">(One per line — e.g. Cook chicken to an internal temperature of 165°F / 74°C)</span>
+                <textarea name="foodSafety" placeholder="Cook poultry to a minimum internal temperature of 165°F (74°C).">{(initialRecipe.foodSafety || []).join('\n')}</textarea>
+              </label>
+              <label>
+                Kitchen Tips <span class="hint">(One tip per line)</span>
+                <textarea name="tips" placeholder="Cut vegetables into even pieces so they cook at the same rate.">{(initialRecipe.tips || []).join('\n')}</textarea>
+              </label>
+              <label>
+                Equipment <span class="hint">(One item per line — e.g. 6-quart slow cooker)</span>
+                <textarea name="equipment" style="min-height: 75px;" placeholder="6-quart slow cooker">{(initialRecipe.equipment || []).join('\n')}</textarea>
+              </label>
+              <label>
+                Editorial Body / Story <span class="hint">(Optional Markdown content shown above the recipe card)</span>
+                <textarea name="body" placeholder="Optional recipe story or notes...">{initialRecipe.body || ''}</textarea>
+              </label>
+            </div>
+          </div>
+
+          <!-- Submission Toolbar -->
           <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
             <a class="btn btn-subtle" href="/admin/recipes/">Cancel</a>
             <div style="display: flex; gap: 0.75rem;">
@@ -681,6 +724,10 @@ const initialRecipe = {
       function createIngredientRow(data: any = {}) {
         const row = document.createElement('div');
         row.className = 'item-row';
+        if (data.group) row.dataset.group = String(data.group);
+        if (data.alt) row.dataset.alt = String(data.alt);
+        if (data.itemPlural) row.dataset.itemPlural = String(data.itemPlural);
+        if (data.scale !== undefined) row.dataset.scale = String(Boolean(data.scale));
         row.innerHTML = `
           <input type="number" step="0.25" placeholder="Qty" value="${data.quantity ?? ''}" class="ing-qty" />
           <input type="text" placeholder="Unit (cup, lb)" value="${data.unit ?? ''}" class="ing-unit" />
@@ -730,7 +777,8 @@ const initialRecipe = {
         formStatus.style.display = 'block';
         formStatus.textContent = 'Updating recipe on GitHub repository...';
 
-        const ingredients = Array.from(ingredientList.querySelectorAll('.item-row')).map(row => {
+        const ingredients = Array.from(ingredientList.querySelectorAll('.item-row')).map(el => {
+          const row = el as HTMLElement;
           const qty = (row.querySelector('.ing-qty') as HTMLInputElement).value;
           const unit = (row.querySelector('.ing-unit') as HTMLInputElement).value.trim();
           const item = (row.querySelector('.ing-item') as HTMLInputElement).value.trim();
@@ -741,6 +789,10 @@ const initialRecipe = {
             unit: unit || undefined,
             item,
             note: note || undefined,
+            group: row.dataset.group || undefined,
+            alt: row.dataset.alt || undefined,
+            itemPlural: row.dataset.itemPlural || undefined,
+            scale: row.dataset.scale !== undefined ? row.dataset.scale !== 'false' : undefined,
           };
         }).filter(Boolean);
 
@@ -781,7 +833,22 @@ const initialRecipe = {
         const isDietaryVerified = (form.querySelector('input[name="dietaryVerified"]') as HTMLInputElement)?.checked ?? false;
         const selectedAllergens = Array.from(form.querySelectorAll('input[name="allergens"]:checked')).map(el => (el as HTMLInputElement).value);
         const isAllergenReviewed = (form.querySelector('input[name="allergenReviewed"]') as HTMLInputElement)?.checked ?? false;
-        const allergenNotesVal = (form.querySelector('input[name="allergenNotes"]') as HTMLInputElement)?.value.trim() || undefined;
+        const allergenNotesVal = (form.querySelector('input[name="allergenNotes"]') as HTMLInputElement)?.value.trim() ?? '';
+
+        const cookTimeNoteVal = (form.querySelector('[name="cookTimeNote"]') as HTMLInputElement)?.value.trim() ?? '';
+        const foodSafetyLines = ((form.querySelector('[name="foodSafety"]') as HTMLTextAreaElement)?.value || '')
+          .split(/\r?\n/)
+          .map(s => s.trim())
+          .filter(Boolean);
+        const tipsLines = ((form.querySelector('[name="tips"]') as HTMLTextAreaElement)?.value || '')
+          .split(/\r?\n/)
+          .map(s => s.trim())
+          .filter(Boolean);
+        const equipmentLines = ((form.querySelector('[name="equipment"]') as HTMLTextAreaElement)?.value || '')
+          .split(/\r?\n/)
+          .map(s => s.trim())
+          .filter(Boolean);
+        const bodyVal = (form.querySelector('[name="body"]') as HTMLTextAreaElement)?.value ?? initialRecipe.body;
 
         const payload = {
           title: (form.querySelector('[name="title"]') as HTMLInputElement).value.trim(),
@@ -789,8 +856,10 @@ const initialRecipe = {
           description: (form.querySelector('[name="description"]') as HTMLTextAreaElement).value.trim(),
           category: (form.querySelector('[name="category"]') as HTMLSelectElement).value,
           author: (form.querySelector('[name="author"]') as HTMLInputElement).value.trim(),
+          pubDate: initialRecipe.pubDate,
           prepMinutes: parseInt((form.querySelector('[name="prepMinutes"]') as HTMLInputElement).value) || 0,
           cookMinutes: parseInt((form.querySelector('[name="cookMinutes"]') as HTMLInputElement).value) || 0,
+          cookTimeNote: cookTimeNoteVal,
           servings: parseInt((form.querySelector('[name="servings"]') as HTMLInputElement).value) || 1,
           reviewStatus: (form.querySelector('[name="reviewStatus"]') as HTMLSelectElement).value,
           tags: (form.querySelector('[name="tags"]') as HTMLInputElement).value.split(',').map(s => s.trim()).filter(Boolean),
@@ -799,12 +868,16 @@ const initialRecipe = {
           gallery: images,
           ingredients,
           instructions,
+          foodSafety: foodSafetyLines,
+          tips: tipsLines,
+          equipment: equipmentLines,
+          body: bodyVal,
           dietaryLabels: selectedDietaryLabels,
           dietaryVerified: isDietaryVerified,
           allergens: selectedAllergens,
           allergenReviewed: isAllergenReviewed,
           allergenNotes: allergenNotesVal,
-          nutrition: hasNutrition ? nutritionObj : undefined,
+          nutrition: hasNutrition ? nutritionObj : null,
         };
 
         try {

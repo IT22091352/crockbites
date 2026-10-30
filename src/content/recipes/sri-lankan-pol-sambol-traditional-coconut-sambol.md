@@ -1,7 +1,7 @@
 ---
 title: Sri Lankan Pol Sambol (Traditional Coconut Sambol)
 slug: sri-lankan-pol-sambol-traditional-coconut-sambol
-description: A traditional Sri Lankan pol sambol made with freshly grated coconut, red onions, chili, lime, and Maldive fish. A spicy and tangy side dish full of authentic island flavour.
+description: A traditional Sri Lankan pol sambol made with freshly grated coconut, red onions, chillies, and fresh lime juice, with optional traditional Maldive fish. A spicy, tangy side dish full of authentic island flavour.
 category: breakfast
 tags:
   - sri lankan food
@@ -58,7 +58,7 @@ servings: 4
 servingsLabel: servings
 ingredients:
   - quantity: 2
-    unit: Cups
+    unit: cup
     item: Freshly grated coconut
     note: Fresh coconut is best
     scale: true
@@ -67,7 +67,7 @@ ingredients:
     item: Red onion
     note: Finely chopped
     scale: true
-  - quantity: 1.25
+  - quantity: 2
     item: Green or dried red chillies
     note: Adjust to taste
     scale: true
@@ -92,21 +92,23 @@ ingredients:
     note: Optional
     scale: true
 instructions:
-  - title: Step 1 – Prepare the ingredients
-    text: Grate the fresh coconut and finely chop the red onion. Prepare the chillies and crush the Maldive fish if using.
-  - title: Step 2 – Crush the spices
-    text: Add the grated coconut and chopped red onion. Mix and gently crush everything together until the flavours are evenly combined.
-  - title: Step 4 – Add lime juice
-    text: Add fresh lime juice and black pepper if desired. Mix thoroughly and taste. Adjust salt, chilli, and lime according to your preference.
-  - title: Step 5 – Serve fresh
-    text: Transfer the pol sambol to a serving bowl. Serve immediately with rice, string hoppers, hoppers, kiribath, or coconut roti.
+  - title: Prepare the ingredients
+    text: Grate the fresh coconut and finely chop the red onion. Slice the chillies (and prepare 1 tablespoon of crushed Maldive fish flakes only if making the non-vegan coastal variation).
+  - title: Crush the aromatics and spices
+    text: In a mortar and pestle or bowl, lightly crush the chillies, chilli powder, salt, and chopped red onion so the onion juices release and coat the spices.
+  - title: Mix in the coconut and lime juice
+    text: Add the freshly grated coconut, fresh lime juice, and optional black pepper. Mix and gently press everything together with your fingertips or a spoon until evenly combined and vibrant orange-red. Taste and adjust salt, chilli, or lime.
+  - title: Serve fresh
+    text: Transfer the pol sambol to a serving bowl and serve immediately with rice and curry, string hoppers, hoppers, kiribath, or warm roti.
 dietaryLabels:
   - vegetarian
   - vegan
+  - gluten-free
+  - dairy-free
 dietaryVerified: true
-allergens:
-  - fish
+allergens: []
 allergenReviewed: true
+allergenNotes: The base recipe above is 100% plant-based, vegan, and fish-free. If you add optional traditional Maldive fish (umbalakada), the dish will contain Fish allergen and will no longer be vegetarian or vegan.
 featured: false
 reviewStatus: tested
 ---

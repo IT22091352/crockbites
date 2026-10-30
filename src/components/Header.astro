@@ -110,29 +110,32 @@ const isCurrent = (href: string) => (href === '/' ? path === '/' : path.startsWi
 
       let savedSet = new Set<string>();
 
+      function decodeDisplayText(str: unknown): string {
+        return String(str ?? '')
+          .replace(/&#39;|&apos;/g, "'")
+          .replace(/&quot;/g, '"')
+          .replace(/&gt;/g, '>')
+          .replace(/&lt;/g, '<')
+          .replace(/&amp;/g, '&');
+      }
+
       if (meData.authenticated && meData.user) {
+        const cleanDisplayName = decodeDisplayText(meData.user.displayName) || 'My Kitchen';
         if (headerLink) {
           headerLink.href = '/account/';
           headerLink.classList.add('border-forest/40');
         }
         if (headerLabel) {
-          headerLabel.textContent = meData.user.displayName || 'My Kitchen';
+          headerLabel.textContent = cleanDisplayName;
         }
         if (mobileLink) {
           mobileLink.href = '/account/';
-          mobileLink.textContent = `My Kitchen (${meData.user.displayName})`;
+          mobileLink.textContent = `My Kitchen (${cleanDisplayName})`;
         }
 
-        const favBtns = document.querySelectorAll<HTMLButtonElement>('[data-favorite-slug]');
-        if (favBtns.length > 0) {
-          const favRes = await fetch('/api/community/favorites/', { credentials: 'same-origin' });
-          if (favRes.ok) {
-            const favData = await favRes.json();
-            if (Array.isArray(favData.favorites)) {
-              for (const f of favData.favorites) {
-                if (f && f.recipeSlug) savedSet.add(String(f.recipeSlug).toLowerCase());
-              }
-            }
+        if (Array.isArray(meData.favoriteSlugs)) {
+          for (const slug of meData.favoriteSlugs) {
+            if (slug) savedSet.add(String(slug).toLowerCase());
           }
         }
       }

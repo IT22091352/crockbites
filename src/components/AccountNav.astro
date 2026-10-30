@@ -1,5 +1,5 @@
 ---
-import type { SafeUser } from '../lib/user-auth';
+import { isTransactionalEmailConfigured, type SafeUser } from '../lib/user-auth';
 
 interface Props {
   user: SafeUser;
@@ -8,6 +8,7 @@ interface Props {
 }
 
 const { user, activeTab, csrfToken } = Astro.props;
+const emailVerificationEnabled = isTransactionalEmailConfigured().configured;
 
 const AVATAR_PRESET_EMOJIS: Record<string, { icon: string; bg: string; label: string }> = {
   'preset:crock': { icon: '🍲', bg: 'bg-brand-100 text-brand-900', label: 'Slow Cooker' },
@@ -40,6 +41,8 @@ const tabs = [
         <img
           src={customAvatarUrl}
           alt={user.displayName}
+          width={56}
+          height={56}
           class="h-14 w-14 rounded-2xl border border-stone-200 object-cover shadow-xs"
         />
       ) : presetAvatar ? (
@@ -65,11 +68,11 @@ const tabs = [
             <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
               ✓ Verified
             </span>
-          ) : (
+          ) : emailVerificationEnabled ? (
             <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800">
               Unverified Email
             </span>
-          )}
+          ) : null}
         </div>
         {user.bio ? (
           <p class="mt-1 text-sm text-stone-600 line-clamp-2">{user.bio}</p>

@@ -33,7 +33,7 @@ const tips = [
           <a class="btn" href="/recipes/">Explore Recipes <ArrowRight size={18} aria-hidden="true" /></a>
           <a class="btn btn-outline" href="/category/slow-cooker/">Browse Slow Cooker Recipes</a>
         </div>
-        <p class="mt-8 max-w-md text-sm text-ink-soft">New to CrockBites? Every recipe lists a safe internal temperature where it matters, because time alone never proves food is done.</p>
+        <p class="mt-8 max-w-md text-sm text-ink-soft">New to CrockBites? Meat, poultry, and slow-cooked dishes include safe internal temperature targets where they apply, because time alone never proves food is done.</p>
       </div>
       <div class="relative mx-auto w-full max-w-[26rem] pt-14 lg:ml-auto lg:mr-0">
         <svg class="steam absolute left-1/2 top-0 h-16 w-24 -translate-x-1/2 text-terracotta" viewBox="0 0 96 64" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" aria-hidden="true">
@@ -58,6 +58,8 @@ const tips = [
               srcset={`${getOptimizedCloudinaryUrl(featured.data.image, 480)} 480w, ${getOptimizedCloudinaryUrl(featured.data.image, 720)} 720w, ${getOptimizedCloudinaryUrl(featured.data.image, 960)} 960w`}
               sizes="(min-width: 1024px) 40rem, 100vw"
               alt=""
+              width={960}
+              height={720}
               loading="lazy"
               decoding="async"
               class="aspect-[4/3] w-full object-cover"
@@ -150,7 +152,7 @@ const tips = [
       <h2 id="about-heading">About CrockBites</h2>
       <div class="space-y-4 text-[1.08rem]">
         <p>CrockBites is a new recipe site built around the slow cooker and everyday meals. The goal is simple: clear ingredient lists, straightforward steps, and honest food safety guidance, so cooking dinner takes less fuss.</p>
-        <p>The first recipes on the site are editorial drafts that are still waiting to be cooked and checked by a person. They are labelled that way on purpose, and the label comes off only when a recipe has been tested.</p>
+        <p>Every public recipe on CrockBites is kitchen-tested and includes interactive serving scaling, US and Metric unit conversion, step-by-step Cooking Mode with built-in timers, and community reviews from fellow home cooks.</p>
         <p><a class="link-text font-semibold" href="/about/">Read more about the site</a></p>
       </div>
     </div>

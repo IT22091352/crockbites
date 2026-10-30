@@ -1,22 +1,67 @@
 ---
 import TextPage from '../layouts/TextPage.astro';
-import { site } from '../config/site';
 ---
-<TextPage title="Terms of Use" path="/terms-of-use/" template description="Terms for using the CrockBites website. Template for review before publication."
-  lead="A starting draft of the rules for using this website.">
-  <p><strong>Last updated:</strong> [add date when you finalize this page]</p>
-  <h2>Using the site</h2>
-  <p>By using {site.name} you agree to these terms. If you do not agree, please do not use the site.</p>
-  <h2>Recipes and food safety</h2>
-  <p>Recipes are provided for general information. Cooking times and temperatures are estimates, and appliances vary. You are responsible for checking that food is cooked safely, for example with a food thermometer, for handling allergens, and for storing leftovers properly. Recipes marked as drafts have not been tested.</p>
-  <h2>Nutrition and dietary information</h2>
-  <p>Nutrition details, when shown, are estimates and are not medical or dietary advice. Speak to a qualified professional about medical or dietary needs and allergies.</p>
-  <h2>Content and copyright</h2>
-  <p>Text, recipes, images and the CrockBites name and logo belong to the site owner unless noted otherwise. You may share a link to any page. Please do not republish full recipes or images without permission. [Decide exactly what you allow, for example short excerpts with credit and a link.]</p>
-  <h2>Links to other sites</h2>
-  <p>The site may link to third-party websites. We do not control them and are not responsible for their content.</p>
-  <h2>No warranty and limitation of liability</h2>
-  <p>The site and its content are provided “as is”, without warranties of any kind. [Have a qualified professional write the liability wording that applies in your jurisdiction.]</p>
-  <h2>Changes and contact</h2>
-  <p>We may change these terms by updating this page. Questions: <a href={`mailto:${site.contactEmail}`}>{site.contactEmail}</a>.</p>
+
+<TextPage
+  title="Terms of Use"
+  description="Terms and conditions for browsing recipes, using member accounts, and publishing community reviews on CrockBites."
+  path="/terms-of-use/"
+  lead="The terms and community guidelines for browsing recipes, maintaining a member account, and sharing reviews on CrockBites."
+  updated="October 30, 2026"
+>
+  <h2>1. Acceptance of Terms</h2>
+  <p>
+    By accessing or using CrockBites (<a href="https://crockbites.pages.dev/">crockbites.pages.dev</a> and our canonical domain <a href="https://crockbites.com/">crockbites.com</a>), you agree to these Terms of Use and our <a href="/privacy-policy/">Privacy Policy</a>. If you do not agree with these terms, please discontinue use of the site.
+  </p>
+
+  <h2>2. Culinary Content, Food Safety &amp; Nutrition Disclaimer</h2>
+  <p>
+    All recipes, slow-cooker timing guides, allergen declarations, dietary labels, and nutrition estimates on CrockBites are provided for informational and home-cooking purposes only:
+  </p>
+  <ul>
+    <li>
+      <strong>Food Safety:</strong> Slow cookers, stovetops, and ovens vary by manufacturer, wattage, and altitude. You are responsible for following safe food-handling practices and verifying safe minimum internal cooking temperatures with an instant-read food thermometer (for example, 165&deg;F / 74&deg;C for poultry and leftovers, and 160&deg;F / 71&deg;C for ground beef and pork). See our <a href="/guides/slow-cooker-food-safety/">Slow Cooker Food Safety Guide</a> for details.
+    </li>
+    <li>
+      <strong>Nutrition &amp; Allergens:</strong> Nutrition Facts and dietary or allergen badges are provided as good-faith references based on standard USDA ingredient data and editorial review. Always inspect specific product packaging and ingredient labels in your kitchen, especially when cooking for someone with a severe food allergy or medical dietary restriction. Nothing on CrockBites constitutes medical or dietetic advice.
+    </li>
+  </ul>
+
+  <h2>3. Member Accounts &amp; Security</h2>
+  <ul>
+    <li>You must provide accurate information when registering an account and keep your login credentials confidential.</li>
+    <li>You may not impersonate another person, register automated or bulk accounts, or attempt to bypass authentication, CSRF protections, or rate limits.</li>
+    <li>You may close and permanently delete your account at any time from your <a href="/account/profile/">Profile &amp; Settings</a> page.</li>
+  </ul>
+
+  <h2>4. Community Reviews &amp; User Content</h2>
+  <p>
+    Signed-in members may submit star ratings and written reviews on published recipes. Reviews are published immediately upon submission:
+  </p>
+  <ul>
+    <li>
+      <strong>One Review Per Recipe:</strong> Each member may maintain one active review per recipe, which you can edit or delete at any time directly on the recipe page or in your <a href="/account/reviews/">My Reviews</a> dashboard.
+    </li>
+    <li>
+      <strong>Community Standards:</strong> Reviews must reflect genuine feedback or questions about the recipe. You may not post unlawful, defamatory, abusive, promotional, or spam content, or include malicious links or scripts.
+    </li>
+    <li>
+      <strong>License &amp; Moderation:</strong> By posting a review, you grant CrockBites a non-exclusive, royalty-free, worldwide license to display your review, rating, and display name on the platform. We reserve the right to remove any review that violates these Terms or suspend accounts engaged in abuse.
+    </li>
+  </ul>
+
+  <h2>5. Intellectual Property &amp; Personal Use</h2>
+  <p>
+    All original recipe text, step-by-step instructions, photography, illustrations, and branding on CrockBites are owned by CrockBites or its content creators. You are welcome to print or save recipes for personal, non-commercial home cooking, and to share links to our pages. Republishing full recipe instructions or photographs on another website, app, or print publication without prior written permission is prohibited.
+  </p>
+
+  <h2>6. Limitation of Liability</h2>
+  <p>
+    CrockBites is provided on an &ldquo;as is&rdquo; and &ldquo;as available&rdquo; basis without warranties of any kind, express or implied. To the fullest extent permitted by law, CrockBites and its operators shall not be liable for any indirect, incidental, or consequential damages arising from your use of the website or preparation of any recipe.
+  </p>
+
+  <h2>7. Contact</h2>
+  <p>
+    Questions regarding these Terms of Use may be sent via our <a href="/contact/">Contact page</a>.
+  </p>
 </TextPage>

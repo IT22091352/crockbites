@@ -12,6 +12,7 @@ import {
 } from '../../../lib/admin';
 import { getDb } from '../../../lib/db';
 import { listAdminReviews } from '../../../lib/community';
+import { decodeHtmlEntities } from '../../../lib/user-auth';
 
 const adminCookie = Astro.cookies.get(ADMIN_COOKIE_NAME)?.value ?? '';
 const session = parseAdminSessionCookie(adminCookie);
@@ -238,8 +239,8 @@ const reviewData = db
                   </div>
 
                   <div>
-                    <h3 style="margin:0 0 0.3rem; font-size:1rem;" set:html={rev.title} />
-                    <p style="margin:0; font-size:0.92rem; line-height:1.55; white-space:pre-line;" set:html={rev.comment} />
+                    <h3 style="margin:0 0 0.3rem; font-size:1rem;">{decodeHtmlEntities(rev.title)}</h3>
+                    <p style="margin:0; font-size:0.92rem; line-height:1.55; white-space:pre-line;">{decodeHtmlEntities(rev.comment)}</p>
                   </div>
                 </article>
               );
