@@ -3,6 +3,7 @@ export const prerender = false;
 
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import {
+  ADMIN_COOKIE_NAME,
   CSRF_COOKIE_NAME,
   createCsrfToken,
   getAdminSessionSecret,
@@ -13,7 +14,7 @@ import { getGithubConfig } from '../../../lib/github';
 import { isCloudinaryConfigured } from '../../../lib/cloudinary';
 import { ArrowLeft } from '@lucide/astro';
 
-const sessionCookie = Astro.cookies.get('crockbites_admin_session')?.value ?? '';
+const sessionCookie = Astro.cookies.get(ADMIN_COOKIE_NAME)?.value ?? '';
 const secret = getAdminSessionSecret();
 const session = parseAdminSessionCookie(sessionCookie);
 
