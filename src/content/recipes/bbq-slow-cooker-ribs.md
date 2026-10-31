@@ -9,7 +9,7 @@ tags:
   - bbq
   - slow cooker
   - game day
-image: https://res.cloudinary.com/dmxumqqpj/image/upload/v1793470328/crockbites/recipes/o9t3flnthn25htom5efu.jpg
+image: https://res.cloudinary.com/dmxumqqpj/image/upload/v1793471104/crockbites/recipes/m6xksvi58mxp4fss1ukv.jpg
 imageAlt: Sticky glazed slow cooker BBQ ribs sliced on a butcher paper lined board
 author: CrockBites
 pubDate: 2026-10-30
