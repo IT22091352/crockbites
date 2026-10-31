@@ -2,10 +2,13 @@ import type { APIRoute } from 'astro';
 import { getClientIp } from '../../../lib/admin';
 import { getDb } from '../../../lib/db';
 import { jsonResponse, logServerDiagnostic } from '../../../lib/community-server';
+import { sendVerificationEmail } from '../../../lib/email';
 import {
   USER_CSRF_COOKIE,
   USER_SESSION_COOKIE,
   checkUserRateLimit,
+  createEmailVerificationToken,
+  isTransactionalEmailConfigured,
   registerUser,
   sanitizeReturnUrl,
   setUserAuthCookies,
@@ -61,6 +64,38 @@ export const POST: APIRoute = async ({ request, cookies, locals, url }) => {
 
     if (!result.ok) {
       return jsonResponse({ error: result.error }, 400);
+    }
+
+    // If transactional email is configured, dispatch initial email verification link
+    if (isTransactionalEmailConfigured().configured) {
+      try {
+        const tokenRes = await createEmailVerificationToken(db, result.user.id);
+        let origin = 'https://crockbites.site';
+        try {
+          const parsed = new URL(request.url);
+          if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+            origin = parsed.origin;
+          }
+        } catch {}
+        const verifyUrl = `${origin}/verify-email/?token=${encodeURIComponent(tokenRes.rawToken)}`;
+        const emailRes = await sendVerificationEmail({
+          to: result.user.email,
+          displayName: result.user.displayName,
+          verifyUrl,
+        });
+        if (!emailRes.ok) {
+          try {
+            await db
+              .prepare(`DELETE FROM email_verification_tokens WHERE id = ?`)
+              .bind(tokenRes.id)
+              .run();
+          } catch (cleanupErr) {
+            logServerDiagnostic('register:cleanup_token', cleanupErr);
+          }
+        }
+      } catch (e) {
+        logServerDiagnostic('register:sendVerificationEmail', e);
+      }
     }
 
     const isHttps = url.protocol === 'https:';

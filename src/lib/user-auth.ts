@@ -714,27 +714,35 @@ export async function deleteUserAccount(
 
 // ---- Email Verification & Password Recovery Token Workflows ----
 
-export function isTransactionalEmailConfigured(): { configured: boolean; provider: string; details: string } {
+export function isTransactionalEmailConfigured(): {
+  configured: boolean;
+  provider: string;
+  details: string;
+  from: string;
+} {
   const resendKey = getRuntimeSecret('RESEND_API_KEY');
-  const emailFrom = getRuntimeSecret('EMAIL_FROM');
-  if (resendKey && emailFrom) {
+  const emailFrom = getRuntimeSecret('EMAIL_FROM') || 'CrockBites <no-reply@mail.crockbites.site>';
+  if (resendKey) {
     return {
       configured: true,
       provider: 'Resend',
-      details: 'Transactional email delivery is configured via RESEND_API_KEY and EMAIL_FROM.',
+      details: 'Transactional email delivery is configured via RESEND_API_KEY.',
+      from: emailFrom,
     };
   }
   return {
     configured: false,
     provider: 'unconfigured',
-    details: 'Transactional email provider is not configured. Set RESEND_API_KEY and EMAIL_FROM in Cloudflare Pages secrets before enabling live email delivery.',
+    details: 'Transactional email provider is not configured. Set RESEND_API_KEY in Cloudflare Pages secrets before enabling live email delivery.',
+    from: emailFrom,
   };
 }
 
 export async function createEmailVerificationToken(
   db: D1Database,
   userId: string,
-): Promise<{ rawToken: string; expiresAt: string; emailDeliveryConfigured: boolean }> {
+): Promise<{ id: string; rawToken: string; expiresAt: string; emailDeliveryConfigured: boolean }> {
+  const tokenId = generateId();
   const rawToken = generateOpaqueToken(32);
   const tokenHash = hashToken(rawToken);
   const now = new Date();
@@ -750,10 +758,11 @@ export async function createEmailVerificationToken(
         `INSERT INTO email_verification_tokens (id, user_id, token_hash, expires_at, created_at)
          VALUES (?, ?, ?, ?, ?)`,
       )
-      .bind(generateId(), userId, tokenHash, expiresAt, now.toISOString()),
+      .bind(tokenId, userId, tokenHash, expiresAt, now.toISOString()),
   ]);
 
   return {
+    id: tokenId,
     rawToken,
     expiresAt,
     emailDeliveryConfigured: isTransactionalEmailConfigured().configured,
@@ -802,6 +811,8 @@ export async function createPasswordResetRequest(
   emailDeliveryConfigured: boolean;
   /** Returned only to internal caller/tests; never expose rawToken in public HTTP responses! */
   _internalRawToken?: string;
+  _internalTokenId?: string;
+  _internalUser?: { id: string; email: string; displayName: string };
 }> {
   const emailStatus = isTransactionalEmailConfigured();
   const genericMessage =
@@ -813,14 +824,15 @@ export async function createPasswordResetRequest(
   }
 
   const user = await db
-    .prepare(`SELECT id, status FROM users WHERE email = ? LIMIT 1`)
+    .prepare(`SELECT id, status, display_name, email FROM users WHERE email = ? LIMIT 1`)
     .bind(eCheck.normalized)
-    .first<{ id: string; status: string }>();
+    .first<{ id: string; status: string; display_name: string; email: string }>();
 
   if (!user || user.status !== 'active') {
     return { ok: true, message: genericMessage, emailDeliveryConfigured: emailStatus.configured };
   }
 
+  const tokenId = generateId();
   const rawToken = generateOpaqueToken(32);
   const tokenHash = hashToken(rawToken);
   const now = new Date();
@@ -835,7 +847,7 @@ export async function createPasswordResetRequest(
         `INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_at)
          VALUES (?, ?, ?, ?, ?)`,
       )
-      .bind(generateId(), user.id, tokenHash, expiresAt, now.toISOString()),
+      .bind(tokenId, user.id, tokenHash, expiresAt, now.toISOString()),
   ]);
 
   return {
@@ -843,6 +855,12 @@ export async function createPasswordResetRequest(
     message: genericMessage,
     emailDeliveryConfigured: emailStatus.configured,
     _internalRawToken: rawToken,
+    _internalTokenId: tokenId,
+    _internalUser: {
+      id: user.id,
+      email: user.email,
+      displayName: user.display_name,
+    },
   };
 }
 

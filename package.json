@@ -23,7 +23,8 @@
     "test:units": "node --experimental-strip-types tests/cooking-units.test.mjs",
     "test:dietary": "node --experimental-strip-types tests/dietary-and-allergens.test.mjs",
     "test:community": "node --experimental-strip-types tests/community-platform.test.mjs",
-    "test": "npm run test:auth && npm run test:recipe && npm run test:units && npm run test:dietary && npm run test:community && npm run test:dom"
+    "test:email": "node --experimental-strip-types tests/email-delivery.test.mjs",
+    "test": "npm run test:auth && npm run test:recipe && npm run test:units && npm run test:dietary && npm run test:community && npm run test:email && npm run test:dom"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.4.2",

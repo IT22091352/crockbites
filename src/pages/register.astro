@@ -7,7 +7,7 @@ import { getD1BindingStatus } from '../lib/db';
 import { sanitizeReturnUrl } from '../lib/user-auth';
 
 const { user, csrfToken } = await resolveUserSession(Astro.cookies, Astro.locals, Astro.url.protocol);
-const returnTo = sanitizeReturnUrl(Astro.url.searchParams.get('returnTo'), '/account/');
+const returnTo = sanitizeReturnUrl(Astro.url.searchParams.get('returnTo'), '/login/');
 
 if (user) {
   return Astro.redirect(returnTo);

@@ -1,0 +1,155 @@
+---
+export const prerender = false;
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { resolveUserSession } from '../lib/community-server';
+
+const { user } = await resolveUserSession(Astro.cookies, Astro.locals, Astro.url.protocol);
+const token = Astro.url.searchParams.get('token')?.trim() || '';
+---
+
+<BaseLayout
+  title="Verify Your Email"
+  path="/verify-email/"
+  description="Confirm your email address to complete your CrockBites community account setup."
+  noindex
+>
+  <div class="container-page py-12">
+    <div class="mx-auto max-w-md rounded-3xl border border-line bg-paper p-6 shadow-[var(--shadow-card)] sm:p-10">
+      <div class="text-center">
+        <div class="mx-auto flex size-14 items-center justify-center rounded-2xl bg-brand-100 text-forest text-2xl">
+          ✉️
+        </div>
+        <p class="mt-4 text-xs font-bold uppercase tracking-widest text-terracotta-deep">Email Verification</p>
+        <h1 class="mt-1 text-2xl sm:text-3xl text-forest">Verify Your Email</h1>
+      </div>
+
+      {token ? (
+        <div id="verify-initial-state" class="mt-6 text-center">
+          <p class="text-sm text-ink-soft">
+            Click the button below to confirm and verify your CrockBites kitchen account email.
+          </p>
+
+          <div class="mt-6">
+            <button
+              type="button"
+              id="confirm-verify-btn"
+              data-token={token}
+              class="btn w-full justify-center py-3 text-base font-semibold"
+            >
+              Confirm Email Verification
+            </button>
+          </div>
+
+          <p class="mt-4 text-xs text-ink-soft/80">
+            For security, verification links require your confirmation and expire 24 hours after being requested.
+          </p>
+        </div>
+      ) : (
+        <div class="mt-6 text-center">
+          <p class="text-sm text-ink-soft">
+            No verification token was provided. If you recently registered or requested a new verification link, please open the link directly from your email.
+          </p>
+          <div class="mt-6 flex flex-col gap-3">
+            {user ? (
+              <a href="/account/profile/" class="btn justify-center py-2.5 text-sm">
+                Go to Profile Settings
+              </a>
+            ) : (
+              <a href="/login/" class="btn justify-center py-2.5 text-sm">
+                Sign In to CrockBites
+              </a>
+            )}
+            <a href="/recipes/" class="link-text text-sm font-semibold text-forest">
+              Browse Slow Cooker Recipes →
+            </a>
+          </div>
+        </div>
+      )}
+
+      <!-- Dynamic Status Banner -->
+      <div
+        id="verify-status"
+        class="hidden mt-6 rounded-2xl border p-4 text-sm font-medium"
+        role="alert"
+        aria-live="polite"
+      ></div>
+
+      <!-- Action Buttons shown after result -->
+      <div id="verify-actions" class="hidden mt-6 flex flex-col gap-3 text-center"></div>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  const verifyBtn = document.getElementById('confirm-verify-btn') as HTMLButtonElement | null;
+  const initialState = document.getElementById('verify-initial-state');
+  const statusBox = document.getElementById('verify-status')!;
+  const actionsBox = document.getElementById('verify-actions')!;
+
+  if (verifyBtn) {
+    verifyBtn.addEventListener('click', async () => {
+      const token = verifyBtn.dataset.token;
+      if (!token) return;
+
+      verifyBtn.disabled = true;
+      verifyBtn.textContent = 'Verifying...';
+
+      try {
+        const res = await fetch('/api/auth/verify-email/', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            action: 'confirm',
+            token,
+          }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (initialState) {
+          initialState.classList.add('hidden');
+        }
+
+        if (res.ok) {
+          statusBox.className = 'mt-6 rounded-2xl border border-emerald-300 bg-emerald-50 p-4 text-sm font-medium text-emerald-900 text-center';
+          statusBox.innerHTML = `
+            <div class="text-2xl mb-1">🎉</div>
+            <strong class="block text-base font-semibold">Email Verified Successfully!</strong>
+            <p class="mt-1 text-xs text-emerald-800">Your CrockBites account is now fully verified. Welcome to our slow-cooking community.</p>
+          `;
+          statusBox.classList.remove('hidden');
+
+          actionsBox.innerHTML = `
+            <a href="/account/" class="btn justify-center py-2.5 text-sm">Continue to My Account</a>
+            <a href="/recipes/" class="link-text text-sm font-semibold text-forest">Explore Recipes →</a>
+          `;
+          actionsBox.classList.remove('hidden');
+        } else {
+          statusBox.className = 'mt-6 rounded-2xl border border-red-300 bg-red-50 p-4 text-sm font-medium text-red-900 text-center';
+          statusBox.innerHTML = `
+            <div class="text-2xl mb-1">⚠️</div>
+            <strong class="block text-base font-semibold">Verification Failed</strong>
+            <p class="mt-1 text-xs text-red-800">${data.error || 'This verification link is invalid or has expired.'}</p>
+          `;
+          statusBox.classList.remove('hidden');
+
+          actionsBox.innerHTML = `
+            <a href="/account/profile/" class="btn justify-center py-2.5 text-sm">Request New Link in Profile</a>
+            <a href="/login/" class="link-text text-sm font-semibold text-forest">Return to Sign In →</a>
+          `;
+          actionsBox.classList.remove('hidden');
+        }
+      } catch {
+        verifyBtn.disabled = false;
+        verifyBtn.textContent = 'Confirm Email Verification';
+        statusBox.className = 'mt-6 rounded-2xl border border-red-300 bg-red-50 p-4 text-sm font-medium text-red-900 text-center';
+        statusBox.textContent = 'A network error occurred while verifying your email. Please try again.';
+        statusBox.classList.remove('hidden');
+      }
+    });
+  }
+</script>
+

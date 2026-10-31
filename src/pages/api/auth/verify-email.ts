@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { getClientIp } from '../../../lib/admin';
 import { getDb } from '../../../lib/db';
 import { jsonResponse, requireAuthenticatedUserApi } from '../../../lib/community-server';
+import { logEmailDiagnostic, sendVerificationEmail } from '../../../lib/email';
 import {
   checkUserRateLimit,
   confirmEmailVerificationToken,
@@ -60,11 +61,46 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     );
   }
 
-  await createEmailVerificationToken(auth.db, auth.user.id);
+  const tokenRes = await createEmailVerificationToken(auth.db, auth.user.id);
+
+  let origin = 'https://crockbites.site';
+  try {
+    const parsed = new URL(request.url);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      origin = parsed.origin;
+    }
+  } catch {}
+
+  const verifyUrl = `${origin}/verify-email/?token=${encodeURIComponent(tokenRes.rawToken)}`;
+  const emailRes = await sendVerificationEmail({
+    to: auth.user.email,
+    displayName: auth.user.displayName,
+    verifyUrl,
+  });
+
+  if (!emailRes.ok) {
+    try {
+      await auth.db
+        .prepare(`DELETE FROM email_verification_tokens WHERE id = ?`)
+        .bind(tokenRes.id)
+        .run();
+    } catch (cleanupErr) {
+      logEmailDiagnostic('verify_email:cleanup_token', cleanupErr);
+    }
+
+    return jsonResponse(
+      {
+        ok: false,
+        emailDeliveryConfigured: true,
+        error: 'Failed to deliver verification email. Please try again later.',
+      },
+      502,
+    );
+  }
 
   return jsonResponse({
     ok: true,
     emailDeliveryConfigured: true,
-    message: 'Verification token prepared.',
+    message: 'A verification link has been sent to your email address.',
   });
 };
