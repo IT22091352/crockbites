@@ -2,170 +2,351 @@
 export const prerender = false;
 
 import { getCollection } from 'astro:content';
-import { ADMIN_COOKIE_NAME, CSRF_COOKIE_NAME, createCsrfToken, getAdminSessionSecret, parseAdminSessionCookie, verifySessionCookie } from '../../lib/admin';
-
-const adminCookie = Astro.cookies.get(ADMIN_COOKIE_NAME)?.value ?? '';
-const session = parseAdminSessionCookie(adminCookie);
-const username = session?.username ?? '';
-const secret = getAdminSessionSecret();
-
-if (!secret || !session || !verifySessionCookie(adminCookie, secret)) {
-  Astro.cookies.delete(ADMIN_COOKIE_NAME, { path: '/' });
-  Astro.cookies.delete(CSRF_COOKIE_NAME, { path: '/' });
-  return Astro.redirect('/admin/login/?error=Session+expired');
-}
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getDb } from '../../lib/db';
+import { listAdminReviews } from '../../lib/community';
+import { getOptimizedCloudinaryUrl } from '../../lib/cloudinary';
+import {
+  BookOpen,
+  CircleCheck,
+  Clock,
+  MessageSquare,
+  CirclePlus,
+  ArrowRight,
+  ExternalLink,
+  SlidersHorizontal,
+  FilePenLine,
+  Eye,
+  TrendingUp,
+} from '@lucide/astro';
 
 const recipes = await getCollection('recipes');
 const totalRecipes = recipes.length;
 const published = recipes.filter((recipe) => recipe.data.reviewStatus === 'tested').length;
 const drafts = recipes.filter((recipe) => recipe.data.reviewStatus === 'draft').length;
-const recent = [...recipes].sort((a, b) => {
-  const aDate = a.data.updatedDate ?? a.data.pubDate;
-  const bDate = b.data.updatedDate ?? b.data.pubDate;
-  return Number(bDate) - Number(aDate);
-}).slice(0, 5);
-const recentWithSlugs = recent.map((recipe) => ({ ...recipe, slug: recipe.id.replace(/\.md$/, '') }));
-const csrfToken = createCsrfToken(secret, session.id);
-const isHttps = Astro.url.protocol === 'https:';
-Astro.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
-  httpOnly: false,
-  sameSite: 'lax',
-  secure: isHttps,
-  path: '/',
-  maxAge: 60 * 60 * 12,
+const publishedPercentage = totalRecipes > 0 ? Math.round((published / totalRecipes) * 100) : 0;
+
+// Get real reviews count from D1
+const db = await getDb(Astro.locals);
+let totalReviews = 0;
+let avgRating = '—';
+if (db) {
+  try {
+    const reviewData = await listAdminReviews(db, { page: 1, pageSize: 1 });
+    totalReviews = reviewData.counts.total;
+    // Calculate average rating across all reviews if present
+    const ratingRow = await db
+      .prepare(`SELECT AVG(rating) as avgRating FROM reviews WHERE status = 'approved'`)
+      .first<{ avgRating: number | null }>();
+    if (ratingRow?.avgRating) {
+      avgRating = ratingRow.avgRating.toFixed(1);
+    }
+  } catch {
+    // Graceful fallback if database read fails
+  }
+}
+
+// Sort recently updated or published recipes
+const recent = [...recipes]
+  .sort((a, b) => {
+    const aDate = a.data.updatedDate ?? a.data.pubDate;
+    const bDate = b.data.updatedDate ?? b.data.pubDate;
+    return Number(bDate) - Number(aDate);
+  })
+  .slice(0, 6);
+
+const recentWithMeta = recent.map((recipe) => {
+  const slug = recipe.id.replace(/\.md$/, '');
+  const rawImage = recipe.data.image;
+  const imageUrl = typeof rawImage === 'string' ? rawImage : (rawImage as any)?.src || '/placeholder.svg';
+  const isCloudinary = imageUrl.startsWith('http://') || imageUrl.startsWith('https://');
+  const thumbUrl = isCloudinary ? getOptimizedCloudinaryUrl(imageUrl, 180) : imageUrl;
+  return {
+    ...recipe,
+    slug,
+    thumbUrl,
+    displayDate: (recipe.data.updatedDate ?? recipe.data.pubDate).toISOString().slice(0, 10),
+  };
 });
 ---
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CrockBites Admin Dashboard</title>
-    <style>
-      :root {
-        --forest: #243A2D;
-        --cream: #F7F1E5;
-        --terracotta: #C66A45;
-        --paper: #fffdf9;
-        --mist: #e8e2d5;
-        --muted: rgba(36,58,45,0.72);
-      }
-      * { box-sizing: border-box; }
-      body { margin: 0; font-family: system-ui, sans-serif; background: var(--cream); color: var(--forest); }
-      a { color: inherit; text-decoration: none; }
-      .shell { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
-      .sidebar { background: var(--forest); color: #fff; padding: 1.5rem 1rem; }
-      .brand { display: flex; align-items: center; gap: 0.75rem; font-weight: 800; font-size: 1.1rem; }
-      .brand-mark { width: 2.2rem; height: 2.2rem; border-radius: 0.7rem; background: var(--terracotta); display: grid; place-items: center; color: white; }
-      nav { margin-top: 1.5rem; display: grid; gap: 0.5rem; }
-      nav a { display: block; padding: 0.85rem 0.9rem; border-radius: 10px; color: rgba(255,255,255,0.88); }
-      nav a.active, nav a:hover { background: rgba(255,255,255,0.08); }
-      .content { padding: 1.5rem; }
-      .topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
-      .title { font-size: clamp(1.7rem, 3vw, 2.5rem); margin: 0; }
-      .user-row { display: flex; align-items: center; gap: 0.9rem; }
-      .pill { border: 1px solid rgba(36,58,45,0.12); background: rgba(255,255,255,0.65); padding: 0.55rem 0.8rem; border-radius: 999px; }
-      .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
-      .card { background: rgba(255,255,255,0.8); border: 1px solid rgba(36,58,45,0.08); border-radius: 18px; padding: 1.15rem; }
-      .label { color: var(--muted); font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.08em; }
-      .number { font-size: clamp(1.8rem, 3vw, 2.5rem); font-weight: 800; margin-top: 0.35rem; }
-      .muted { color: var(--muted); }
-      .grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 1rem; }
-      table { width: 100%; border-collapse: collapse; }
-      th, td { padding: 0.85rem 0.75rem; text-align: left; border-bottom: 1px solid rgba(36,58,45,0.09); }
-      .tag { display: inline-flex; padding: 0.25rem 0.6rem; border-radius: 999px; background: rgba(198,106,69,0.12); color: var(--forest); font-size: 0.75rem; font-weight: 700; }
-      .list { display: grid; gap: 0.75rem; }
-      .recipe-item { display: flex; justify-content: space-between; align-items: center; gap: 1rem; border: 1px solid rgba(36,58,45,0.08); border-radius: 14px; padding: 0.9rem 1rem; background: rgba(255,255,255,0.7); }
-      .actions { display: flex; gap: 0.5rem; }
-      .btn { border: none; border-radius: 10px; padding: 0.7rem 0.9rem; cursor: pointer; font-weight: 700; }
-      .btn-primary { background: var(--forest); color: white; }
-      .btn-subtle { background: rgba(36,58,45,0.08); color: var(--forest); }
-      .btn-ghost { background: rgba(198,106,69,0.1); color: var(--terracotta); }
-      @media (max-width: 900px) { .shell { grid-template-columns: 1fr; } .sidebar { padding-bottom: 0.5rem; } .grid { grid-template-columns: 1fr; } }
-    </style>
-  </head>
-  <body>
-    <div class="shell">
-      <aside class="sidebar">
-        <div class="brand">
-          <div class="brand-mark">C</div>
-          <span>CrockBites Admin</span>
-        </div>
-        <nav>
-          <a class="active" href="/admin/">Overview</a>
-          <a href="/admin/recipes/">Recipes</a>
-          <a href="/admin/recipes/new/">New Recipe</a>
-          <a href="/admin/reviews/">Reviews</a>
-          <a href="/admin/settings/">Settings</a>
-        </nav>
-      </aside>
+<AdminLayout
+  title="Editorial Overview"
+  subtitle="Monitor recipe inventory, publication workflow status, and live community feedback."
+  activeNav="overview"
+>
+  <!-- Topbar Action Button Slot -->
+  <div slot="actions">
+    <a
+      href="/admin/recipes/new/"
+      class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-forest text-cream font-bold text-sm hover:bg-forest-deep shadow-xs transition hover:scale-[1.02] cursor-pointer"
+    >
+      <CirclePlus size={16} aria-hidden="true" />
+      <span>Create Recipe</span>
+    </a>
+  </div>
 
-      <main class="content">
-        <div class="topbar">
+  <div class="space-y-8">
+    <!-- Stat Metric Cards -->
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6" aria-label="Key Publication Metrics">
+      <!-- Total Recipes -->
+      <div class="card p-5 sm:p-6 bg-paper border border-line rounded-2xl shadow-xs flex flex-col justify-between">
+        <div class="flex items-center justify-between text-ink-soft">
+          <span class="text-xs font-bold uppercase tracking-wider text-ink-soft">Total Inventory</span>
+          <div class="flex size-8 items-center justify-center rounded-lg bg-forest/5 text-forest">
+            <BookOpen size={18} aria-hidden="true" />
+          </div>
+        </div>
+        <div class="mt-4">
+          <p class="font-display text-3xl sm:text-4xl font-bold text-forest">{totalRecipes}</p>
+          <p class="text-xs text-ink-soft mt-1">Recipes across 7 categories</p>
+        </div>
+      </div>
+
+      <!-- Published Recipes -->
+      <div class="card p-5 sm:p-6 bg-paper border border-line rounded-2xl shadow-xs flex flex-col justify-between">
+        <div class="flex items-center justify-between text-ink-soft">
+          <span class="text-xs font-bold uppercase tracking-wider text-emerald-800">Kitchen-Tested</span>
+          <div class="flex size-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+            <CircleCheck size={18} aria-hidden="true" />
+          </div>
+        </div>
+        <div class="mt-4">
+          <p class="font-display text-3xl sm:text-4xl font-bold text-emerald-900">{published}</p>
+          <p class="text-xs text-ink-soft mt-1">Indexed &amp; live on website</p>
+        </div>
+      </div>
+
+      <!-- Draft Recipes -->
+      <div class="card p-5 sm:p-6 bg-paper border border-line rounded-2xl shadow-xs flex flex-col justify-between">
+        <div class="flex items-center justify-between text-ink-soft">
+          <span class="text-xs font-bold uppercase tracking-wider text-amber-800">Drafts / In-Prep</span>
+          <div class="flex size-8 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
+            <Clock size={18} aria-hidden="true" />
+          </div>
+        </div>
+        <div class="mt-4">
+          <p class="font-display text-3xl sm:text-4xl font-bold text-amber-900">{drafts}</p>
+          <p class="text-xs text-ink-soft mt-1">Hidden from search engines</p>
+        </div>
+      </div>
+
+      <!-- Community Reviews -->
+      <div class="card p-5 sm:p-6 bg-paper border border-line rounded-2xl shadow-xs flex flex-col justify-between">
+        <div class="flex items-center justify-between text-ink-soft">
+          <span class="text-xs font-bold uppercase tracking-wider text-terracotta-deep">User Reviews</span>
+          <div class="flex size-8 items-center justify-center rounded-lg bg-terracotta/10 text-terracotta-deep">
+            <MessageSquare size={18} aria-hidden="true" />
+          </div>
+        </div>
+        <div class="mt-4">
+          <div class="flex items-baseline gap-2">
+            <p class="font-display text-3xl sm:text-4xl font-bold text-forest">{totalReviews}</p>
+            {avgRating !== '—' && (
+              <span class="text-xs font-bold text-terracotta-deep">★ {avgRating} avg</span>
+            )}
+          </div>
+          <p class="text-xs text-ink-soft mt-1">Real ratings in Cloudflare D1</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Publishing Status Ratio & Workflow Progress -->
+    <section class="card p-6 bg-paper border border-line rounded-2xl shadow-xs">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <TrendingUp size={18} class="text-forest" aria-hidden="true" />
+            <h2 class="font-display text-lg font-bold text-forest">Publication Health &amp; Readiness</h2>
+          </div>
+          <p class="text-xs text-ink-soft mt-1">
+            {published} of {totalRecipes} recipes tested and ready for search engine indexing.
+          </p>
+        </div>
+        <div class="flex items-center gap-4 text-xs font-semibold">
+          <span class="flex items-center gap-1.5 text-emerald-800">
+            <span class="size-2 rounded-full bg-emerald-600"></span>
+            <span>Published ({publishedPercentage}%)</span>
+          </span>
+          <span class="flex items-center gap-1.5 text-amber-800">
+            <span class="size-2 rounded-full bg-amber-500"></span>
+            <span>Drafts ({100 - publishedPercentage}%)</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- Progress Track -->
+      <div class="w-full h-3 bg-cream-deep/60 rounded-full overflow-hidden mt-4 border border-line/40">
+        <div
+          class="h-full bg-forest rounded-full transition-all duration-500"
+          style={`width: ${publishedPercentage}%`}
+        ></div>
+      </div>
+    </section>
+
+    <!-- Two-Column Grid: Recent Recipes & Quick Actions -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <!-- Recently Edited Recipes Table (2 cols) -->
+      <section class="lg:col-span-2 card bg-paper border border-line rounded-2xl shadow-xs overflow-hidden">
+        <div class="px-6 py-5 border-b border-line/60 flex items-center justify-between">
           <div>
-            <p class="muted" style="margin:0 0 0.5rem; font-size:0.8rem; letter-spacing:0.08em; text-transform:uppercase;">Dashboard</p>
-            <h1 class="title">Overview</h1>
+            <h2 class="font-display text-lg font-bold text-forest">Recent Recipe Activity</h2>
+            <p class="text-xs text-ink-soft">Latest edits and publishing changes</p>
           </div>
-          <div class="user-row">
-            <span class="pill">Logged in as {username}</span>
-            <form method="POST" action="/api/admin/logout/">
-              <input type="hidden" name="csrfToken" value={csrfToken} />
-              <button class="btn btn-subtle" type="submit">Log out</button>
-            </form>
-          </div>
+          <a
+            href="/admin/recipes/"
+            class="text-xs font-bold text-terracotta-deep hover:underline flex items-center gap-1"
+          >
+            <span>View all {totalRecipes}</span>
+            <ArrowRight size={14} aria-hidden="true" />
+          </a>
         </div>
 
-        <section class="cards">
-          <article class="card">
-            <div class="label">Total recipes</div>
-            <div class="number">{totalRecipes}</div>
-          </article>
-          <article class="card">
-            <div class="label">Published</div>
-            <div class="number">{published}</div>
-          </article>
-          <article class="card">
-            <div class="label">Drafts</div>
-            <div class="number">{drafts}</div>
-          </article>
-          <article class="card">
-            <div class="label">Recently updated</div>
-            <div class="number">{recent.length}</div>
-          </article>
-        </section>
-
-        <section class="grid">
-          <div class="card">
-            <div style="display:flex;justify-content:space-between;align-items:center; gap:1rem; margin-bottom:1rem;">
-              <h2 style="margin:0;">Recent updates</h2>
-              <a class="btn btn-primary" href="/admin/recipes/new/">Create recipe</a>
-            </div>
-            <div class="list">
-              {recentWithSlugs.map((recipe) => (
-                <div class="recipe-item">
-                  <div>
-                    <strong>{recipe.data.title}</strong>
-                    <div class="muted">{recipe.data.reviewStatus === 'draft' ? 'Draft' : 'Published'}</div>
-                  </div>
-                  <div class="actions">
-                    <a class="btn btn-subtle" href={`/recipe/${recipe.slug}/`}>View</a>
-                    <a class="btn btn-ghost" href={`/admin/recipes/${recipe.slug}/`}>Edit</a>
+        <div class="divide-y divide-line/40 overflow-x-auto">
+          {recentWithMeta.map((recipe) => (
+            <div class="px-6 py-4 flex items-center justify-between gap-4 hover:bg-cream/20 transition">
+              <div class="flex items-center gap-3.5 min-w-0">
+                <img
+                  src={recipe.thumbUrl}
+                  alt=""
+                  width="48"
+                  height="48"
+                  class="size-12 rounded-xl object-cover border border-line/60 shrink-0 bg-cream-deep/40"
+                  loading="lazy"
+                />
+                <div class="min-w-0">
+                  <p class="text-sm font-bold text-forest truncate">{recipe.data.title}</p>
+                  <div class="flex items-center gap-2 mt-0.5 text-xs text-ink-soft">
+                    <span class="capitalize">{recipe.data.category.replace(/-/g, ' ')}</span>
+                    <span class="text-line">&middot;</span>
+                    <time datetime={recipe.displayDate}>{recipe.displayDate}</time>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
 
-          <div class="card">
-            <h2 style="margin-top:0;">Quick actions</h2>
-            <div class="list">
-              <a class="recipe-item" href="/admin/recipes/"><span>Manage all recipes</span><span>→</span></a>
-              <a class="recipe-item" href="/admin/recipes/new/"><span>Write a new recipe</span><span>→</span></a>
-              <a class="recipe-item" href="/admin/settings/"><span>Review site settings</span><span>→</span></a>
+              <div class="flex items-center gap-3 shrink-0">
+                {recipe.data.reviewStatus === 'tested' ? (
+                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    <CircleCheck size={12} class="text-emerald-700" aria-hidden="true" />
+                    <span>Published</span>
+                  </span>
+                ) : (
+                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                    <Clock size={12} class="text-amber-700" aria-hidden="true" />
+                    <span>Draft</span>
+                  </span>
+                )}
+
+                <div class="flex items-center gap-1.5">
+                  <a
+                    href={`/admin/recipes/preview/${recipe.slug}/`}
+                    class="p-1.5 rounded-lg text-ink-soft hover:text-forest hover:bg-cream-deep/50 transition cursor-pointer"
+                    title="Preview Recipe"
+                    aria-label={`Preview ${recipe.data.title}`}
+                  >
+                    <Eye size={16} aria-hidden="true" />
+                  </a>
+                  <a
+                    href={`/admin/recipes/${recipe.slug}/`}
+                    class="p-1.5 rounded-lg text-ink-soft hover:text-forest hover:bg-cream-deep/50 transition cursor-pointer"
+                    title="Edit Recipe"
+                    aria-label={`Edit ${recipe.data.title}`}
+                  >
+                    <FilePenLine size={16} aria-hidden="true" />
+                  </a>
+                </div>
+              </div>
             </div>
+          ))}
+        </div>
+      </section>
+
+      <!-- Editorial Quick Actions (1 col) -->
+      <section class="card bg-paper border border-line rounded-2xl shadow-xs p-6 flex flex-col justify-between">
+        <div>
+          <h2 class="font-display text-lg font-bold text-forest">Editorial Shortcuts</h2>
+          <p class="text-xs text-ink-soft mt-0.5">Quick actions to manage your publishing operations</p>
+
+          <div class="mt-5 space-y-2.5">
+            <a
+              href="/admin/recipes/new/"
+              class="flex items-center justify-between p-3.5 rounded-xl border border-line/60 bg-cream/30 hover:bg-cream hover:border-forest/40 transition group"
+            >
+              <div class="flex items-center gap-3">
+                <div class="flex size-9 items-center justify-center rounded-lg bg-forest text-cream">
+                  <CirclePlus size={18} aria-hidden="true" />
+                </div>
+                <div>
+                  <p class="text-xs font-bold text-forest">Write New Recipe</p>
+                  <p class="text-[11px] text-ink-soft">Add ingredients, steps &amp; photos</p>
+                </div>
+              </div>
+              <ArrowRight size={16} class="text-ink-soft/60 group-hover:text-forest group-hover:translate-x-0.5 transition" aria-hidden="true" />
+            </a>
+
+            <a
+              href="/admin/recipes/"
+              class="flex items-center justify-between p-3.5 rounded-xl border border-line/60 bg-cream/30 hover:bg-cream hover:border-forest/40 transition group"
+            >
+              <div class="flex items-center gap-3">
+                <div class="flex size-9 items-center justify-center rounded-lg bg-forest text-cream">
+                  <BookOpen size={18} aria-hidden="true" />
+                </div>
+                <div>
+                  <p class="text-xs font-bold text-forest">Manage Catalog</p>
+                  <p class="text-[11px] text-ink-soft">Search, filter &amp; edit recipes</p>
+                </div>
+              </div>
+              <ArrowRight size={16} class="text-ink-soft/60 group-hover:text-forest group-hover:translate-x-0.5 transition" aria-hidden="true" />
+            </a>
+
+            <a
+              href="/admin/reviews/"
+              class="flex items-center justify-between p-3.5 rounded-xl border border-line/60 bg-cream/30 hover:bg-cream hover:border-forest/40 transition group"
+            >
+              <div class="flex items-center gap-3">
+                <div class="flex size-9 items-center justify-center rounded-lg bg-forest text-cream">
+                  <MessageSquare size={18} aria-hidden="true" />
+                </div>
+                <div>
+                  <p class="text-xs font-bold text-forest">Community Reviews</p>
+                  <p class="text-[11px] text-ink-soft">Moderate ratings and feedback</p>
+                </div>
+              </div>
+              <ArrowRight size={16} class="text-ink-soft/60 group-hover:text-forest group-hover:translate-x-0.5 transition" aria-hidden="true" />
+            </a>
+
+            <a
+              href="/admin/settings/"
+              class="flex items-center justify-between p-3.5 rounded-xl border border-line/60 bg-cream/30 hover:bg-cream hover:border-forest/40 transition group"
+            >
+              <div class="flex items-center gap-3">
+                <div class="flex size-9 items-center justify-center rounded-lg bg-forest text-cream">
+                  <SlidersHorizontal size={18} aria-hidden="true" />
+                </div>
+                <div>
+                  <p class="text-xs font-bold text-forest">System Settings</p>
+                  <p class="text-[11px] text-ink-soft">Verify GitHub &amp; Cloudinary</p>
+                </div>
+              </div>
+              <ArrowRight size={16} class="text-ink-soft/60 group-hover:text-forest group-hover:translate-x-0.5 transition" aria-hidden="true" />
+            </a>
           </div>
-        </section>
-      </main>
+        </div>
+
+        <div class="mt-6 pt-5 border-t border-line/60 text-xs text-ink-soft">
+          <p class="font-semibold text-forest">Production Domain</p>
+          <a
+            href="https://crockbites.site"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="mt-1 inline-flex items-center gap-1 text-terracotta-deep font-bold hover:underline"
+          >
+            <span>https://crockbites.site</span>
+            <ExternalLink size={12} aria-hidden="true" />
+          </a>
+        </div>
+      </section>
     </div>
-  </body>
-</html>
+  </div>
+</AdminLayout>

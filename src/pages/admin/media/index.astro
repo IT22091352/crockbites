@@ -1,0 +1,738 @@
+---
+export const prerender = false;
+
+import { getCollection } from 'astro:content';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import {
+  extractCloudinaryPublicId,
+  getOptimizedCloudinaryUrl,
+  isCloudinaryConfigured,
+} from '../../../lib/cloudinary';
+import {
+  Image as ImageIcon,
+  Upload,
+  Search,
+  RotateCcw,
+  Copy,
+  ExternalLink,
+  Trash,
+  Lock,
+  Layers,
+} from '@lucide/astro';
+
+interface MediaUsage {
+  title: string;
+  slug: string;
+  type: 'hero' | 'gallery';
+}
+
+interface MediaAsset {
+  id: string;
+  url: string;
+  publicId?: string;
+  alt: string;
+  width?: number;
+  height?: number;
+  isCloudinary: boolean;
+  thumbUrl: string;
+  usages: MediaUsage[];
+}
+
+const recipes = await getCollection('recipes');
+const mediaMap = new Map<string, MediaAsset>();
+
+for (const recipe of recipes) {
+  const slug = recipe.id.replace(/\.md$/, '');
+  const title = recipe.data.title;
+
+  // 1. Primary Hero Image
+  const rawImage = recipe.data.image;
+  const primaryUrl = typeof rawImage === 'string' ? rawImage : (rawImage as any)?.src;
+  if (primaryUrl) {
+    const isCloudinary = primaryUrl.includes('res.cloudinary.com');
+    const publicId = extractCloudinaryPublicId(primaryUrl) ?? undefined;
+    const key = publicId || primaryUrl;
+    const thumbUrl = isCloudinary ? getOptimizedCloudinaryUrl(primaryUrl, 400) : primaryUrl;
+
+    if (!mediaMap.has(key)) {
+      mediaMap.set(key, {
+        id: key,
+        url: primaryUrl,
+        publicId,
+        alt: recipe.data.imageAlt || `${title} primary photograph`,
+        isCloudinary,
+        thumbUrl,
+        usages: [{ title, slug, type: 'hero' }],
+      });
+    } else {
+      const existing = mediaMap.get(key)!;
+      if (!existing.usages.some((u) => u.slug === slug && u.type === 'hero')) {
+        existing.usages.push({ title, slug, type: 'hero' });
+      }
+    }
+  }
+
+  // 2. Gallery Images
+  if (Array.isArray(recipe.data.gallery)) {
+    for (const item of recipe.data.gallery) {
+      if (!item || !item.url) continue;
+      const isCloudinary = item.url.includes('res.cloudinary.com');
+      const publicId = item.publicId || extractCloudinaryPublicId(item.url) || undefined;
+      const key = publicId || item.url;
+      const thumbUrl = isCloudinary ? getOptimizedCloudinaryUrl(item.url, 400) : item.url;
+
+      if (!mediaMap.has(key)) {
+        mediaMap.set(key, {
+          id: key,
+          url: item.url,
+          publicId,
+          alt: item.alt || `${title} step photography`,
+          width: item.width,
+          height: item.height,
+          isCloudinary,
+          thumbUrl,
+          usages: [{ title, slug, type: 'gallery' }],
+        });
+      } else {
+        const existing = mediaMap.get(key)!;
+        if (!existing.usages.some((u) => u.slug === slug && u.type === 'gallery')) {
+          existing.usages.push({ title, slug, type: 'gallery' });
+        }
+      }
+    }
+  }
+}
+
+const mediaItems = Array.from(mediaMap.values());
+const totalAssets = mediaItems.length;
+const cloudinaryAssets = mediaItems.filter((m) => m.isCloudinary).length;
+const heroCount = mediaItems.filter((m) => m.usages.some((u) => u.type === 'hero')).length;
+const galleryCount = mediaItems.filter((m) => m.usages.some((u) => u.type === 'gallery')).length;
+const isConfigured = isCloudinaryConfigured();
+---
+
+<AdminLayout
+  title="Media Library"
+  subtitle="Inspect recipe assets, copy optimized Cloudinary delivery URLs, and upload fresh food photography."
+  activeNav="media"
+  breadcrumbs={[{ label: 'Media Library' }]}
+>
+  <div class="space-y-8">
+    <!-- Cloudinary Status Notice (if not configured) -->
+    {!isConfigured && (
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 text-amber-900 text-sm">
+        <div class="size-5 text-amber-600 shrink-0 mt-0.5">⚠️</div>
+        <div>
+          <strong class="font-bold">Cloudinary Environment Warning:</strong>
+          <p class="text-xs text-amber-800 mt-0.5">
+            CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, or CLOUDINARY_API_SECRET is missing in this environment. Existing static image assets are displayed, but new Cloudinary uploads are currently unavailable.
+          </p>
+        </div>
+      </div>
+    )}
+
+    <!-- Inventory Metric Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-paper rounded-2xl p-5 border border-line/70 shadow-xs">
+        <div class="flex items-center justify-between text-xs text-ink-soft mb-1">
+          <span class="font-semibold uppercase tracking-wider">Total Assets</span>
+          <ImageIcon size={16} class="text-forest" aria-hidden="true" />
+        </div>
+        <p id="statTotal" class="text-2xl sm:text-3xl font-display font-bold text-forest">{totalAssets}</p>
+        <p class="text-xs text-ink-soft mt-1">Images referenced in catalog</p>
+      </div>
+
+      <div class="bg-paper rounded-2xl p-5 border border-line/70 shadow-xs">
+        <div class="flex items-center justify-between text-xs text-ink-soft mb-1">
+          <span class="font-semibold uppercase tracking-wider">Cloudinary CDN</span>
+          <Layers size={16} class="text-emerald-700" aria-hidden="true" />
+        </div>
+        <p id="statCloudinary" class="text-2xl sm:text-3xl font-display font-bold text-emerald-800">{cloudinaryAssets}</p>
+        <p class="text-xs text-ink-soft mt-1">Hosted on Cloudinary CDN</p>
+      </div>
+
+      <div class="bg-paper rounded-2xl p-5 border border-line/70 shadow-xs">
+        <div class="flex items-center justify-between text-xs text-ink-soft mb-1">
+          <span class="font-semibold uppercase tracking-wider">Hero Photos</span>
+          <ImageIcon size={16} class="text-terracotta" aria-hidden="true" />
+        </div>
+        <p class="text-2xl sm:text-3xl font-display font-bold text-forest">{heroCount}</p>
+        <p class="text-xs text-ink-soft mt-1">Primary recipe cards</p>
+      </div>
+
+      <div class="bg-paper rounded-2xl p-5 border border-line/70 shadow-xs">
+        <div class="flex items-center justify-between text-xs text-ink-soft mb-1">
+          <span class="font-semibold uppercase tracking-wider">Step Gallery</span>
+          <Layers size={16} class="text-forest" aria-hidden="true" />
+        </div>
+        <p class="text-2xl sm:text-3xl font-display font-bold text-forest">{galleryCount}</p>
+        <p class="text-xs text-ink-soft mt-1">Step-by-step photography</p>
+      </div>
+    </div>
+
+    <!-- Upload Dropzone Card -->
+    <div class="bg-paper rounded-2xl border border-line/70 p-6 shadow-xs">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="font-display font-bold text-lg text-forest">Upload Media</h2>
+          <p class="text-xs text-ink-soft mt-0.5">Upload high-resolution photography directly to Cloudinary (JPEG, PNG, WebP, AVIF up to 8 MB)</p>
+        </div>
+      </div>
+
+      <form id="uploadForm" class="space-y-4">
+        <div
+          id="dropzone"
+          class="border-2 border-dashed border-line/80 hover:border-forest rounded-2xl p-8 text-center bg-cream/30 hover:bg-cream/60 transition-all cursor-pointer flex flex-col items-center justify-center gap-3 group"
+        >
+          <div class="flex size-14 items-center justify-center rounded-2xl bg-cream text-forest group-hover:scale-105 group-hover:bg-forest group-hover:text-cream transition shadow-xs">
+            <Upload size={24} aria-hidden="true" />
+          </div>
+          <div>
+            <p class="text-sm font-bold text-forest">
+              <span class="text-terracotta underline cursor-pointer">Choose an image file</span> or drag and drop here
+            </p>
+            <p class="text-xs text-ink-soft mt-1">Automatic WebP optimization and Cloudinary hosting</p>
+          </div>
+          <input
+            type="file"
+            id="fileInput"
+            name="images"
+            multiple
+            accept="image/jpeg,image/png,image/webp,image/avif"
+            class="sr-only"
+          />
+        </div>
+
+        <!-- Upload Status / Progress Indicator -->
+        <div id="uploadStatus" class="hidden items-center justify-between p-3.5 bg-cream/70 rounded-xl border border-line text-xs text-forest">
+          <div class="flex items-center gap-2.5">
+            <div class="size-4 rounded-full border-2 border-forest border-t-transparent animate-spin"></div>
+            <span id="uploadStatusText" class="font-semibold">Uploading to Cloudinary...</span>
+          </div>
+          <span class="text-ink-soft">Please wait</span>
+        </div>
+      </form>
+    </div>
+
+    <!-- Filter & Search Toolbar -->
+    <div class="bg-paper rounded-2xl border border-line/70 p-5 shadow-xs space-y-4">
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+        <!-- Search Input -->
+        <div class="relative flex-1 max-w-md">
+          <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-ink-soft">
+            <Search size={18} aria-hidden="true" />
+          </div>
+          <input
+            id="mediaSearchInput"
+            type="search"
+            placeholder="Search by alt text, recipe title, or filename..."
+            aria-label="Search media"
+            class="w-full pl-10 pr-4 py-2.5 text-sm bg-cream/50 border border-line rounded-xl focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-forest focus:border-forest transition"
+          />
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="flex flex-wrap items-center gap-3">
+          <!-- Type Filter -->
+          <div class="relative flex items-center">
+            <label for="typeFilter" class="sr-only">Filter by type</label>
+            <select
+              id="typeFilter"
+              aria-label="Filter by type"
+              class="px-4 py-2.5 text-sm bg-cream/50 border border-line rounded-xl focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-forest text-ink font-medium cursor-pointer transition"
+            >
+              <option value="all">All Image Types</option>
+              <option value="hero">Primary Hero Photos</option>
+              <option value="gallery">Gallery Photography</option>
+              <option value="standalone">Standalone / Uploaded</option>
+            </select>
+          </div>
+
+          <!-- Host Filter -->
+          <div class="relative flex items-center">
+            <label for="hostFilter" class="sr-only">Filter by host</label>
+            <select
+              id="hostFilter"
+              aria-label="Filter by host"
+              class="px-4 py-2.5 text-sm bg-cream/50 border border-line rounded-xl focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-forest text-ink font-medium cursor-pointer transition"
+            >
+              <option value="all">All Hosts</option>
+              <option value="cloudinary">Cloudinary CDN</option>
+              <option value="local">Local Assets</option>
+            </select>
+          </div>
+
+          <!-- Reset Filter Button -->
+          <button
+            type="button"
+            id="mediaResetBtn"
+            class="inline-flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold text-ink-soft hover:text-forest bg-cream/80 hover:bg-cream rounded-xl border border-line/70 transition cursor-pointer"
+            title="Reset filters"
+          >
+            <RotateCcw size={14} aria-hidden="true" />
+            <span>Reset</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between text-xs text-ink-soft pt-2 border-t border-line/40">
+        <span id="mediaResultsCount">Showing {mediaItems.length} media assets</span>
+        <span>Click "Copy URL" to grab clean URLs for markdown recipes</span>
+      </div>
+    </div>
+
+    <!-- Media Cards Grid -->
+    <div
+      id="mediaGrid"
+      class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5"
+    >
+      {mediaItems.map((item) => {
+        const types = item.usages.map((u) => u.type);
+        const typeStr = types.join(' ');
+        const hostStr = item.isCloudinary ? 'cloudinary' : 'local';
+        const recipeTitles = item.usages.map((u) => u.title).join(' ');
+
+        return (
+          <article
+            data-alt={item.alt.toLowerCase()}
+            data-public-id={(item.publicId || item.url).toLowerCase()}
+            data-recipes={recipeTitles.toLowerCase()}
+            data-types={typeStr}
+            data-host={hostStr}
+            class="media-card bg-paper rounded-2xl border border-line/70 overflow-hidden shadow-xs hover:shadow-md transition flex flex-col group"
+          >
+            <!-- Thumbnail Preview -->
+            <div class="relative aspect-4/3 bg-cream/60 overflow-hidden border-b border-line/60">
+              <img
+                src={item.thumbUrl}
+                alt={item.alt}
+                loading="lazy"
+                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              />
+
+              <!-- Host Badge Overlay -->
+              <div class="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+                {item.isCloudinary ? (
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-forest/90 backdrop-blur-xs text-cream shadow-xs">
+                    Cloudinary
+                  </span>
+                ) : (
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-cream/90 backdrop-blur-xs text-forest border border-line shadow-xs">
+                    Local
+                  </span>
+                )}
+              </div>
+
+              <!-- Dimensions / Format Badge Overlay (if available) -->
+              {item.width && item.height && (
+                <div class="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-ink/75 backdrop-blur-xs text-cream shadow-xs">
+                  {item.width} × {item.height}
+                </div>
+              )}
+            </div>
+
+            <!-- Content Details -->
+            <div class="p-4 flex-1 flex flex-col justify-between space-y-3">
+              <div>
+                <p class="font-display font-bold text-xs text-forest line-clamp-1" title={item.alt}>
+                  {item.alt}
+                </p>
+
+                <!-- Referenced Recipe(s) -->
+                <div class="mt-2 space-y-1">
+                  {item.usages.length > 0 ? (
+                    item.usages.map((usage) => (
+                      <div class="flex items-center gap-1 text-[11px] text-ink-soft">
+                        <span class={`size-1.5 rounded-full ${usage.type === 'hero' ? 'bg-terracotta' : 'bg-forest'}`}></span>
+                        <a
+                          href={`/admin/recipes/${usage.slug}/`}
+                          class="hover:text-forest underline font-medium line-clamp-1"
+                          title={`Used in ${usage.title} (${usage.type === 'hero' ? 'Hero' : 'Gallery'})`}
+                        >
+                          {usage.title}
+                        </a>
+                      </div>
+                    ))
+                  ) : (
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-cream text-ink-soft border border-line/60">
+                      Standalone asset
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <!-- Action Buttons -->
+              <div class="pt-2 border-t border-line/40 flex items-center justify-between gap-2">
+                <!-- Copy URL Button -->
+                <button
+                  type="button"
+                  data-copy-url={item.url}
+                  class="copy-url-btn flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold text-forest bg-cream hover:bg-white border border-line shadow-xs transition cursor-pointer"
+                  title="Copy full image URL to clipboard"
+                >
+                  <Copy size={13} class="copy-icon" aria-hidden="true" />
+                  <span class="copy-label">Copy URL</span>
+                </button>
+
+                <!-- Open Full in New Tab -->
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="p-1.5 rounded-xl text-ink-soft hover:text-forest hover:bg-cream border border-line/60 transition"
+                  title="Open original image in new tab"
+                  aria-label="Open original image in new tab"
+                >
+                  <ExternalLink size={14} aria-hidden="true" />
+                </a>
+
+                <!-- Safe Delete Button -->
+                {item.isCloudinary && item.publicId && (
+                  item.usages.length > 0 ? (
+                    <button
+                      type="button"
+                      disabled
+                      class="p-1.5 rounded-xl text-ink-soft/40 cursor-not-allowed border border-transparent"
+                      title={`Cannot delete: currently referenced by ${item.usages.length} recipe(s)`}
+                      aria-label="Locked: in use by recipes"
+                    >
+                      <Lock size={14} aria-hidden="true" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      data-delete-public-id={item.publicId}
+                      class="delete-asset-btn p-1.5 rounded-xl text-terracotta hover:bg-terracotta/10 border border-line/60 transition cursor-pointer"
+                      title="Permanently delete asset from Cloudinary"
+                      aria-label="Delete asset"
+                    >
+                      <Trash size={14} aria-hidden="true" />
+                    </button>
+                  )
+                )}
+              </div>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+
+    <!-- Empty Filter State -->
+    <div
+      id="mediaEmptyState"
+      class="hidden bg-paper rounded-2xl border border-line/70 p-12 text-center max-w-lg mx-auto"
+    >
+      <div class="flex size-14 items-center justify-center rounded-2xl bg-cream text-forest mx-auto mb-4 border border-line/60">
+        <Search size={26} aria-hidden="true" />
+      </div>
+      <h2 class="font-display font-bold text-lg text-forest">No media assets match</h2>
+      <p class="text-sm text-ink-soft mt-1.5 max-w-sm mx-auto">
+        No images match the specified search term or filter criteria. Try adjusting your search query or reset the filters.
+      </p>
+      <button
+        type="button"
+        id="emptyResetMediaBtn"
+        class="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-forest bg-cream hover:bg-white border border-line shadow-xs transition cursor-pointer"
+      >
+        <RotateCcw size={14} aria-hidden="true" />
+        <span>Clear all filters</span>
+      </button>
+    </div>
+  </div>
+</AdminLayout>
+
+<script>
+  declare global {
+    function showAdminToast(message: string, type?: 'info' | 'success' | 'error'): void;
+  }
+
+  const dropzone = document.getElementById('dropzone') as HTMLDivElement | null;
+  const fileInput = document.getElementById('fileInput') as HTMLInputElement | null;
+  const uploadStatus = document.getElementById('uploadStatus') as HTMLDivElement | null;
+  const uploadStatusText = document.getElementById('uploadStatusText') as HTMLElement | null;
+  const mediaGrid = document.getElementById('mediaGrid') as HTMLDivElement | null;
+  const searchInput = document.getElementById('mediaSearchInput') as HTMLInputElement | null;
+  const typeFilter = document.getElementById('typeFilter') as HTMLSelectElement | null;
+  const hostFilter = document.getElementById('hostFilter') as HTMLSelectElement | null;
+  const resetBtn = document.getElementById('mediaResetBtn') as HTMLButtonElement | null;
+  const emptyResetBtn = document.getElementById('emptyResetMediaBtn') as HTMLButtonElement | null;
+  const emptyState = document.getElementById('mediaEmptyState') as HTMLDivElement | null;
+  const resultsCount = document.getElementById('mediaResultsCount') as HTMLElement | null;
+  const statTotal = document.getElementById('statTotal') as HTMLElement | null;
+  const statCloudinary = document.getElementById('statCloudinary') as HTMLElement | null;
+
+  const csrfToken = document.cookie
+    .split('; ')
+    .find((entry) => entry.startsWith('crockbites_admin_csrf='))
+    ?.split('=')[1] ?? '';
+
+  // 1. Image Copy-URL Feedback
+  function setupCopyButtons() {
+    document.querySelectorAll<HTMLButtonElement>('.copy-url-btn').forEach((button) => {
+      button.onclick = async () => {
+        const url = button.dataset.copyUrl;
+        if (!url) return;
+
+        try {
+          await navigator.clipboard.writeText(url);
+          const label = button.querySelector('.copy-label');
+          if (label) label.textContent = 'Copied!';
+          button.classList.add('bg-emerald-50', 'text-emerald-800', 'border-emerald-300');
+
+          if (typeof showAdminToast === 'function') {
+            showAdminToast('Image URL copied to clipboard!', 'success');
+          }
+
+          setTimeout(() => {
+            if (label) label.textContent = 'Copy URL';
+            button.classList.remove('bg-emerald-50', 'text-emerald-800', 'border-emerald-300');
+          }, 2000);
+        } catch {
+          window.prompt('Copy image URL:', url);
+        }
+      };
+    });
+  }
+  setupCopyButtons();
+
+  // 2. Filter & Search Logic
+  function applyMediaFilters() {
+    if (!mediaGrid || !searchInput || !typeFilter || !hostFilter) return;
+
+    const query = searchInput.value.trim().toLowerCase();
+    const typeVal = typeFilter.value;
+    const hostVal = hostFilter.value;
+
+    const cards = Array.from(mediaGrid.querySelectorAll<HTMLElement>('.media-card'));
+    let visibleCount = 0;
+
+    cards.forEach((card) => {
+      const alt = card.dataset.alt || '';
+      const publicId = card.dataset.publicId || '';
+      const recipes = card.dataset.recipes || '';
+      const types = (card.dataset.types || '').split(' ');
+      const host = card.dataset.host || '';
+
+      const matchText = !query || alt.includes(query) || publicId.includes(query) || recipes.includes(query);
+
+      let matchType = true;
+      if (typeVal === 'hero') {
+        matchType = types.includes('hero');
+      } else if (typeVal === 'gallery') {
+        matchType = types.includes('gallery');
+      } else if (typeVal === 'standalone') {
+        matchType = !types.includes('hero') && !types.includes('gallery');
+      }
+
+      const matchHost = hostVal === 'all' || host === hostVal;
+
+      const isVisible = matchText && matchType && matchHost;
+      card.hidden = !isVisible;
+      if (isVisible) visibleCount += 1;
+    });
+
+    if (emptyState) {
+      emptyState.classList.toggle('hidden', visibleCount > 0);
+    }
+    if (resultsCount) {
+      resultsCount.textContent = `Showing ${visibleCount} media asset${visibleCount === 1 ? '' : 's'}`;
+    }
+  }
+
+  searchInput?.addEventListener('input', applyMediaFilters);
+  typeFilter?.addEventListener('change', applyMediaFilters);
+  hostFilter?.addEventListener('change', applyMediaFilters);
+
+  function resetFilters() {
+    if (searchInput) searchInput.value = '';
+    if (typeFilter) typeFilter.value = 'all';
+    if (hostFilter) hostFilter.value = 'all';
+    applyMediaFilters();
+  }
+
+  resetBtn?.addEventListener('click', resetFilters);
+  emptyResetBtn?.addEventListener('click', resetFilters);
+
+  // 3. Drag and Drop File Upload
+  if (dropzone && fileInput) {
+    dropzone.addEventListener('click', () => fileInput.click());
+
+    ['dragenter', 'dragover'].forEach((eventName) => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.add('border-forest', 'bg-cream/80');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach((eventName) => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove('border-forest', 'bg-cream/80');
+      });
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      const files = dt?.files;
+      if (files && files.length > 0) {
+        handleUpload(Array.from(files));
+      }
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files && fileInput.files.length > 0) {
+        handleUpload(Array.from(fileInput.files));
+      }
+    });
+  }
+
+  async function handleUpload(files: File[]) {
+    if (files.length === 0) return;
+
+    if (uploadStatus && uploadStatusText) {
+      uploadStatus.classList.remove('hidden');
+      uploadStatus.classList.add('flex');
+      uploadStatusText.textContent = `Uploading ${files.length} file(s) to Cloudinary...`;
+    }
+
+    const formData = new FormData();
+    files.forEach((file) => formData.append('images', file));
+
+    try {
+      const response = await fetch('/api/admin/images/upload/', {
+        method: 'POST',
+        headers: {
+          'x-csrf-token': csrfToken,
+        },
+        body: formData,
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Upload failed.');
+      }
+
+      if (typeof showAdminToast === 'function') {
+        showAdminToast(`Uploaded ${data.images?.length ?? 1} image(s) to Cloudinary!`, 'success');
+      }
+
+      // Prepend newly uploaded cards to media grid
+      if (Array.isArray(data.images) && mediaGrid) {
+        data.images.forEach((img: { url: string; publicId: string; width: number; height: number; originalName?: string }) => {
+          const card = document.createElement('article');
+          card.className = 'media-card bg-paper rounded-2xl border border-line/70 overflow-hidden shadow-xs hover:shadow-md transition flex flex-col group';
+          card.dataset.alt = (img.originalName || 'Uploaded image').toLowerCase();
+          card.dataset.publicId = (img.publicId || '').toLowerCase();
+          card.dataset.recipes = '';
+          card.dataset.types = 'standalone';
+          card.dataset.host = 'cloudinary';
+
+          card.innerHTML = `
+            <div class="relative aspect-4/3 bg-cream/60 overflow-hidden border-b border-line/60">
+              <img src="${img.url}" alt="${img.originalName || 'Uploaded'}" loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+              <div class="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-forest/90 backdrop-blur-xs text-cream shadow-xs">Cloudinary</span>
+              </div>
+              <div class="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-ink/75 backdrop-blur-xs text-cream shadow-xs">
+                ${img.width} × ${img.height}
+              </div>
+            </div>
+            <div class="p-4 flex-1 flex flex-col justify-between space-y-3">
+              <div>
+                <p class="font-display font-bold text-xs text-forest line-clamp-1" title="${img.originalName || 'Uploaded image'}">${img.originalName || 'Uploaded image'}</p>
+                <div class="mt-2">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">Just uploaded</span>
+                </div>
+              </div>
+              <div class="pt-2 border-t border-line/40 flex items-center justify-between gap-2">
+                <button type="button" data-copy-url="${img.url}" class="copy-url-btn flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold text-forest bg-cream hover:bg-white border border-line shadow-xs transition cursor-pointer">
+                  <span class="copy-label">Copy URL</span>
+                </button>
+                <a href="${img.url}" target="_blank" rel="noopener noreferrer" class="p-1.5 rounded-xl text-ink-soft hover:text-forest hover:bg-cream border border-line/60 transition" title="Open original image">
+                  ↗
+                </a>
+                <button type="button" data-delete-public-id="${img.publicId}" class="delete-asset-btn p-1.5 rounded-xl text-terracotta hover:bg-terracotta/10 border border-line/60 transition cursor-pointer" title="Delete from Cloudinary">
+                  ✕
+                </button>
+              </div>
+            </div>
+          `;
+
+          mediaGrid.prepend(card);
+        });
+
+        setupCopyButtons();
+        setupDeleteButtons();
+        applyMediaFilters();
+
+        if (statTotal) {
+          const current = parseInt(statTotal.textContent || '0', 10);
+          statTotal.textContent = String(current + data.images.length);
+        }
+        if (statCloudinary) {
+          const current = parseInt(statCloudinary.textContent || '0', 10);
+          statCloudinary.textContent = String(current + data.images.length);
+        }
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Upload failed.';
+      window.alert(msg);
+      if (typeof showAdminToast === 'function') {
+        showAdminToast(msg, 'error');
+      }
+    } finally {
+      if (uploadStatus) {
+        uploadStatus.classList.add('hidden');
+        uploadStatus.classList.remove('flex');
+      }
+      if (fileInput) fileInput.value = '';
+    }
+  }
+
+  // 4. Safe Delete Handlers
+  function setupDeleteButtons() {
+    document.querySelectorAll<HTMLButtonElement>('.delete-asset-btn').forEach((btn) => {
+      btn.onclick = async () => {
+        const publicId = btn.dataset.deletePublicId;
+        if (!publicId) return;
+
+        const confirmed = window.confirm(`Permanently delete asset "${publicId}" from Cloudinary?`);
+        if (!confirmed) return;
+
+        btn.disabled = true;
+
+        try {
+          const response = await fetch('/api/admin/images/delete/', {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-csrf-token': csrfToken,
+            },
+            body: JSON.stringify({ publicId }),
+          });
+
+          const data = await response.json().catch(() => ({}));
+
+          if (!response.ok) {
+            throw new Error(data.error || 'Delete failed.');
+          }
+
+          const card = btn.closest('.media-card');
+          card?.remove();
+          applyMediaFilters();
+
+          if (typeof showAdminToast === 'function') {
+            showAdminToast('Asset successfully deleted from Cloudinary.', 'success');
+          }
+        } catch (error) {
+          window.alert(error instanceof Error ? error.message : 'Delete failed.');
+          btn.disabled = false;
+        }
+      };
+    });
+  }
+  setupDeleteButtons();
+</script>

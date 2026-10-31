@@ -1,0 +1,542 @@
+---
+import '../styles/global.css';
+import {
+  ADMIN_COOKIE_NAME,
+  CSRF_COOKIE_NAME,
+  createCsrfToken,
+  getAdminSessionSecret,
+  parseAdminSessionCookie,
+  verifySessionCookie,
+} from '../lib/admin';
+import {
+  LayoutDashboard,
+  BookOpen,
+  CirclePlus,
+  Clock,
+  MessageSquare,
+  SlidersHorizontal,
+  ExternalLink,
+  LogOut,
+  Menu,
+  X,
+  ChevronRight,
+  ChefHat,
+  Image as ImageIcon,
+} from '@lucide/astro';
+
+interface Props {
+  title: string;
+  subtitle?: string;
+  activeNav: 'overview' | 'recipes' | 'new-recipe' | 'drafts' | 'reviews' | 'media' | 'settings';
+  breadcrumbs?: Array<{ label: string; href?: string }>;
+}
+
+const { title, subtitle, activeNav, breadcrumbs = [] } = Astro.props;
+
+// Server-side authentication and session verification
+const adminCookie = Astro.cookies.get(ADMIN_COOKIE_NAME)?.value ?? '';
+const session = parseAdminSessionCookie(adminCookie);
+const secret = getAdminSessionSecret();
+
+if (!secret || !session || !verifySessionCookie(adminCookie, secret)) {
+  Astro.cookies.delete(ADMIN_COOKIE_NAME, { path: '/' });
+  Astro.cookies.delete(CSRF_COOKIE_NAME, { path: '/' });
+  return Astro.redirect('/admin/login/?error=Session+expired');
+}
+
+const username = session.username;
+const csrfToken = createCsrfToken(secret, session.id);
+const isHttps = Astro.url.protocol === 'https:';
+
+Astro.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
+  httpOnly: false,
+  sameSite: 'lax',
+  secure: isHttps,
+  path: '/',
+  maxAge: 60 * 60 * 12,
+});
+
+const isDev = import.meta.env.DEV;
+---
+
+<!doctype html>
+<html lang="en" class="h-full bg-cream">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{title} | CrockBites Editorial Admin</title>
+    <meta name="robots" content="noindex, nofollow" />
+  </head>
+  <body class="min-h-full font-sans text-ink antialiased bg-cream flex flex-col">
+    <div class="flex min-h-screen">
+      <!-- Desktop Sidebar -->
+      <aside class="hidden lg:flex lg:w-72 lg:flex-col lg:fixed lg:inset-y-0 z-40 bg-forest text-cream border-r border-forest-deep/60 shadow-lg select-none">
+        <!-- Brand Header -->
+        <div class="flex items-center gap-3 px-6 h-20 border-b border-white/10">
+          <div class="flex size-10 items-center justify-center rounded-xl bg-terracotta text-white shadow-md font-display font-bold text-lg">
+            <ChefHat size={22} class="text-white" aria-hidden="true" />
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-display font-bold text-lg tracking-tight text-cream">CrockBites</span>
+              <span class="rounded-full bg-terracotta-deep/80 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">CMS</span>
+            </div>
+            <p class="text-[11px] font-medium text-cream/70">Editorial Management</p>
+          </div>
+        </div>
+
+        <!-- Navigation Links -->
+        <nav class="flex-1 overflow-y-auto px-4 py-6 space-y-6" aria-label="Admin Navigation">
+          <!-- Overview Section -->
+          <div>
+            <p class="px-3 text-[11px] font-bold uppercase tracking-wider text-cream/50 mb-2">Overview</p>
+            <div class="space-y-1">
+              <a
+                href="/admin/"
+                class={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                  activeNav === 'overview'
+                    ? 'bg-cream text-forest shadow-xs font-bold'
+                    : 'text-cream/80 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <LayoutDashboard size={18} class={activeNav === 'overview' ? 'text-forest' : 'text-cream/70'} aria-hidden="true" />
+                <span>Dashboard</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Content Section -->
+          <div>
+            <p class="px-3 text-[11px] font-bold uppercase tracking-wider text-cream/50 mb-2">Content</p>
+            <div class="space-y-1">
+              <a
+                href="/admin/recipes/"
+                class={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                  activeNav === 'recipes'
+                    ? 'bg-cream text-forest shadow-xs font-bold'
+                    : 'text-cream/80 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <BookOpen size={18} class={activeNav === 'recipes' ? 'text-forest' : 'text-cream/70'} aria-hidden="true" />
+                <span>All Recipes</span>
+              </a>
+              <a
+                href="/admin/recipes/new/"
+                class={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                  activeNav === 'new-recipe'
+                    ? 'bg-cream text-forest shadow-xs font-bold'
+                    : 'text-cream/80 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <CirclePlus size={18} class={activeNav === 'new-recipe' ? 'text-forest' : 'text-cream/70'} aria-hidden="true" />
+                <span>New Recipe</span>
+              </a>
+              <a
+                href="/admin/recipes/?status=draft"
+                class={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                  activeNav === 'drafts'
+                    ? 'bg-cream text-forest shadow-xs font-bold'
+                    : 'text-cream/80 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <Clock size={18} class={activeNav === 'drafts' ? 'text-forest' : 'text-cream/70'} aria-hidden="true" />
+                <span>Drafts</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Community Section -->
+          <div>
+            <p class="px-3 text-[11px] font-bold uppercase tracking-wider text-cream/50 mb-2">Community</p>
+            <div class="space-y-1">
+              <a
+                href="/admin/reviews/"
+                class={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                  activeNav === 'reviews'
+                    ? 'bg-cream text-forest shadow-xs font-bold'
+                    : 'text-cream/80 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <MessageSquare size={18} class={activeNav === 'reviews' ? 'text-forest' : 'text-cream/70'} aria-hidden="true" />
+                <span>Reviews &amp; Ratings</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Assets Section -->
+          <div>
+            <p class="px-3 text-[11px] font-bold uppercase tracking-wider text-cream/50 mb-2">Assets</p>
+            <div class="space-y-1">
+              <a
+                href="/admin/media/"
+                class={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                  activeNav === 'media'
+                    ? 'bg-cream text-forest shadow-xs font-bold'
+                    : 'text-cream/80 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <ImageIcon size={18} class={activeNav === 'media' ? 'text-forest' : 'text-cream/70'} aria-hidden="true" />
+                <span>Media Library</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- System Section -->
+          <div>
+            <p class="px-3 text-[11px] font-bold uppercase tracking-wider text-cream/50 mb-2">System</p>
+            <div class="space-y-1">
+              <a
+                href="/admin/settings/"
+                class={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                  activeNav === 'settings'
+                    ? 'bg-cream text-forest shadow-xs font-bold'
+                    : 'text-cream/80 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <SlidersHorizontal size={18} class={activeNav === 'settings' ? 'text-forest' : 'text-cream/70'} aria-hidden="true" />
+                <span>Settings &amp; Integrations</span>
+              </a>
+              <a
+                href="https://crockbites.site/"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium text-cream/80 hover:text-white hover:bg-white/10 transition-all"
+              >
+                <span class="flex items-center gap-3">
+                  <ExternalLink size={18} class="text-cream/70" aria-hidden="true" />
+                  <span>View Live Site</span>
+                </span>
+                <span class="text-xs text-cream/40">↗</span>
+              </a>
+            </div>
+          </div>
+        </nav>
+
+        <!-- User Profile Footer -->
+        <div class="p-4 border-t border-white/10 bg-forest-deep/60">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="flex size-9 shrink-0 items-center justify-center rounded-full bg-forest-soft text-cream font-bold text-sm border border-white/20">
+                {username ? username.charAt(0).toUpperCase() : 'A'}
+              </div>
+              <div class="min-w-0">
+                <p class="text-xs font-bold text-cream truncate">{username}</p>
+                <div class="flex items-center gap-1.5">
+                  <span class={`size-1.5 rounded-full ${isDev ? 'bg-amber-400' : 'bg-emerald-400'}`}></span>
+                  <span class="text-[10px] text-cream/60 truncate">{isDev ? 'Local Dev' : 'Production'}</span>
+                </div>
+              </div>
+            </div>
+
+            <form method="POST" action="/api/admin/logout/">
+              <input type="hidden" name="csrfToken" value={csrfToken} />
+              <button
+                type="submit"
+                class="flex size-8 items-center justify-center rounded-lg text-cream/70 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                title="Log out of Admin"
+                aria-label="Log out"
+              >
+                <LogOut size={16} aria-hidden="true" />
+              </button>
+            </form>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Content Area -->
+      <div class="flex-1 lg:pl-72 flex flex-col min-w-0">
+        <!-- Mobile Header Bar -->
+        <header class="lg:hidden sticky top-0 z-30 flex items-center justify-between h-16 px-4 bg-forest text-cream border-b border-forest-deep shadow-sm">
+          <div class="flex items-center gap-2.5">
+            <button
+              type="button"
+              id="mobileMenuOpenBtn"
+              class="flex size-10 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 transition cursor-pointer"
+              aria-label="Open navigation menu"
+            >
+              <Menu size={20} aria-hidden="true" />
+            </button>
+            <span class="font-display font-bold text-lg text-cream">CrockBites Admin</span>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-medium text-cream/80 bg-forest-soft/60 px-2.5 py-1 rounded-full border border-white/10">{username}</span>
+            <form method="POST" action="/api/admin/logout/">
+              <input type="hidden" name="csrfToken" value={csrfToken} />
+              <button
+                type="submit"
+                class="flex size-9 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 transition cursor-pointer"
+                title="Log out"
+                aria-label="Log out"
+              >
+                <LogOut size={16} aria-hidden="true" />
+              </button>
+            </form>
+          </div>
+        </header>
+
+        <!-- Top Header & Breadcrumbs -->
+        <header class="bg-paper border-b border-line/60 px-6 sm:px-10 py-6 sm:py-8 shadow-xs">
+          <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <!-- Breadcrumbs -->
+              {breadcrumbs.length > 0 && (
+                <nav class="flex items-center gap-1.5 text-xs text-ink-soft mb-2" aria-label="Breadcrumb">
+                  <a href="/admin/" class="hover:text-forest transition">Admin</a>
+                  {breadcrumbs.map((crumb) => (
+                    <>
+                      <ChevronRight size={12} class="text-ink-soft/60" aria-hidden="true" />
+                      {crumb.href ? (
+                        <a href={crumb.href} class="hover:text-forest transition">{crumb.label}</a>
+                      ) : (
+                        <span class="font-semibold text-forest">{crumb.label}</span>
+                      )}
+                    </>
+                  ))}
+                </nav>
+              )}
+              <h1 class="font-display font-bold text-2xl sm:text-3xl text-forest tracking-tight">{title}</h1>
+              {subtitle && <p class="text-sm text-ink-soft mt-1 max-w-2xl">{subtitle}</p>}
+            </div>
+
+            <!-- Contextual Topbar Actions Slot -->
+            <div class="flex flex-wrap items-center gap-3">
+              <slot name="actions" />
+            </div>
+          </div>
+        </header>
+
+        <!-- Main Workspace Body -->
+        <main class="flex-1 px-4 sm:px-8 lg:px-10 py-8 max-w-7xl w-full mx-auto">
+          <slot />
+        </main>
+
+        <!-- Admin Footer -->
+        <footer class="mt-auto border-t border-line/50 px-6 sm:px-10 py-4 bg-paper/60 text-xs text-ink-soft flex flex-col sm:flex-row items-center justify-between gap-2">
+          <p>CrockBites Editorial Publishing CMS &middot; Good Food. Less Fuss.</p>
+          <div class="flex items-center gap-4">
+            <span>Domain: <strong class="text-forest">https://crockbites.site</strong></span>
+            <span class="text-line">&middot;</span>
+            <a href="/admin/settings/" class="hover:text-forest underline">System Settings</a>
+          </div>
+        </footer>
+      </div>
+    </div>
+
+    <!-- Mobile Drawer Modal -->
+    <div id="adminMobileDrawer" class="fixed inset-0 z-50 lg:hidden hidden" role="dialog" aria-modal="true" aria-label="Mobile Navigation">
+      <!-- Backdrop -->
+      <div id="mobileDrawerBackdrop" class="fixed inset-0 bg-forest-deep/80 backdrop-blur-xs transition-opacity"></div>
+
+      <!-- Drawer Content -->
+      <div class="fixed inset-y-0 left-0 w-4/5 max-w-xs bg-forest text-cream p-6 flex flex-col shadow-2xl z-10">
+        <div class="flex items-center justify-between pb-6 border-b border-white/10">
+          <div class="flex items-center gap-2.5">
+            <div class="flex size-9 items-center justify-center rounded-xl bg-terracotta text-white font-display font-bold text-base">
+              <ChefHat size={18} class="text-white" aria-hidden="true" />
+            </div>
+            <span class="font-display font-bold text-lg text-cream">CrockBites</span>
+          </div>
+          <button
+            type="button"
+            id="mobileMenuCloseBtn"
+            class="flex size-9 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 transition cursor-pointer"
+            aria-label="Close navigation"
+          >
+            <X size={18} aria-hidden="true" />
+          </button>
+        </div>
+
+        <nav class="flex-1 overflow-y-auto py-6 space-y-6" aria-label="Mobile Admin Navigation">
+          <div>
+            <p class="px-2 text-[10px] font-bold uppercase tracking-wider text-cream/50 mb-2">Overview</p>
+            <a
+              href="/admin/"
+              class={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${
+                activeNav === 'overview' ? 'bg-cream text-forest font-bold' : 'text-cream/80'
+              }`}
+            >
+              <LayoutDashboard size={18} aria-hidden="true" />
+              <span>Dashboard</span>
+            </a>
+          </div>
+
+          <div>
+            <p class="px-2 text-[10px] font-bold uppercase tracking-wider text-cream/50 mb-2">Content</p>
+            <div class="space-y-1">
+              <a
+                href="/admin/recipes/"
+                class={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${
+                  activeNav === 'recipes' ? 'bg-cream text-forest font-bold' : 'text-cream/80'
+                }`}
+              >
+                <BookOpen size={18} aria-hidden="true" />
+                <span>All Recipes</span>
+              </a>
+              <a
+                href="/admin/recipes/new/"
+                class={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${
+                  activeNav === 'new-recipe' ? 'bg-cream text-forest font-bold' : 'text-cream/80'
+                }`}
+              >
+                <CirclePlus size={18} aria-hidden="true" />
+                <span>New Recipe</span>
+              </a>
+              <a
+                href="/admin/recipes/?status=draft"
+                class={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${
+                  activeNav === 'drafts' ? 'bg-cream text-forest font-bold' : 'text-cream/80'
+                }`}
+              >
+                <Clock size={18} aria-hidden="true" />
+                <span>Drafts</span>
+              </a>
+            </div>
+          </div>
+
+          <div>
+            <p class="px-2 text-[10px] font-bold uppercase tracking-wider text-cream/50 mb-2">Community</p>
+            <a
+              href="/admin/reviews/"
+              class={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${
+                activeNav === 'reviews' ? 'bg-cream text-forest font-bold' : 'text-cream/80'
+              }`}
+            >
+              <MessageSquare size={18} aria-hidden="true" />
+              <span>Reviews &amp; Ratings</span>
+            </a>
+          </div>
+
+          <div>
+            <p class="px-2 text-[10px] font-bold uppercase tracking-wider text-cream/50 mb-2">Assets</p>
+            <a
+              href="/admin/media/"
+              class={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${
+                activeNav === 'media' ? 'bg-cream text-forest font-bold' : 'text-cream/80'
+              }`}
+            >
+              <ImageIcon size={18} aria-hidden="true" />
+              <span>Media Library</span>
+            </a>
+          </div>
+
+          <div>
+            <p class="px-2 text-[10px] font-bold uppercase tracking-wider text-cream/50 mb-2">System</p>
+            <div class="space-y-1">
+              <a
+                href="/admin/settings/"
+                class={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${
+                  activeNav === 'settings' ? 'bg-cream text-forest font-bold' : 'text-cream/80'
+                }`}
+              >
+                <SlidersHorizontal size={18} aria-hidden="true" />
+                <span>Settings &amp; Integrations</span>
+              </a>
+              <a
+                href="https://crockbites.site/"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium text-cream/80"
+              >
+                <span class="flex items-center gap-3">
+                  <ExternalLink size={18} aria-hidden="true" />
+                  <span>View Live Site</span>
+                </span>
+                <span class="text-xs text-cream/40">↗</span>
+              </a>
+            </div>
+          </div>
+        </nav>
+
+        <div class="pt-4 border-t border-white/10">
+          <form method="POST" action="/api/admin/logout/">
+            <input type="hidden" name="csrfToken" value={csrfToken} />
+            <button
+              type="submit"
+              class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-sm transition"
+            >
+              <LogOut size={16} aria-hidden="true" />
+              <span>Log out ({username})</span>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Global Toast Notification System -->
+    <div
+      id="adminToast"
+      role="status"
+      aria-live="polite"
+      class="fixed bottom-6 right-6 z-50 pointer-events-none flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl border text-sm font-semibold opacity-0 -translate-y-2 transition-all duration-300"
+    >
+      <span id="adminToastIcon"></span>
+      <span id="adminToastMessage"></span>
+    </div>
+
+    <script is:inline>
+      // Drawer Toggle logic
+      const drawer = document.getElementById('adminMobileDrawer');
+      const openBtn = document.getElementById('mobileMenuOpenBtn');
+      const closeBtn = document.getElementById('mobileMenuCloseBtn');
+      const backdrop = document.getElementById('mobileDrawerBackdrop');
+
+      function openDrawer() {
+        if (!drawer) return;
+        drawer.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+      }
+
+      function closeDrawer() {
+        if (!drawer) return;
+        drawer.classList.add('hidden');
+        document.body.style.overflow = '';
+      }
+
+      openBtn?.addEventListener('click', openDrawer);
+      closeBtn?.addEventListener('click', closeDrawer);
+      backdrop?.addEventListener('click', closeDrawer);
+
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && drawer && !drawer.classList.contains('hidden')) {
+          closeDrawer();
+        }
+      });
+
+      // Global Toast Notification Helper
+      let toastTimer = null;
+      window.showAdminToast = function(message, type = 'success') {
+        const toast = document.getElementById('adminToast');
+        const iconEl = document.getElementById('adminToastIcon');
+        const msgEl = document.getElementById('adminToastMessage');
+        if (!toast || !msgEl) return;
+
+        msgEl.textContent = message;
+
+        // Reset classes
+        toast.className = 'fixed bottom-6 right-6 z-50 pointer-events-none flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl border text-sm font-semibold transition-all duration-300';
+
+        if (type === 'success') {
+          toast.classList.add('bg-forest', 'text-cream', 'border-forest-soft');
+          if (iconEl) iconEl.innerHTML = '&#10003;';
+        } else if (type === 'error') {
+          toast.classList.add('bg-red-800', 'text-white', 'border-red-900');
+          if (iconEl) iconEl.innerHTML = '&#9888;';
+        } else {
+          toast.classList.add('bg-paper', 'text-forest', 'border-line');
+          if (iconEl) iconEl.innerHTML = '&#9432;';
+        }
+
+        // Show toast
+        toast.classList.remove('opacity-0', '-translate-y-2');
+        toast.classList.add('opacity-100', 'translate-y-0');
+
+        if (toastTimer) clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
+          toast.classList.remove('opacity-100', 'translate-y-0');
+          toast.classList.add('opacity-0', '-translate-y-2');
+        }, 3500);
+      };
+    </script>
+  </body>
+</html>

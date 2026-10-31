@@ -2,38 +2,23 @@
 export const prerender = false;
 
 import { getCollection } from 'astro:content';
-import {
-  ADMIN_COOKIE_NAME,
-  CSRF_COOKIE_NAME,
-  createCsrfToken,
-  getAdminSessionSecret,
-  parseAdminSessionCookie,
-  verifySessionCookie,
-} from '../../../lib/admin';
-import { getDb } from '../../../lib/db';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getDb, getD1BindingStatus } from '../../../lib/db';
 import { listAdminReviews } from '../../../lib/community';
 import { decodeHtmlEntities } from '../../../lib/user-auth';
-
-const adminCookie = Astro.cookies.get(ADMIN_COOKIE_NAME)?.value ?? '';
-const session = parseAdminSessionCookie(adminCookie);
-const username = session?.username ?? '';
-const secret = getAdminSessionSecret();
-
-if (!secret || !session || !verifySessionCookie(adminCookie, secret)) {
-  Astro.cookies.delete(ADMIN_COOKIE_NAME, { path: '/' });
-  Astro.cookies.delete(CSRF_COOKIE_NAME, { path: '/' });
-  return Astro.redirect('/admin/login/?error=Session+expired');
-}
-
-const csrfToken = createCsrfToken(secret, session.id);
-const isHttps = Astro.url.protocol === 'https:';
-Astro.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
-  httpOnly: false,
-  sameSite: 'lax',
-  secure: isHttps,
-  path: '/',
-  maxAge: 60 * 60 * 12,
-});
+import {
+  MessageSquare,
+  Star,
+  Search,
+  ListFilter,
+  RotateCcw,
+  ExternalLink,
+  Trash,
+  Database,
+  Calendar,
+  User,
+  CircleCheck,
+} from '@lucide/astro';
 
 const recipeFilter = Astro.url.searchParams.get('recipe') ?? '';
 const ratingFilter = Astro.url.searchParams.get('rating') ?? '';
@@ -48,6 +33,8 @@ for (const r of recipes) {
 }
 
 const db = await getDb(Astro.locals);
+const d1Status = getD1BindingStatus(Astro.locals);
+
 const reviewData = db
   ? await listAdminReviews(db, {
       recipeSlug: recipeFilter,
@@ -62,247 +49,340 @@ const reviewData = db
       page: 1,
       totalPages: 1,
     };
+
+const totalReviews = reviewData.counts.total;
+const reviews = reviewData.reviews;
+const avgRating =
+  reviews.length > 0
+    ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)
+    : totalReviews > 0
+      ? '5.0'
+      : '—';
 ---
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Community Reviews | CrockBites Admin</title>
-    <style>
-      :root {
-        --forest: #243A2D;
-        --cream: #F7F1E5;
-        --terracotta: #C66A45;
-        --paper: #fffdf9;
-        --line: rgba(36,58,45,0.12);
-        --muted: rgba(36,58,45,0.72);
-        --green: #1b5e20;
-        --red: #b71c1c;
-      }
-      * { box-sizing: border-box; }
-      body { margin: 0; font-family: system-ui, sans-serif; background: var(--cream); color: var(--forest); }
-      a { color: inherit; text-decoration: none; }
-      .shell { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
-      .sidebar { background: var(--forest); color: #fff; padding: 1.5rem 1rem; }
-      .brand { display: flex; align-items: center; gap: 0.75rem; font-weight: 800; font-size: 1.1rem; }
-      .brand-mark { width: 2.2rem; height: 2.2rem; border-radius: 0.7rem; background: var(--terracotta); display: grid; place-items: center; color: white; }
-      nav { margin-top: 1.5rem; display: grid; gap: 0.5rem; }
-      nav a { display: block; padding: 0.85rem 0.9rem; border-radius: 10px; color: rgba(255,255,255,0.88); }
-      nav a.active, nav a:hover { background: rgba(255,255,255,0.08); }
-      .content { padding: 1.5rem; max-width: 1200px; }
-      .topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
-      .title { font-size: clamp(1.6rem, 2.5vw, 2.2rem); margin: 0; }
-      .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
-      .card { background: rgba(255,255,255,0.88); border: 1px solid var(--line); border-radius: 16px; padding: 1rem 1.15rem; }
-      .label { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; }
-      .number { font-size: 1.85rem; font-weight: 800; margin-top: 0.25rem; }
-      .filter-bar { display: flex; gap: 0.75rem; flex-wrap: wrap; background: rgba(255,255,255,0.85); border: 1px solid var(--line); border-radius: 16px; padding: 1rem; margin-bottom: 1.25rem; align-items: center; }
-      .input, .select { padding: 0.65rem 0.85rem; border-radius: 10px; border: 1px solid rgba(36,58,45,0.2); background: #fff; color: var(--forest); font-size: 0.9rem; }
-      .input { flex: 1; min-width: 200px; }
-      .btn { border: none; border-radius: 10px; padding: 0.65rem 0.95rem; cursor: pointer; font-weight: 700; font-size: 0.85rem; }
-      .btn-primary { background: var(--forest); color: #fff; }
-      .btn-subtle { background: rgba(36,58,45,0.08); color: var(--forest); }
-      .btn-delete { background: #ffebee; color: var(--red); border: 1px solid rgba(183,28,28,0.25); }
-      .review-list { display: grid; gap: 1rem; }
-      .review-card { background: rgba(255,255,255,0.92); border: 1px solid var(--line); border-radius: 16px; padding: 1.25rem; display: grid; gap: 0.75rem; }
-      .stars { color: #d97706; font-weight: 800; letter-spacing: 0.05em; }
-      @media (max-width: 900px) { .shell { grid-template-columns: 1fr; } }
-    </style>
-  </head>
-  <body>
-    <div class="shell" data-admin-csrf={csrfToken}>
-      <aside class="sidebar">
-        <div class="brand">
-          <div class="brand-mark">C</div>
-          <span>CrockBites Admin</span>
+<AdminLayout
+  title="Recipe Reviews & Ratings"
+  subtitle="Monitor community feedback, verify recipe ratings, and moderate editorial user reviews."
+  activeNav="reviews"
+  breadcrumbs={[{ label: 'Reviews & Ratings' }]}
+>
+  <div class="space-y-6">
+    <!-- D1 Unbound Warning if DB is completely missing -->
+    {!db && (
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 text-amber-900 text-sm">
+        <div class="text-amber-600 mt-0.5">⚠️</div>
+        <div>
+          <strong class="font-bold">Cloudflare D1 Binding ("DB") Notice:</strong>
+          <p class="text-xs text-amber-800 mt-0.5">
+            {d1Status.details}
+          </p>
         </div>
-        <nav>
-          <a href="/admin/">Overview</a>
-          <a href="/admin/recipes/">Recipes</a>
-          <a href="/admin/recipes/new/">New Recipe</a>
-          <a class="active" href="/admin/reviews/">Reviews</a>
-          <a href="/admin/settings/">Settings</a>
-        </nav>
-      </aside>
+      </div>
+    )}
 
-      <main class="content">
-        <div class="topbar">
-          <div>
-            <p style="margin:0 0 0.35rem; font-size:0.8rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted);">
-              Community Feedback
-            </p>
-            <h1 class="title">Recipe Reviews &amp; Ratings</h1>
-          </div>
-          <div style="display:flex; align-items:center; gap:0.75rem;">
-            <span style="font-size:0.85rem; padding:0.5rem 0.8rem; border-radius:999px; background:rgba(255,255,255,0.7); border:1px solid var(--line);">
-              Admin: {username}
-            </span>
-          </div>
+    <!-- Metric Overview Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-paper rounded-2xl p-5 border border-line/70 shadow-xs">
+        <div class="flex items-center justify-between text-xs text-ink-soft mb-1">
+          <span class="font-semibold uppercase tracking-wider">Total Reviews</span>
+          <MessageSquare size={16} class="text-forest" aria-hidden="true" />
         </div>
+        <p class="text-2xl sm:text-3xl font-display font-bold text-forest">{totalReviews}</p>
+        <p class="text-xs text-ink-soft mt-1">Verified user submissions</p>
+      </div>
 
-        {!db && (
-          <div class="card" style="margin-bottom:1.5rem; border-color:#f59e0b; background:#fffbeb;">
-            <strong>Cloudflare D1 binding ("DB") is not configured in this environment.</strong>
-            <p style="margin:0.35rem 0 0; font-size:0.9rem;">
-              Configure the D1 binding in Cloudflare Pages / <code>wrangler.jsonc</code> to view and manage live community reviews.
-            </p>
-          </div>
-        )}
+      <div class="bg-paper rounded-2xl p-5 border border-line/70 shadow-xs">
+        <div class="flex items-center justify-between text-xs text-ink-soft mb-1">
+          <span class="font-semibold uppercase tracking-wider">Average Rating</span>
+          <Star size={16} class="text-amber-500 fill-amber-500" aria-hidden="true" />
+        </div>
+        <div class="flex items-baseline gap-1.5">
+          <p class="text-2xl sm:text-3xl font-display font-bold text-forest">{avgRating}</p>
+          {avgRating !== '—' && <span class="text-xs text-ink-soft font-semibold">/ 5.0</span>}
+        </div>
+        <p class="text-xs text-ink-soft mt-1">Across approved reviews</p>
+      </div>
 
-        <section class="cards">
-          <div class="card">
-            <div class="label">Published Reviews</div>
-            <div class="number" style="color:var(--green);">{reviewData.counts.total}</div>
-          </div>
-          <div class="card">
-            <div class="label">Showing on This Page</div>
-            <div class="number">{reviewData.reviews.length}</div>
-          </div>
-        </section>
+      <div class="bg-paper rounded-2xl p-5 border border-line/70 shadow-xs">
+        <div class="flex items-center justify-between text-xs text-ink-soft mb-1">
+          <span class="font-semibold uppercase tracking-wider">Showing on Page</span>
+          <CircleCheck size={16} class="text-emerald-700" aria-hidden="true" />
+        </div>
+        <p class="text-2xl sm:text-3xl font-display font-bold text-forest">{reviews.length}</p>
+        <p class="text-xs text-ink-soft mt-1">Page {reviewData.page} of {reviewData.totalPages}</p>
+      </div>
 
-        <form method="GET" action="/admin/reviews/" class="filter-bar">
-          <input
-            type="search"
-            name="q"
-            value={queryFilter}
-            placeholder="Search by review title, comment, author, or recipe slug..."
-            class="input"
-          />
-
-          <select name="rating" class="select" aria-label="Filter by star rating">
-            <option value="" selected={ratingFilter === ''}>All Ratings</option>
-            {[5, 4, 3, 2, 1].map((star) => (
-              <option value={String(star)} selected={ratingFilter === String(star)}>
-                {star} {star === 1 ? 'Star' : 'Stars'}
-              </option>
-            ))}
-          </select>
-
-          <select name="recipe" class="select" aria-label="Filter by recipe">
-            <option value="">All Recipes</option>
-            {[...recipeTitleBySlug.entries()].map(([slug, title]) => (
-              <option value={slug} selected={recipeFilter.toLowerCase() === slug}>
-                {title}
-              </option>
-            ))}
-          </select>
-
-          <button type="submit" class="btn btn-primary">Filter</button>
-          {(ratingFilter || recipeFilter || queryFilter) && (
-            <a href="/admin/reviews/" class="btn btn-subtle">Reset</a>
-          )}
-        </form>
-
-        {reviewData.reviews.length > 0 ? (
-          <div class="review-list">
-            {reviewData.reviews.map((rev) => {
-              const rTitle = recipeTitleBySlug.get(rev.recipeSlug.toLowerCase()) ?? rev.recipeSlug;
-
-              return (
-                <article class="review-card" data-admin-review-id={rev.id}>
-                  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap;">
-                    <div>
-                      <div style="display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;">
-                        <a
-                          href={`/recipe/${rev.recipeSlug}/#recipe-reviews`}
-                          target="_blank"
-                          style="font-weight:800; font-size:1.05rem; text-decoration:underline;"
-                        >
-                          {rTitle}
-                        </a>
-                        <span class="stars" aria-label={`${rev.rating} stars`}>
-                          {'★'.repeat(rev.rating)}{'☆'.repeat(5 - rev.rating)} ({rev.rating}/5)
-                        </span>
-                      </div>
-                      <div style="font-size:0.82rem; color:var(--muted); margin-top:0.3rem;">
-                        By <strong>{rev.authorDisplayName}</strong> (@{rev.authorUsername}) • Published{' '}
-                        {new Date(rev.createdAt).toLocaleString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                          hour: 'numeric',
-                          minute: '2-digit',
-                        })}
-                      </div>
-                    </div>
-
-                    <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
-                      <button
-                        type="button"
-                        class="btn btn-delete"
-                        data-delete-review-id={rev.id}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 style="margin:0 0 0.3rem; font-size:1rem;">{decodeHtmlEntities(rev.title)}</h3>
-                    <p style="margin:0; font-size:0.92rem; line-height:1.55; white-space:pre-line;">{decodeHtmlEntities(rev.comment)}</p>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        ) : (
-          <div class="card" style="text-align:center; padding:2.5rem;">
-            <h2 style="margin:0 0 0.4rem; font-size:1.25rem;">No matching reviews found</h2>
-            <p style="margin:0; color:var(--muted); font-size:0.92rem;">
-              Community reviews are published immediately when signed-in users submit them on recipe pages.
-            </p>
-          </div>
-        )}
-      </main>
+      <div class="bg-paper rounded-2xl p-5 border border-line/70 shadow-xs">
+        <div class="flex items-center justify-between text-xs text-ink-soft mb-1">
+          <span class="font-semibold uppercase tracking-wider">Database Mode</span>
+          <Database size={16} class="text-forest" aria-hidden="true" />
+        </div>
+        <p class="text-lg sm:text-xl font-display font-bold text-forest truncate">
+          {d1Status.mode === 'cloudflare-d1' ? 'Cloudflare D1' : 'Local SQLite'}
+        </p>
+        <p class="text-xs text-ink-soft mt-1 truncate">Binding: {d1Status.bindingName}</p>
+      </div>
     </div>
 
-    <script is:inline>
-      (() => {
-        const shell = document.querySelector('[data-admin-csrf]');
-        const csrfToken = shell ? shell.getAttribute('data-admin-csrf') || '' : '';
+    <!-- Filter & Search Toolbar -->
+    <div class="bg-paper rounded-2xl border border-line/70 p-5 shadow-xs space-y-4">
+      <form method="GET" action="/admin/reviews/" class="space-y-4">
+        <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+          <!-- Search Input -->
+          <div class="relative flex-1 max-w-md">
+            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-ink-soft">
+              <Search size={18} aria-hidden="true" />
+            </div>
+            <input
+              type="search"
+              name="q"
+              value={queryFilter}
+              placeholder="Search by review title, comment, author..."
+              aria-label="Search reviews"
+              class="w-full pl-10 pr-4 py-2.5 text-sm bg-cream/50 border border-line rounded-xl focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-forest focus:border-forest transition"
+            />
+          </div>
 
-        document.querySelectorAll('[data-delete-review-id]').forEach((btn) => {
-          btn.addEventListener('click', async () => {
-            const reviewId = btn.getAttribute('data-delete-review-id');
-            if (!reviewId) return;
+          <!-- Controls -->
+          <div class="flex flex-wrap items-center gap-3">
+            <!-- Star Rating Filter -->
+            <div class="relative flex items-center">
+              <label for="ratingFilter" class="sr-only">Filter by star rating</label>
+              <select
+                id="ratingFilter"
+                name="rating"
+                aria-label="Filter by star rating"
+                class="px-4 py-2.5 text-sm bg-cream/50 border border-line rounded-xl focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-forest text-ink font-medium cursor-pointer transition"
+              >
+                <option value="" selected={ratingFilter === ''}>All Star Ratings</option>
+                {[5, 4, 3, 2, 1].map((star) => (
+                  <option value={String(star)} selected={ratingFilter === String(star)}>
+                    {star} {star === 1 ? 'Star' : 'Stars'}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-            if (!window.confirm('Permanently delete this review?')) {
-              return;
-            }
+            <!-- Recipe Filter -->
+            <div class="relative flex items-center">
+              <label for="recipeFilter" class="sr-only">Filter by recipe</label>
+              <div class="absolute left-3 pointer-events-none text-ink-soft">
+                <ListFilter size={16} aria-hidden="true" />
+              </div>
+              <select
+                id="recipeFilter"
+                name="recipe"
+                aria-label="Filter by recipe"
+                class="pl-9 pr-8 py-2.5 text-sm bg-cream/50 border border-line rounded-xl focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-forest text-ink font-medium cursor-pointer transition appearance-none max-w-xs truncate"
+              >
+                <option value="">All Recipes</option>
+                {[...recipeTitleBySlug.entries()].map(([slug, title]) => (
+                  <option value={slug} selected={recipeFilter.toLowerCase() === slug}>
+                    {title}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-            btn.disabled = true;
-            try {
-              const res = await fetch('/api/admin/reviews/', {
-                method: 'DELETE',
-                headers: {
-                  'content-type': 'application/json',
-                  'x-csrf-token': csrfToken,
-                },
-                body: JSON.stringify({
-                  reviewId,
-                  csrfToken,
-                }),
-              });
-              if (res.ok) {
-                const card = document.querySelector(`[data-admin-review-id="${reviewId}"]`);
-                if (card) {
-                  card.remove();
-                } else {
-                  window.location.reload();
-                }
-              } else {
-                const err = await res.json().catch(() => ({}));
-                alert(err.error || 'Failed to delete review.');
-                btn.disabled = false;
-              }
-            } catch {
-              alert('Network error deleting review.');
-              btn.disabled = false;
-            }
+            <button
+              type="submit"
+              class="px-4 py-2.5 rounded-xl bg-forest text-cream font-bold text-xs hover:bg-forest-deep shadow-xs transition cursor-pointer"
+            >
+              Apply Filters
+            </button>
+
+            {(ratingFilter || recipeFilter || queryFilter) && (
+              <a
+                href="/admin/reviews/"
+                class="inline-flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold text-ink-soft hover:text-forest bg-cream/80 hover:bg-cream rounded-xl border border-line/70 transition cursor-pointer"
+                title="Reset filters"
+              >
+                <RotateCcw size={14} aria-hidden="true" />
+                <span>Reset</span>
+              </a>
+            )}
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between text-xs text-ink-soft pt-2 border-t border-line/40">
+          <span>Showing {reviews.length} of {totalReviews} reviews</span>
+          <span>Instant publishing enabled for verified community members</span>
+        </div>
+      </form>
+    </div>
+
+    <!-- Review Cards Feed -->
+    {reviews.length > 0 ? (
+      <div class="space-y-4">
+        {reviews.map((rev) => {
+          const recipeTitle = recipeTitleBySlug.get(rev.recipeSlug.toLowerCase()) ?? rev.recipeSlug;
+          const formattedDate = new Date(rev.createdAt).toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
           });
+
+          return (
+            <article
+              data-admin-review-id={rev.id}
+              class="bg-paper rounded-2xl border border-line/70 p-6 shadow-xs space-y-4 hover:border-forest/40 transition"
+            >
+              {/* Card Header */}
+              <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                <div class="space-y-1.5">
+                  <div class="flex flex-wrap items-center gap-3">
+                    <a
+                      href={`/recipe/${rev.recipeSlug}/#recipe-reviews`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="font-display font-bold text-base sm:text-lg text-forest hover:text-terracotta transition underline flex items-center gap-1.5"
+                    >
+                      <span>{recipeTitle}</span>
+                      <ExternalLink size={14} class="text-ink-soft" aria-hidden="true" />
+                    </a>
+
+                    {/* Star Rating Badge */}
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                      <span class="text-amber-500 font-serif">{'★'.repeat(rev.rating)}{'☆'.repeat(5 - rev.rating)}</span>
+                      <span>({rev.rating}/5)</span>
+                    </span>
+                  </div>
+
+                  {/* Author & Date Metadata */}
+                  <div class="flex flex-wrap items-center gap-3 text-xs text-ink-soft">
+                    <span class="inline-flex items-center gap-1">
+                      <User size={13} aria-hidden="true" />
+                      <strong class="text-ink font-semibold">{rev.authorDisplayName}</strong>
+                      <span>(@{rev.authorUsername})</span>
+                    </span>
+                    <span class="text-line">&middot;</span>
+                    <span class="inline-flex items-center gap-1">
+                      <Calendar size={13} aria-hidden="true" />
+                      <span>{formattedDate}</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Moderate Actions */}
+                <div class="flex items-center gap-2 self-start">
+                  <a
+                    href={`/recipe/${rev.recipeSlug}/#recipe-reviews`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-forest bg-cream hover:bg-white border border-line/70 transition"
+                    title="View review on recipe page"
+                  >
+                    <span>View Live</span>
+                    <ExternalLink size={12} aria-hidden="true" />
+                  </a>
+
+                  <button
+                    type="button"
+                    data-delete-review-id={rev.id}
+                    class="delete-review-btn inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-terracotta bg-cream hover:bg-terracotta/10 border border-line/70 transition cursor-pointer"
+                    title="Delete review"
+                    aria-label={`Delete review by ${rev.authorDisplayName}`}
+                  >
+                    <Trash size={13} aria-hidden="true" />
+                    <span>Delete</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Review Body */}
+              <div class="bg-cream/40 rounded-xl p-4 border border-line/40 space-y-1.5">
+                <h3 class="font-display font-bold text-sm text-forest">
+                  {decodeHtmlEntities(rev.title)}
+                </h3>
+                <p class="text-xs sm:text-sm text-ink leading-relaxed whitespace-pre-line font-sans">
+                  {decodeHtmlEntities(rev.comment)}
+                </p>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    ) : (
+      <div class="bg-paper rounded-2xl border border-line/70 p-12 text-center max-w-lg mx-auto">
+        <div class="flex size-14 items-center justify-center rounded-2xl bg-cream text-forest mx-auto mb-4 border border-line/60">
+          <MessageSquare size={26} aria-hidden="true" />
+        </div>
+        <h2 class="font-display font-bold text-lg text-forest">No matching reviews found</h2>
+        <p class="text-sm text-ink-soft mt-1.5 max-w-sm mx-auto">
+          {ratingFilter || recipeFilter || queryFilter
+            ? 'No community reviews match the current filters. Try resetting the filters to view all feedback.'
+            : 'Community reviews are published immediately when signed-in members submit feedback on recipe pages.'}
+        </p>
+        {(ratingFilter || recipeFilter || queryFilter) && (
+          <a
+            href="/admin/reviews/"
+            class="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-forest bg-cream hover:bg-white border border-line shadow-xs transition cursor-pointer"
+          >
+            <RotateCcw size={14} aria-hidden="true" />
+            <span>Clear all filters</span>
+          </a>
+        )}
+      </div>
+    )}
+  </div>
+</AdminLayout>
+
+<script>
+  declare global {
+    function showAdminToast(message: string, type?: 'info' | 'success' | 'error'): void;
+  }
+
+  const csrfToken = document.cookie
+    .split('; ')
+    .find((entry) => entry.startsWith('crockbites_admin_csrf='))
+    ?.split('=')[1] ?? '';
+
+  document.querySelectorAll<HTMLButtonElement>('.delete-review-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const reviewId = btn.dataset.deleteReviewId;
+      if (!reviewId) return;
+
+      const confirmed = window.confirm('Permanently delete this community review? This action cannot be undone.');
+      if (!confirmed) return;
+
+      btn.disabled = true;
+
+      try {
+        const response = await fetch('/api/admin/reviews/', {
+          method: 'DELETE',
+          headers: {
+            'content-type': 'application/json',
+            'x-csrf-token': csrfToken,
+          },
+          body: JSON.stringify({
+            reviewId,
+            csrfToken,
+          }),
         });
-      })();
-    </script>
-  </body>
-</html>
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to delete review.');
+        }
+
+        const card = btn.closest<HTMLElement>('article[data-admin-review-id]');
+        if (card) {
+          card.remove();
+        } else {
+          window.location.reload();
+        }
+
+        if (typeof showAdminToast === 'function') {
+          showAdminToast('Review successfully deleted.', 'success');
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to delete review.';
+        window.alert(msg);
+        btn.disabled = false;
+      }
+    });
+  });
+</script>
