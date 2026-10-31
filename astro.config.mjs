@@ -4,7 +4,7 @@ import cloudflare from '@astrojs/cloudflare';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
-  site: 'https://crockbites.com',
+  site: 'https://crockbites.site',
   output: 'static',
   adapter: cloudflare({
     sessionKVBindingName: 'RATE_LIMIT_KV',

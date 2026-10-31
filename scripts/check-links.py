@@ -60,7 +60,7 @@ for pg in pages:
         t = re.findall(r'<title>(.*?)</title>', s)
         if len(t) != 1: issues.append((rel, 'title count', len(t)))
         if not re.search(r'<meta name="description" content="[^"]+"', s): issues.append((rel, 'no description'))
-        if not re.search(r'<link rel="canonical" href="https://crockbites\.com/[^"]*"', s): issues.append((rel, 'no canonical'))
+        if not re.search(r'<link rel="canonical" href="https://crockbites\.site/[^"]*"', s): issues.append((rel, 'no canonical'))
         if len(re.findall(r'<h1[ >]', s)) != 1: issues.append((rel, 'h1 count', len(re.findall(r'<h1[ >]', s))))
     for blk in re.findall(r'<script type="application/ld\+json">(.*?)</script>', s, re.S):
         try: json.loads(blk)

@@ -29,7 +29,7 @@ AdSense approval is **not guaranteed**. Google decides, using its current progra
    - `recipeAfterCard`: after the recipe card
 4. Set `site.ads.enabled = true` in `src/config/site.ts` and redeploy.
 5. Create `public/ads.txt` using the line Google shows in your account. The documented shape is `google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0` with your real publisher id. A template is in `docs/ads.txt.example`. Do not commit an `ads.txt` with a fake id.
-6. Check `https://crockbites.com/ads.txt` loads, then wait for AdSense to confirm it.
+6. Check `https://crockbites.site/ads.txt` loads, then wait for AdSense to confirm it.
 
 ## How the placeholders behave
 

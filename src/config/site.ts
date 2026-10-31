@@ -8,7 +8,7 @@ const env = import.meta.env;
 export const site = {
   name: 'CrockBites',
   tagline: 'Good Food. Less Fuss.',
-  url: 'https://crockbites.com',
+  url: 'https://crockbites.site',
   homeTitle: 'CrockBites — Easy Slow Cooker Recipes & Everyday Meals',
   description:
     'Easy slow cooker recipes and everyday meals made for real life. Practical ingredient lists, clear steps, and food safety guidance.',

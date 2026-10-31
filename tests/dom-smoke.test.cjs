@@ -64,7 +64,7 @@ const targetSlug = recipeSlugs[0];
 console.log(`Discovered ${recipeSlugs.length} published recipe(s). Testing: ${targetSlug}`);
 
 // ---- Recipe page: serving scaler & interactive controls ----
-const dom = load(`dist/recipe/${targetSlug}/index.html`, `https://crockbites.com/recipe/${targetSlug}/`);
+const dom = load(`dist/recipe/${targetSlug}/index.html`, `https://crockbites.site/recipe/${targetSlug}/`);
 const d = dom.window.document;
 const txt = (sel) => d.querySelector(sel)?.textContent.trim();
 const rows = () => d.querySelectorAll('[data-ing]');
@@ -406,7 +406,7 @@ if (menu && open) {
 
 // ---- Search ----
 function search(q, cat = '') {
-  const s = load('dist/search/index.html', `https://crockbites.com/search/?q=${encodeURIComponent(q)}&category=${cat}`);
+  const s = load('dist/search/index.html', `https://crockbites.site/search/?q=${encodeURIComponent(q)}&category=${cat}`);
   const doc = s.window.document;
   return {
     n: doc.querySelectorAll('#search-results li').length,

@@ -60,7 +60,7 @@ if (typeof d.image === 'string' && (d.image.startsWith('http://') || d.image.sta
 
 const path = recipeUrl(recipe as any);
 const jsonLd = [
-  recipeSchema(recipe as any, new URL(ogSrc, Astro.site ?? 'https://crockbites.com').href, cat.name),
+  recipeSchema(recipe as any, new URL(ogSrc, Astro.site ?? 'https://crockbites.site').href, cat.name),
   breadcrumbSchema([
     { name: 'Home', url: '/' },
     { name: 'Recipes', url: '/recipes/' },

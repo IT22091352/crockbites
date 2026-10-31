@@ -212,15 +212,15 @@ await test('4. User login, hashed session storage, session expiry, logout, and l
 
 await test('5. User CSRF token verification and safe returnTo URL sanitization', async () => {
   const token = createUserCsrfToken('session_abc_123');
-  const reqOk = new Request('https://crockbites.com/api/community/favorites/', {
+  const reqOk = new Request('https://crockbites.site/api/community/favorites/', {
     method: 'POST',
     headers: { 'x-csrf-token': token },
   });
-  const reqBadSession = new Request('https://crockbites.com/api/community/favorites/', {
+  const reqBadSession = new Request('https://crockbites.site/api/community/favorites/', {
     method: 'POST',
     headers: { 'x-csrf-token': token },
   });
-  const reqTampered = new Request('https://crockbites.com/api/community/favorites/', {
+  const reqTampered = new Request('https://crockbites.site/api/community/favorites/', {
     method: 'POST',
     headers: { 'x-csrf-token': 'tampered' },
   });
