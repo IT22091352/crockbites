@@ -22,6 +22,7 @@ import {
   MessageSquare,
   Share2,
   RotateCcw,
+  ZoomIn,
 } from '@lucide/astro';
 import Breadcrumbs from './Breadcrumbs.astro';
 import RecipeCard from './RecipeCard.astro';
@@ -44,6 +45,11 @@ const isRemote = isRemoteImage(d.image);
 const imageUrl = typeof d.image === 'string' ? d.image : (d.image as any).src;
 const rawGallery = (d as any).gallery as Array<{ url: string; alt: string; width?: number; height?: number; isPrimary?: boolean }> | undefined;
 const gallery = rawGallery?.filter((img) => img.url && img.url !== imageUrl);
+const allPhotos: Array<{ url: string; alt: string; width?: number; height?: number }> = [
+  { url: imageUrl, alt: d.imageAlt || d.title, width: 1280, height: 960 },
+  ...(gallery || []),
+];
+const hasGallery = Boolean(gallery && gallery.length > 0);
 
 // Attach stable zero-based indices and group ingredients under optional headings
 type IndexedIngredient = (typeof d.ingredients)[number] & { __idx: number };
@@ -102,37 +108,39 @@ const allergenNames: Record<string, string> = {
     <Breadcrumbs items={[{ name: 'Home', href: '/' }, { name: 'Recipes', href: '/recipes/' }, { name: cat!.name, href: `/category/${cat!.id}/` }, { name: d.title }]} />
     <div class="mt-6 grid gap-8 lg:grid-cols-[1fr_1.05fr] lg:items-center lg:gap-12">
       <div>
-        <a class="chip" href={`/category/${cat!.id}/`}>{cat!.name}</a>
-        {d.dietaryVerified && d.dietaryLabels && d.dietaryLabels.length > 0 && (
-          <div class="mt-3 flex flex-wrap items-center gap-1.5" aria-label="Verified dietary suitability" data-dietary-badges>
-            {d.dietaryLabels.map((lbl: string) => (
-              <span class="inline-flex items-center gap-1 rounded-full border border-forest/20 bg-forest/10 px-2.5 py-0.5 text-xs font-semibold text-forest">
-                <ShieldCheck size={13} class="text-forest" aria-hidden="true" />
-                {dietaryLabelNames[lbl] || lbl}
-              </span>
-            ))}
-          </div>
-        )}
-        <h1 class="mt-4">{d.title}</h1>
+        <div class="flex flex-wrap items-center gap-2">
+          <a class="chip font-medium text-forest hover:border-forest" href={`/category/${cat!.id}/`}>{cat!.name}</a>
+          {d.dietaryVerified && d.dietaryLabels && d.dietaryLabels.length > 0 && (
+            <div class="flex flex-wrap items-center gap-1.5" aria-label="Verified dietary suitability" data-dietary-badges>
+              {d.dietaryLabels.map((lbl: string) => (
+                <span class="inline-flex items-center gap-1 rounded-full border border-forest/20 bg-forest/10 px-2.5 py-0.5 text-xs font-semibold text-forest">
+                  <ShieldCheck size={13} class="text-forest" aria-hidden="true" />
+                  {dietaryLabelNames[lbl] || lbl}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <h1 class="mt-4 font-display font-semibold tracking-tight text-forest">{d.title}</h1>
         {!isDraft && (
           <div class="mt-2.5 flex flex-wrap items-center gap-3 text-sm" data-recipe-header-rating>
             <a
               href="#recipe-reviews"
               id="recipe-rating-summary-pill"
-              class="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-xs font-semibold text-ink no-underline transition hover:border-forest"
+              class="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-xs font-semibold text-ink no-underline transition hover:border-forest shadow-xs"
             >
               <span id="header-stars-display" class="text-terracotta-deep">★★★★★</span>
               <span id="header-rating-text">Rate this recipe</span>
             </a>
           </div>
         )}
-        <p class="mt-4 max-w-xl text-lg text-ink-soft">{d.description}</p>
+        <p class="mt-4 max-w-xl text-lg text-ink-soft leading-relaxed">{d.description}</p>
         <p class="mt-4 text-sm text-ink-soft">
-          By {d.author} · Published <time datetime={d.pubDate.toISOString().slice(0, 10)}>{fmtDate(d.pubDate)}</time>
+          By <strong class="text-forest font-medium">{d.author}</strong> · Published <time datetime={d.pubDate.toISOString().slice(0, 10)}>{fmtDate(d.pubDate)}</time>
           {d.updatedDate && <> · Updated <time datetime={d.updatedDate.toISOString().slice(0, 10)}>{fmtDate(d.updatedDate)}</time></>}
         </p>
-        <div class="mt-6 flex flex-wrap items-center gap-3">
-          <a class="btn" href="#recipe-card"><ArrowDown size={18} aria-hidden="true" />Jump to recipe</a>
+        <div class="mt-6 flex flex-wrap items-center gap-2.5 sm:gap-3">
+          <a class="btn btn-primary" href="#recipe-card"><ArrowDown size={18} aria-hidden="true" />Jump to recipe</a>
           <button type="button" class="btn btn-outline" data-start-cooking><ChefHat size={18} aria-hidden="true" />Start Cooking</button>
           {!isDraft && (
             <button
@@ -159,7 +167,7 @@ const allergenNames: Record<string, string> = {
           <button type="button" class="btn btn-outline" data-print><Printer size={18} aria-hidden="true" />Print recipe</button>
         </div>
       </div>
-      <div class="overflow-hidden rounded-[1.75rem] border border-line shadow-[var(--shadow-card)]">
+      <div class="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-line bg-cream-deep/30 shadow-[var(--shadow-card)]">
         {isRemote ? (
           <img
             src={getOptimizedCloudinaryUrl(imageUrl, 1280)}
@@ -177,6 +185,19 @@ const allergenNames: Record<string, string> = {
           <Image src={d.image as any} alt={d.imageAlt} {...rw(d.image as any, [640, 960, 1280, 1600])} sizes="(min-width: 1024px) 40rem, 100vw"
             loading="eager" fetchpriority="high" decoding="async" class="aspect-[4/3] w-full object-cover" />
         )}
+        {hasGallery && (
+          <button
+            type="button"
+            class="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 inline-flex items-center gap-1.5 rounded-full bg-forest-deep/85 px-3.5 py-1.5 text-xs font-semibold text-cream backdrop-blur-md transition hover:bg-forest hover:scale-105 shadow-md cursor-pointer"
+            data-gallery-open="0"
+            data-gallery-url={getOptimizedCloudinaryUrl(allPhotos[0].url, 1200)}
+            data-gallery-alt={allPhotos[0].alt}
+            aria-label={`View photo gallery (${allPhotos.length} photos)`}
+          >
+            <ZoomIn size={14} aria-hidden="true" />
+            <span>{allPhotos.length} Photos</span>
+          </button>
+        )}
       </div>
     </div>
 
@@ -187,34 +208,81 @@ const allergenNames: Record<string, string> = {
       </div>
     )}
 
-    <dl class="mt-8 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-4">
-      <div class="bg-paper p-4"><dt class="flex items-center gap-1.5 text-sm font-semibold text-ink-soft"><Clock size={16} aria-hidden="true" />Prep</dt><dd class="mt-1 font-display text-xl font-semibold text-forest">{formatMinutes(d.prepMinutes)}</dd></div>
-      <div class="bg-paper p-4"><dt class="flex items-center gap-1.5 text-sm font-semibold text-ink-soft"><Clock size={16} aria-hidden="true" />Cook</dt><dd class="mt-1 font-display text-xl font-semibold text-forest">{formatMinutes(d.cookMinutes)}</dd></div>
-      <div class="bg-paper p-4"><dt class="flex items-center gap-1.5 text-sm font-semibold text-ink-soft"><Clock size={16} aria-hidden="true" />Total</dt><dd class="mt-1 font-display text-xl font-semibold text-forest">{formatMinutes(total)}</dd></div>
-      <div class="bg-paper p-4"><dt class="flex items-center gap-1.5 text-sm font-semibold text-ink-soft"><Users size={16} aria-hidden="true" />Serves</dt><dd class="mt-1 font-display text-xl font-semibold text-forest">{d.servings} {d.servingsLabel}</dd></div>
+    <dl class="mt-8 grid grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-line overflow-hidden rounded-2xl border border-line bg-paper sm:grid-cols-4 shadow-xs">
+      <div class="p-4 sm:p-5 flex flex-col justify-center">
+        <dt class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-soft">
+          <Clock size={14} class="text-forest-soft" aria-hidden="true" />Prep
+        </dt>
+        <dd class="mt-1 font-display text-2xl font-bold text-forest">{formatMinutes(d.prepMinutes)}</dd>
+      </div>
+      <div class="p-4 sm:p-5 flex flex-col justify-center">
+        <dt class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-soft">
+          <Clock size={14} class="text-forest-soft" aria-hidden="true" />Cook
+        </dt>
+        <dd class="mt-1 font-display text-2xl font-bold text-forest">{formatMinutes(d.cookMinutes)}</dd>
+      </div>
+      <div class="p-4 sm:p-5 flex flex-col justify-center">
+        <dt class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-soft">
+          <Clock size={14} class="text-forest-soft" aria-hidden="true" />Total
+        </dt>
+        <dd class="mt-1 font-display text-2xl font-bold text-forest">{formatMinutes(total)}</dd>
+      </div>
+      <div class="p-4 sm:p-5 flex flex-col justify-center">
+        <dt class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-soft">
+          <Users size={14} class="text-forest-soft" aria-hidden="true" />Serves
+        </dt>
+        <dd class="mt-1 font-display text-2xl font-bold text-forest">{d.servings} {d.servingsLabel}</dd>
+      </div>
     </dl>
-    {d.cookTimeNote && <p class="mt-3 text-[0.97rem] text-ink-soft">{d.cookTimeNote}. Times are estimates; slow cookers vary, so cook to temperature and tenderness.</p>}
+    {d.cookTimeNote && (
+      <p class="mt-3 flex items-start gap-1.5 text-xs sm:text-sm text-ink-soft">
+        <Info size={15} class="mt-0.5 shrink-0 text-terracotta-deep" aria-hidden="true" />
+        <span>{d.cookTimeNote}. Times are estimates; slow cookers vary, so cook to temperature and tenderness.</span>
+      </p>
+    )}
 
     {Astro.slots.has('intro') && (
       <div class="prose-crock mt-10"><slot name="intro" /></div>
     )}
-    {gallery && gallery.length > 0 && (
-      <section aria-labelledby="gallery-heading" class="mt-12">
-        <h2 id="gallery-heading" class="text-[1.6rem]">Recipe Gallery</h2>
-        <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
-          {gallery.map((img) => (
-            <figure class="overflow-hidden rounded-2xl border border-line bg-paper">
-              <img
-                src={getOptimizedCloudinaryUrl(img.url, 600)}
-                alt={img.alt}
-                width={img.width ?? 600}
-                height={img.height ?? 450}
-                loading="lazy"
-                decoding="async"
-                class="aspect-[4/3] w-full object-cover transition-transform duration-300 hover:scale-105"
-              />
-              {img.alt && <figcaption class="p-3 text-xs text-ink-soft">{img.alt}</figcaption>}
-            </figure>
+    {hasGallery && (
+      <section aria-labelledby="gallery-heading" class="mt-14 scroll-mt-24">
+        <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-line pb-4">
+          <div>
+            <span class="text-xs font-bold uppercase tracking-widest text-terracotta-deep">Visual Guide</span>
+            <h2 id="gallery-heading" class="mt-1 font-display text-2xl sm:text-3xl font-semibold text-forest">Recipe Gallery</h2>
+          </div>
+          <p class="text-xs sm:text-sm text-ink-soft">
+            {allPhotos.length} photos · Click any image to explore full screen
+          </p>
+        </div>
+        <div class="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 sm:gap-4">
+          {allPhotos.map((img, idx) => (
+            <button
+              type="button"
+              class="group relative overflow-hidden rounded-2xl border border-line bg-paper text-left transition hover:border-forest hover:shadow-md focus:outline-hidden cursor-pointer"
+              data-gallery-open={idx}
+              data-gallery-url={getOptimizedCloudinaryUrl(img.url, 1200)}
+              data-gallery-alt={img.alt || d.title}
+              aria-label={`View photo ${idx + 1} of ${allPhotos.length}: ${img.alt || d.title}`}
+            >
+              <div class="aspect-[4/3] w-full overflow-hidden bg-cream-deep/40">
+                <img
+                  src={getOptimizedCloudinaryUrl(img.url, 600)}
+                  alt={img.alt || d.title}
+                  width={img.width ?? 600}
+                  height={img.height ?? 450}
+                  loading="lazy"
+                  decoding="async"
+                  class="size-full object-cover transition-transform duration-500 group-hover:scale-105"
+                />
+              </div>
+              <div class="p-3">
+                <p class="text-xs font-semibold text-forest line-clamp-1">{img.alt || `Recipe Photo ${idx + 1}`}</p>
+                <span class="mt-0.5 inline-flex items-center gap-1 text-[11px] text-terracotta-deep font-medium group-hover:underline">
+                  <ZoomIn size={12} aria-hidden="true" /> View photo
+                </span>
+              </div>
+            </button>
           ))}
         </div>
       </section>
@@ -224,14 +292,14 @@ const allergenNames: Record<string, string> = {
 
   <!-- The structured recipe card: also the only thing that prints. -->
   <section id="recipe-card" aria-labelledby="recipe-card-title" class="container-page scroll-mt-20">
-    <div class="card recipe-card-print p-5 sm:p-8 lg:p-10" data-scaler data-base={d.servings} data-max={maxServings} data-slug={slug}>
+    <div class="card recipe-card-print p-5 sm:p-8 lg:p-10 border border-line rounded-2xl sm:rounded-3xl bg-paper shadow-sm" data-scaler data-base={d.servings} data-max={maxServings} data-slug={slug}>
       <p class="print-only mb-3 text-sm font-semibold">CrockBites · Good Food. Less Fuss. · {absoluteUrl(recipeUrl(recipe))}</p>
       <div class="flex flex-wrap items-start justify-between gap-4 border-b border-line pb-6">
         <div>
-          <h2 id="recipe-card-title">{d.title}</h2>
-          <p class="mt-2 text-[0.97rem] text-ink-soft">Prep {formatMinutes(d.prepMinutes)} · Cook {formatMinutes(d.cookMinutes)} · Total {formatMinutes(total)}{d.cookTimeNote ? ` · ${d.cookTimeNote}` : ''}</p>
+          <h2 id="recipe-card-title" class="font-display text-2xl sm:text-3xl lg:text-4xl font-bold text-forest">{d.title}</h2>
+          <p class="mt-1.5 text-xs sm:text-sm text-ink-soft">Prep {formatMinutes(d.prepMinutes)} · Cook {formatMinutes(d.cookMinutes)} · Total {formatMinutes(total)}{d.cookTimeNote ? ` · ${d.cookTimeNote}` : ''}</p>
         </div>
-        <div class="flex items-center gap-2" data-noprint>
+        <div class="flex flex-wrap items-center gap-2" data-noprint>
           <button type="button" class="btn btn-primary btn-small" data-start-cooking><ChefHat size={16} aria-hidden="true" />Start Cooking</button>
           <button type="button" class="btn btn-outline btn-small" data-share-recipe aria-label="Share recipe"><Share2 size={16} aria-hidden="true" />Share</button>
           <button type="button" class="btn btn-outline btn-small" data-print><Printer size={16} aria-hidden="true" />Print recipe</button>
@@ -241,17 +309,17 @@ const allergenNames: Record<string, string> = {
       <!-- Interactive Controls: Servings Scaler & Unit Converter -->
       <div class="mt-6 flex flex-wrap items-center justify-between gap-4 border-b border-line pb-6" role="group" aria-label="Recipe controls">
         <div class="flex flex-wrap items-center gap-x-4 gap-y-3">
-          <p id="servings-label" class="font-semibold text-forest">Servings:</p>
-          <div class="inline-flex items-center gap-1 rounded-full border border-forest-soft bg-cream p-1" data-noprint>
-            <button type="button" class="grid size-9 place-content-center rounded-full hover:bg-cream-deep disabled:opacity-40" data-dec aria-label="Decrease servings"><Minus size={16} aria-hidden="true" /></button>
+          <p id="servings-label" class="font-semibold text-forest text-sm sm:text-base">Servings:</p>
+          <div class="inline-flex items-center gap-1 rounded-full border border-forest-soft/40 bg-cream p-1 shadow-xs" data-noprint>
+            <button type="button" class="grid size-11 place-content-center rounded-full hover:bg-cream-deep transition disabled:opacity-40 cursor-pointer" data-dec aria-label="Decrease servings"><Minus size={16} aria-hidden="true" /></button>
             <output class="min-w-[3.2rem] text-center font-display text-lg font-semibold text-forest" data-servings-out aria-live="polite">{d.servings}</output>
-            <button type="button" class="grid size-9 place-content-center rounded-full hover:bg-cream-deep disabled:opacity-40" data-inc aria-label="Increase servings"><Plus size={16} aria-hidden="true" /></button>
+            <button type="button" class="grid size-11 place-content-center rounded-full hover:bg-cream-deep transition disabled:opacity-40 cursor-pointer" data-inc aria-label="Increase servings"><Plus size={16} aria-hidden="true" /></button>
           </div>
           <span class="print-only">Makes <span data-servings-out>{d.servings}</span> {d.servingsLabel}</span>
-          <button type="button" class="link-text text-[0.92rem] font-semibold" data-reset hidden data-noprint>Reset ({d.servings})</button>
+          <button type="button" class="link-text text-xs sm:text-sm font-semibold" data-reset hidden data-noprint>Reset ({d.servings})</button>
         </div>
 
-        <div class="flex items-center gap-2" data-noprint>
+        <div class="flex items-center gap-2.5" data-noprint>
           <span class="text-xs font-semibold uppercase tracking-wider text-ink-soft">Units:</span>
           <div class="unit-toggle" role="radiogroup" aria-label="Measurement unit system">
             <button type="button" class="unit-toggle-btn active" data-unit-btn="us" role="radio" aria-checked="true">US Customary</button>
@@ -266,33 +334,33 @@ const allergenNames: Record<string, string> = {
 
       <div class="mt-8 grid gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-12 print:block">
         <div>
-          <div class="flex flex-wrap items-baseline justify-between gap-2">
-            <h3 class="font-display text-2xl">Ingredients</h3>
+          <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-line pb-2.5">
+            <h3 class="font-display text-2xl font-bold text-forest">Ingredients</h3>
             <div class="flex items-center gap-3 text-xs" data-noprint>
               <span id="checklistProgress" class="font-semibold text-forest">0 of {d.ingredients.length} ingredients gathered</span>
               <button
                 type="button"
                 id="checklistResetBtn"
-                class="link-text font-semibold text-terracotta-deep hover:underline"
+                class="link-text font-semibold text-terracotta-deep hover:underline cursor-pointer"
                 hidden
               >
                 Clear all
               </button>
             </div>
           </div>
-          <p class="mt-1 text-sm text-ink-soft" data-noprint>Tick items off as you gather them.</p>
+          <p class="mt-2 text-xs sm:text-sm text-ink-soft" data-noprint>Tick items off as you gather them for prep.</p>
           {groups.map((g) => (
             <div class="mt-5">
-              {g.name && <h4 class="font-display text-lg font-semibold text-terracotta-deep">{g.name}</h4>}
-              <ul class="mt-1">
+              {g.name && <h4 class="font-display text-base sm:text-lg font-bold text-forest border-b border-line/50 pb-1">{g.name}</h4>}
+              <ul class="mt-2 divide-y divide-line/40">
                 {g.items.map((ing) => (
                   <li data-ing data-qty={ing.quantity ?? 0} data-unit={ing.unit ?? ''} data-item={ing.item} data-plural={ing.itemPlural ?? ''} data-scale={String(ing.scale)} data-ing-idx={ing.__idx}>
-                    <label class="check-row">
+                    <label class="check-row group">
                       <input type="checkbox" data-check-idx={ing.__idx} />
-                      <span>
+                      <span class="text-sm sm:text-base leading-snug">
                         {ing.quantity ? <strong class="font-semibold text-forest" data-amount>{amountText(ing)}</strong> : null}{' '}
                         {ing.alt && <span class="text-ink-soft" data-alt>{ing.alt}</span>}{ing.alt ? ' ' : ''}
-                        <span data-name>{itemText(ing)}</span>{ing.note && <span class="text-ink-soft">, {ing.note}</span>}
+                        <span data-name class="font-medium text-ink">{itemText(ing)}</span>{ing.note && <span class="text-ink-soft font-normal">, {ing.note}</span>}
                       </span>
                     </label>
                   </li>
@@ -301,24 +369,30 @@ const allergenNames: Record<string, string> = {
             </div>
           ))}
           {d.equipment.length > 0 && (
-            <div class="mt-8">
-              <h3 class="font-display text-xl">Equipment</h3>
-              <ul class="mt-2 list-disc space-y-1 pl-5 marker:text-terracotta-deep">{d.equipment.map((e) => <li>{e}</li>)}</ul>
+            <div class="mt-8 rounded-xl border border-line bg-cream/40 p-4">
+              <h4 class="font-display text-base font-bold text-forest">Equipment</h4>
+              <ul class="mt-2 list-disc space-y-1 pl-5 text-sm marker:text-terracotta-deep">{d.equipment.map((e) => <li>{e}</li>)}</ul>
             </div>
           )}
         </div>
 
         <div id="instructions" class="scroll-mt-24 print:mt-8">
-          <h3 class="font-display text-2xl">Instructions</h3>
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-2.5">
+            <h3 class="font-display text-2xl font-bold text-forest">Instructions</h3>
+            <button type="button" class="btn btn-outline btn-small hidden sm:inline-flex text-xs py-1 px-3" data-start-cooking>
+              <ChefHat size={15} aria-hidden="true" />
+              <span>Cooking Mode</span>
+            </button>
+          </div>
           <ol class="mt-4 space-y-6">
             {d.instructions.map((s, i) => {
               const duration = extractInstructionDuration(s.text);
               return (
-                <li id={`step-${i + 1}`} class="step-row flex gap-4">
-                  <span class="step-num" aria-hidden="true">{i + 1}</span>
+                <li id={`step-${i + 1}`} class="step-row flex gap-4 sm:gap-5 pb-5 border-b border-line/30 last:border-b-0">
+                  <span class="step-num shrink-0 size-9 sm:size-10 rounded-full bg-forest text-cream font-display font-bold text-base sm:text-lg grid place-content-center shadow-xs" aria-hidden="true">{i + 1}</span>
                   <div class="flex-1">
-                    {s.title && <p class="font-display text-lg font-semibold text-forest"><span class="sr-only">Step {i + 1}: </span>{s.title}</p>}
-                    <p class="mt-1 text-ink">{s.text}</p>
+                    {s.title && <p class="font-display text-lg sm:text-xl font-bold text-forest"><span class="sr-only">Step {i + 1}: </span>{s.title}</p>}
+                    <p class="mt-1 text-sm sm:text-base text-ink leading-relaxed font-sans">{s.text}</p>
                     {duration && (
                       <div class="mt-3 flex flex-wrap items-center gap-2.5" data-noprint>
                         <button
@@ -341,6 +415,18 @@ const allergenNames: Record<string, string> = {
               );
             })}
           </ol>
+
+          <!-- Start Cooking Callout -->
+          <div class="mt-8 rounded-2xl border border-forest/20 bg-forest/5 p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4" data-noprint>
+            <div class="text-center sm:text-left">
+              <p class="font-display text-base sm:text-lg font-bold text-forest">Cook hands-free with Cooking Mode</p>
+              <p class="text-xs sm:text-sm text-ink-soft">Large readable steps, kitchen timers, and ingredient drawer right by your slow cooker.</p>
+            </div>
+            <button type="button" class="btn btn-primary btn-small shrink-0" data-start-cooking>
+              <ChefHat size={16} aria-hidden="true" />
+              <span>Start Cooking</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -858,28 +944,38 @@ const allergenNames: Record<string, string> = {
         <div class="cooking-progress-track">
           <div id="cookingProgressBar" class="cooking-progress-bar" style="width: 25%;"></div>
         </div>
-        <div class="flex items-center justify-between gap-4">
-          <div class="flex items-center gap-3">
-            <span class="rounded-full bg-forest-soft px-3 py-1 text-xs font-bold text-cream" id="cookingStepBadge">Step 1 of 4</span>
-            <span class="text-xs text-cream/70 hidden sm:inline">{d.title}</span>
+        <div class="flex items-center justify-between gap-2 sm:gap-4">
+          <div class="flex items-center gap-2 sm:gap-3">
+            <span class="rounded-full bg-terracotta px-3 py-1 text-xs font-bold text-white shadow-xs" id="cookingStepBadge">Step 1 of 4</span>
+            <span class="text-xs text-cream/70 hidden md:inline max-w-xs truncate">{d.title}</span>
           </div>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-1.5 sm:gap-2">
             <button
               type="button"
               id="restartCookingBtn"
-              class="btn btn-outline btn-small"
-              style="color: #fff; border-color: rgba(255,255,255,0.3);"
+              class="btn btn-outline btn-small text-xs py-1 px-2.5 sm:px-3 text-white border-white/30 hover:bg-white/10"
               aria-label="Restart cooking from step 1"
             >
               <RotateCcw size={14} aria-hidden="true" />
               <span class="hidden sm:inline">Restart</span>
             </button>
-            <button type="button" id="toggleCookingIngredientsBtn" class="btn btn-outline btn-small" style="color: #fff; border-color: rgba(255,255,255,0.3);" aria-expanded="false">
-              <ListOrdered size={16} aria-hidden="true" />
+            <button
+              type="button"
+              id="toggleCookingIngredientsBtn"
+              class="btn btn-outline btn-small text-xs py-1 px-2.5 sm:px-3 text-white border-white/30 hover:bg-white/10"
+              aria-expanded="false"
+            >
+              <ListOrdered size={15} aria-hidden="true" />
               <span id="ingredientsBtnLabel">Ingredients</span>
             </button>
-            <button type="button" id="exitCookingModeBtn" class="btn btn-small btn-outline" style="color: #fff; border-color: rgba(255,255,255,0.3);" aria-label="Exit Cooking Mode">
-              <X size={16} aria-hidden="true" /> Exit
+            <button
+              type="button"
+              id="exitCookingModeBtn"
+              class="btn btn-small btn-outline text-xs py-1 px-2.5 sm:px-3 text-white border-white/30 hover:bg-white/10"
+              aria-label="Exit Cooking Mode"
+            >
+              <X size={15} aria-hidden="true" />
+              <span>Exit</span>
             </button>
           </div>
         </div>
@@ -892,26 +988,26 @@ const allergenNames: Record<string, string> = {
 
           <!-- Step timer embedded directly in Cooking Mode -->
           <div id="cookingModeTimerArea" class="mt-8 flex flex-wrap items-center gap-4" hidden>
-            <div class="flex items-center gap-2.5 rounded-2xl bg-forest-soft/60 px-4 py-2 border border-white/10">
+            <div class="flex items-center gap-2.5 rounded-2xl bg-forest-soft/80 px-4 py-2 border border-white/15 shadow-inner">
               <Timer size={22} class="text-terracotta" aria-hidden="true" />
-              <span id="cookingModeTimerCountdown" class="font-mono text-2xl font-bold tracking-wider text-cream">00:00</span>
+              <span id="cookingModeTimerCountdown" class="font-mono text-2xl sm:text-3xl font-bold tracking-wider text-cream">00:00</span>
             </div>
-            <button type="button" id="cookingModeTimerBtn" class="btn btn-primary btn-small">Start Timer</button>
-            <button type="button" id="cookingModeTimerResetBtn" class="btn btn-outline btn-small" style="color: #fff; border-color: rgba(255,255,255,0.3);" hidden>Reset</button>
+            <button type="button" id="cookingModeTimerBtn" class="btn btn-primary min-h-[48px] px-5 text-sm font-bold">Start Timer</button>
+            <button type="button" id="cookingModeTimerResetBtn" class="btn btn-outline min-h-[48px] px-4 text-sm font-bold text-white border-white/30 hover:bg-white/10" hidden>Reset</button>
           </div>
         </div>
 
         <!-- Ingredients Side-Drawer inside Cooking Mode -->
         <aside id="cookingDrawer" class="cooking-drawer" hidden aria-label="Ingredients Reference">
-          <div class="flex items-center justify-between border-b border-white/10 pb-3">
-            <h4 class="font-display text-lg font-bold text-cream">Ingredients</h4>
-            <button type="button" id="closeDrawerBtn" class="text-cream/70 hover:text-white" aria-label="Close drawer"><X size={18} /></button>
+          <div class="flex items-center justify-between border-b border-white/15 pb-3">
+            <h4 class="font-display text-lg font-bold text-cream">Ingredients Checklist</h4>
+            <button type="button" id="closeDrawerBtn" class="flex size-8 items-center justify-center rounded-lg text-cream/70 hover:text-white hover:bg-white/10 cursor-pointer" aria-label="Close drawer"><X size={18} /></button>
           </div>
           <p class="mt-2 text-xs text-cream/70">Scaled for <span data-servings-out>{d.servings}</span> servings</p>
           <ul class="mt-4 space-y-2.5 text-sm" id="cookingDrawerIngredients">
             {d.ingredients.map((ing, idx) => (
               <li class="flex items-start gap-2.5 border-b border-white/10 pb-2">
-                <input type="checkbox" class="mt-1" data-drawer-check-idx={idx} />
+                <input type="checkbox" class="mt-1 size-4 rounded accent-forest cursor-pointer" data-drawer-check-idx={idx} />
                 <span>
                   <strong class="font-semibold text-cream" data-drawer-amount>{amountText(ing)}</strong>{' '}
                   <span data-drawer-name>{itemText(ing)}</span>{ing.note ? `, ${ing.note}` : ''}
@@ -923,18 +1019,114 @@ const allergenNames: Record<string, string> = {
       </div>
 
       <div class="cooking-mode-footer">
-        <button type="button" id="cookingPrevBtn" class="btn btn-outline" style="color: #fff; border-color: rgba(255,255,255,0.3);" disabled>
-          <ChevronLeft size={18} aria-hidden="true" /> Previous
+        <button
+          type="button"
+          id="cookingPrevBtn"
+          class="btn btn-outline flex-1 sm:flex-initial min-h-[50px] px-5 sm:px-6 text-sm sm:text-base font-bold text-white border-white/30 hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none"
+          disabled
+        >
+          <ChevronLeft size={18} aria-hidden="true" />
+          <span>Previous</span>
         </button>
         <div class="cooking-mode-hints text-xs text-cream/60 hidden sm:block">
-          Use <kbd class="kbd">←</kbd> <kbd class="kbd">→</kbd> arrows to navigate · <kbd class="kbd">Esc</kbd> to exit
+          Use <kbd class="kbd">←</kbd> <kbd class="kbd">→</kbd> arrows or swipe on mobile · <kbd class="kbd">Esc</kbd> to exit
         </div>
-        <button type="button" id="cookingNextBtn" class="btn btn-primary">
-          Next <ChevronRight size={18} aria-hidden="true" />
+        <button
+          type="button"
+          id="cookingNextBtn"
+          class="btn btn-primary flex-1 sm:flex-initial min-h-[50px] px-6 sm:px-8 text-sm sm:text-base font-bold bg-terracotta border-terracotta text-white hover:bg-terracotta-deep shadow-lg"
+        >
+          <span>Next</span>
+          <ChevronRight size={18} aria-hidden="true" />
         </button>
       </div>
     </div>
   </div>
+
+  <!-- Gallery Lightbox Modal -->
+  {hasGallery && (
+    <div
+      id="galleryLightbox"
+      class="fixed inset-0 z-50 flex flex-col justify-between bg-forest-deep/95 p-4 sm:p-6 backdrop-blur-md transition-opacity"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-label="Recipe Photo Gallery"
+      data-noprint
+    >
+      <!-- Lightbox Header -->
+      <div class="flex items-center justify-between border-b border-white/10 pb-3">
+        <div class="flex items-center gap-3">
+          <span id="lightboxCounter" class="rounded-full bg-forest-soft px-3 py-1 text-xs font-bold text-cream">Photo 1 of {allPhotos.length}</span>
+          <span class="hidden text-xs text-cream/70 sm:inline truncate max-w-sm">{d.title}</span>
+        </div>
+        <button
+          type="button"
+          id="lightboxCloseBtn"
+          class="flex size-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 focus:outline-hidden cursor-pointer"
+          aria-label="Close photo gallery"
+        >
+          <X size={20} aria-hidden="true" />
+        </button>
+      </div>
+
+      <!-- Lightbox Center Image & Caption -->
+      <div class="relative flex flex-1 items-center justify-center overflow-hidden py-4">
+        <button
+          type="button"
+          id="lightboxPrevBtn"
+          class="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-10 flex size-12 items-center justify-center rounded-full bg-forest-deep/80 text-cream border border-white/20 backdrop-blur-xs transition hover:bg-forest focus:outline-hidden disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+          aria-label="Previous photo"
+        >
+          <ChevronLeft size={24} aria-hidden="true" />
+        </button>
+
+        <div class="flex max-h-[75vh] max-w-4xl flex-col items-center justify-center">
+          <img
+            id="lightboxImage"
+            src={getOptimizedCloudinaryUrl(allPhotos[0].url, 1200)}
+            alt={allPhotos[0].alt}
+            width={1200}
+            height={900}
+            class="max-h-[65vh] max-w-full rounded-2xl object-contain shadow-2xl transition-all duration-300"
+          />
+          <p id="lightboxCaption" class="mt-4 text-center text-xs sm:text-sm font-medium text-cream/90 max-w-2xl px-4 line-clamp-2">
+            {allPhotos[0].alt}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          id="lightboxNextBtn"
+          class="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-10 flex size-12 items-center justify-center rounded-full bg-forest-deep/80 text-cream border border-white/20 backdrop-blur-xs transition hover:bg-forest focus:outline-hidden disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+          aria-label="Next photo"
+        >
+          <ChevronRight size={24} aria-hidden="true" />
+        </button>
+      </div>
+
+      <!-- Lightbox Thumbnails Strip -->
+      <div class="flex items-center justify-center gap-2 overflow-x-auto py-2" id="lightboxThumbnails">
+        {allPhotos.map((img, idx) => (
+          <button
+            type="button"
+            class={`size-14 shrink-0 overflow-hidden rounded-lg border-2 transition hover:opacity-100 focus:outline-hidden cursor-pointer ${idx === 0 ? 'border-terracotta opacity-100' : 'border-transparent opacity-60'}`}
+            data-lightbox-thumb={idx}
+            aria-label={`Jump to photo ${idx + 1}`}
+          >
+            <img
+              src={getOptimizedCloudinaryUrl(img.url, 120)}
+              alt=""
+              width={120}
+              height={90}
+              class="size-full object-cover"
+              loading="lazy"
+            />
+          </button>
+        ))}
+      </div>
+    </div>
+  )}
 
   <!-- Mobile Sticky Cooking Action Bar -->
   <aside
@@ -1642,6 +1834,142 @@ const allergenNames: Record<string, string> = {
       }
     }
   });
+
+  // Touch swipe in Cooking Mode for one-handed mobile navigation
+  let cookingTouchStartX = 0;
+  let cookingTouchStartY = 0;
+  cookingModal?.addEventListener('touchstart', (e) => {
+    if (!e.changedTouches || !e.changedTouches[0]) return;
+    cookingTouchStartX = e.changedTouches[0].clientX;
+    cookingTouchStartY = e.changedTouches[0].clientY;
+  }, { passive: true });
+
+  cookingModal?.addEventListener('touchend', (e) => {
+    if (!e.changedTouches || !e.changedTouches[0]) return;
+    const deltaX = e.changedTouches[0].clientX - cookingTouchStartX;
+    const deltaY = e.changedTouches[0].clientY - cookingTouchStartY;
+    if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
+      const steps = getStepsData();
+      if (deltaX < 0 && currentStepIdx < steps.length - 1) {
+        currentStepIdx += 1;
+        writeCookingStep(currentStepIdx);
+        updateCookingModeView();
+      } else if (deltaX > 0 && currentStepIdx > 0) {
+        currentStepIdx -= 1;
+        writeCookingStep(currentStepIdx);
+        updateCookingModeView();
+      }
+    }
+  }, { passive: true });
+  })();
+
+  // --- Feature: Recipe Photo Gallery Lightbox ---
+  (() => {
+    const lightbox = document.getElementById('galleryLightbox');
+    if (!lightbox) return;
+
+    const imgEl = document.getElementById('lightboxImage') as HTMLImageElement | null;
+    const captionEl = document.getElementById('lightboxCaption');
+    const counterEl = document.getElementById('lightboxCounter');
+    const prevBtn = document.getElementById('lightboxPrevBtn') as HTMLButtonElement | null;
+    const nextBtn = document.getElementById('lightboxNextBtn') as HTMLButtonElement | null;
+    const closeBtn = document.getElementById('lightboxCloseBtn');
+    const thumbs = document.querySelectorAll<HTMLButtonElement>('[data-lightbox-thumb]');
+    const openButtons = document.querySelectorAll<HTMLElement>('[data-gallery-open]');
+
+    const photos = Array.from(openButtons).map((btn) => ({
+      url: btn.dataset.galleryUrl || '',
+      alt: btn.dataset.galleryAlt || '',
+    })).filter((p) => Boolean(p.url));
+
+    let currentPhotoIdx = 0;
+
+    function renderPhoto(idx: number) {
+      if (idx < 0 || idx >= photos.length) return;
+      currentPhotoIdx = idx;
+      const photo = photos[idx];
+      if (imgEl) {
+        imgEl.src = photo.url;
+        imgEl.alt = photo.alt;
+      }
+      if (captionEl) captionEl.textContent = photo.alt;
+      if (counterEl) counterEl.textContent = `Photo ${idx + 1} of ${photos.length}`;
+      if (prevBtn) prevBtn.disabled = idx === 0;
+      if (nextBtn) nextBtn.disabled = idx === photos.length - 1;
+
+      thumbs.forEach((t, i) => {
+        if (i === idx) {
+          t.classList.add('border-terracotta', 'opacity-100');
+          t.classList.remove('border-transparent', 'opacity-60');
+        } else {
+          t.classList.remove('border-terracotta', 'opacity-100');
+          t.classList.add('border-transparent', 'opacity-60');
+        }
+      });
+    }
+
+    function openLightbox(startIdx = 0) {
+      if (!lightbox) return;
+      lightbox.hidden = false;
+      document.body.style.overflow = 'hidden';
+      renderPhoto(startIdx);
+    }
+
+    function closeLightbox() {
+      if (!lightbox) return;
+      lightbox.hidden = true;
+      document.body.style.overflow = '';
+    }
+
+    openButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = Number(btn.dataset.galleryOpen || '0');
+        openLightbox(idx);
+      });
+    });
+
+    closeBtn?.addEventListener('click', closeLightbox);
+
+    prevBtn?.addEventListener('click', () => {
+      if (currentPhotoIdx > 0) renderPhoto(currentPhotoIdx - 1);
+    });
+
+    nextBtn?.addEventListener('click', () => {
+      if (currentPhotoIdx < photos.length - 1) renderPhoto(currentPhotoIdx + 1);
+    });
+
+    thumbs.forEach((btn, idx) => {
+      btn.addEventListener('click', () => renderPhoto(idx));
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (lightbox.hidden) return;
+      if (e.key === 'Escape') closeLightbox();
+      else if (e.key === 'ArrowLeft' && currentPhotoIdx > 0) renderPhoto(currentPhotoIdx - 1);
+      else if (e.key === 'ArrowRight' && currentPhotoIdx < photos.length - 1) renderPhoto(currentPhotoIdx + 1);
+    });
+
+    // Touch swipe support for lightbox
+    let touchStartX = 0;
+    let touchStartY = 0;
+    lightbox.addEventListener('touchstart', (e) => {
+      if (!e.changedTouches || !e.changedTouches[0]) return;
+      touchStartX = e.changedTouches[0].clientX;
+      touchStartY = e.changedTouches[0].clientY;
+    }, { passive: true });
+
+    lightbox.addEventListener('touchend', (e) => {
+      if (!e.changedTouches || !e.changedTouches[0]) return;
+      const deltaX = e.changedTouches[0].clientX - touchStartX;
+      const deltaY = e.changedTouches[0].clientY - touchStartY;
+      if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
+        if (deltaX < 0 && currentPhotoIdx < photos.length - 1) {
+          renderPhoto(currentPhotoIdx + 1);
+        } else if (deltaX > 0 && currentPhotoIdx > 0) {
+          renderPhoto(currentPhotoIdx - 1);
+        }
+      }
+    }, { passive: true });
   })();
 
   (() => {

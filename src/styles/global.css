@@ -126,18 +126,20 @@
   }
 
   /* Ingredient checklist */
-  .check-row { display: flex; gap: .75rem; align-items: flex-start; padding: .55rem 0; border-bottom: 1px solid var(--color-line); cursor: pointer; }
-  .check-row input { appearance: none; flex: none; width: 1.35rem; height: 1.35rem; margin-top: .2rem; border: 2px solid var(--color-forest-soft);
+  .check-row { display: flex; gap: .85rem; align-items: center; min-height: 44px; padding: .45rem .5rem; border-bottom: 1px solid var(--color-line); border-radius: .5rem; cursor: pointer; transition: background-color .15s ease; }
+  .check-row:hover { background-color: rgba(237, 227, 204, 0.35); }
+  .check-row input { appearance: none; flex: none; width: 1.35rem; height: 1.35rem; border: 2px solid var(--color-forest-soft);
     border-radius: .4rem; background: var(--color-paper); display: grid; place-content: center; cursor: pointer; }
   .check-row input::after { content: ""; width: .65rem; height: .35rem; border-left: 3px solid var(--color-cream); border-bottom: 3px solid var(--color-cream);
     transform: rotate(-45deg) translate(1px,-1px); opacity: 0; }
   .check-row input:checked { background: var(--color-forest); border-color: var(--color-forest); }
   .check-row input:checked::after { opacity: 1; }
-  .check-row input:checked ~ span { color: var(--color-ink-soft); text-decoration: line-through; text-decoration-thickness: 1px; }
+  .check-row input:checked ~ span { color: var(--color-ink-soft); opacity: 0.6; text-decoration: line-through; text-decoration-thickness: 1.5px; text-decoration-color: var(--color-line); }
 
   .step-num {
-    flex: none; width: 2.2rem; height: 2.2rem; border-radius: 999px; display: grid; place-content: center;
-    background: var(--color-forest); color: var(--color-cream); font-family: var(--font-display); font-weight: 650;
+    flex: none; width: 2.4rem; height: 2.4rem; border-radius: 999px; display: grid; place-content: center;
+    background: var(--color-forest); color: var(--color-cream); font-family: var(--font-display); font-weight: 700; font-size: 1.1rem;
+    box-shadow: 0 2px 5px rgba(36, 58, 45, 0.2);
   }
 
   /* Ads are separated, labelled and never shown without a valid config */
@@ -254,7 +256,8 @@
   max-width: 58rem;
   margin: 0 auto;
   width: 100%;
-  padding: 1.25rem 1.5rem;
+  padding: 1.25rem 1.25rem;
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
 }
 .cooking-mode-header {
   margin-bottom: 0.5rem;
@@ -295,14 +298,14 @@
 .cooking-step-desc {
   font-size: clamp(1.15rem, 2vw, 1.45rem);
   line-height: 1.7;
-  color: rgba(255, 255, 255, 0.92);
+  color: rgba(255, 255, 255, 0.95);
   max-width: 46rem;
 }
 .cooking-mode-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 1.25rem;
+  padding-top: 1rem;
   border-top: 1px solid rgba(255, 255, 255, 0.12);
   gap: 1rem;
 }
@@ -319,7 +322,13 @@
   padding: 1.25rem;
   overflow-y: auto;
   box-shadow: -8px 0 24px rgba(0, 0, 0, 0.4);
-  z-index: 10;
+  z-index: 20;
+}
+@media (max-width: 640px) {
+  .cooking-drawer {
+    max-width: 100%;
+    border-radius: 0;
+  }
 }
 .kbd {
   display: inline-block;

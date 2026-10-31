@@ -260,6 +260,33 @@ ok(Boolean(d.getElementById('allergen-heading')), 'Feature 8: Allergen heading i
 ok(!allergenEl?.textContent.includes('FDA'), 'Phase 3: Allergen panel does not reference FDA or imply regulatory endorsement');
 ok(allergenEl?.textContent.includes('major food allergen'), 'Phase 3: Allergen panel accurately uses "major food allergen" phrasing');
 
+// Phase 3 Sprint 2: Gallery & Single-Image Handling
+const singleImageGalleryHeading = d.getElementById('gallery-heading');
+ok(singleImageGalleryHeading === null, 'Phase 3 Sprint 2: Single-image recipe gracefully omits empty gallery section');
+
+const gallerySlug = 'sri-lankan-pol-sambol-traditional-coconut-sambol';
+if (fs.existsSync(`${DIST_ROOT}/recipe/${gallerySlug}/index.html`)) {
+  const domGal = load(`dist/recipe/${gallerySlug}/index.html`, `https://crockbites.site/recipe/${gallerySlug}/`);
+  const dGal = domGal.window.document;
+  const galHeading = dGal.getElementById('gallery-heading');
+  ok(Boolean(galHeading), 'Phase 3 Sprint 2: Multi-image recipe renders Recipe Gallery section');
+  const galBtns = dGal.querySelectorAll('[data-gallery-open]');
+  ok(galBtns.length >= 2, `Phase 3 Sprint 2: Gallery interactive image buttons exist (found ${galBtns.length})`);
+  const galLightbox = dGal.getElementById('galleryLightbox');
+  ok(Boolean(galLightbox), 'Phase 3 Sprint 2: Accessible gallery lightbox modal exists');
+
+  if (galBtns.length > 0 && galLightbox) {
+    const photo2Btn = dGal.querySelector('[data-gallery-open="1"]');
+    photo2Btn?.click();
+    ok(galLightbox.hidden === false, 'Phase 3 Sprint 2: Clicking thumbnail opens gallery lightbox');
+    const counterEl = dGal.getElementById('lightboxCounter');
+    ok(counterEl?.textContent.includes('Photo 2 of'), `Phase 3 Sprint 2: Lightbox photo counter updated: "${counterEl?.textContent}"`);
+    const closeBtn = dGal.getElementById('lightboxCloseBtn');
+    closeBtn?.click();
+    ok(galLightbox.hidden === true, 'Phase 3 Sprint 2: Clicking close button closes gallery lightbox');
+  }
+}
+
 // Phase 3: Community Features on Recipe Page & Header
 const headerAccountLink = d.querySelector('[data-header-account-link]');
 ok(Boolean(headerAccountLink), 'Phase 3: Header account / sign-in link exists');
