@@ -5,7 +5,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import RecipeCard from '../components/RecipeCard.astro';
 import CategoryIcon from '../components/CategoryIcon.astro';
 import AdSlot from '../components/AdSlot.astro';
-import hero from '../assets/hero.jpg';
+import hero from '../assets/hero.png';
 import { getAllRecipes, popularRecipes, recipesForCategory, recipeSlug, recipeUrl, totalMinutes } from '../utils/recipes';
 import { categories, hubs } from '../data/categories';
 import { formatMinutes } from '../utils/time';
@@ -89,28 +89,29 @@ const tips = [
         </div>
       </div>
 
-      <!-- Hero Photography Arch -->
-      <div class="relative mx-auto w-full max-w-[26rem] pt-12 lg:ml-auto lg:mr-0">
-        <svg class="steam absolute left-1/2 top-0 h-14 w-20 -translate-x-1/2 text-terracotta-deep opacity-80" viewBox="0 0 96 64" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" aria-hidden="true">
+      <!-- Hero Photography -->
+      <div class="relative mx-auto w-full max-w-[34rem] pt-6 lg:ml-auto lg:mr-0 flex flex-col items-center">
+        <!-- Steam SVG wafting above the slow cooker -->
+        <svg class="steam absolute left-1/2 -top-4 h-14 w-20 -translate-x-1/2 text-terracotta-deep opacity-80 pointer-events-none z-10" viewBox="0 0 96 64" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" aria-hidden="true">
           <path d="M26 58q-9-8 0-16t0-16" /><path d="M48 58q-9-8 0-16t0-16t0-16" /><path d="M70 58q-9-8 0-16t0-16" />
         </svg>
-        <div class="relative overflow-hidden rounded-t-[999px] rounded-b-[2.5rem] border-[6px] border-forest bg-forest shadow-[var(--shadow-card)]">
-          <Image
-            src={hero}
-            alt="Warm, savory slow-cooked beef stew simmering with tender potatoes, carrots, and garden herbs in a ceramic slow cooker"
-            width={840}
-            height={1050}
-            {...rw(hero, [420, 640, 840])}
-            sizes="(min-width: 1024px) 26rem, 90vw"
-            loading="eager"
-            fetchpriority="high"
-            decoding="async"
-            class="aspect-[4/5] w-full object-cover transition-transform duration-700 hover:scale-103"
-          />
-        </div>
+
+        <Image
+          src={hero}
+          alt="Savory slow-cooked beef curry simmering with authentic spices and aromatics in a slow cooker"
+          width={1312}
+          height={1199}
+          {...rw(hero, [480, 720, 1024, 1312])}
+          sizes="(min-width: 1024px) 34rem, 90vw"
+          loading="eager"
+          fetchpriority="high"
+          decoding="async"
+          class="w-full h-auto max-h-[500px] object-contain drop-shadow-xl transition-transform duration-700 hover:scale-102"
+        />
+
         <div class="mt-3 text-center">
           <span class="text-xs font-semibold text-ink-soft italic">
-            Slow-cooked beef stew with fresh aromatics &amp; garden vegetables
+            Slow-cooked beef curry simmering with authentic aromatics &amp; spices
           </span>
         </div>
       </div>
