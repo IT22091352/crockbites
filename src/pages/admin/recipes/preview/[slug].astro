@@ -17,6 +17,7 @@ import {
   relatedRecipes,
 } from '../../../../utils/recipes';
 import { breadcrumbSchema, recipeSchema } from '../../../../utils/jsonld';
+import { ArrowLeft, FilePenLine, Clock, CircleCheck } from '@lucide/astro';
 
 const adminCookie = Astro.cookies.get(ADMIN_COOKIE_NAME)?.value ?? '';
 const session = parseAdminSessionCookie(adminCookie);
@@ -84,36 +85,39 @@ const isDraft = d.reviewStatus === 'draft';
 >
   <!-- Admin Preview Notification Bar -->
   <aside
-    style="background: #243A2D; color: #fff; padding: 0.85rem 1.5rem; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-bottom: 2px solid #C66A45;"
+    class="bg-forest text-cream px-6 py-3.5 flex flex-wrap justify-between items-center gap-4 sticky top-0 z-50 shadow-md border-b-2 border-terracotta"
     aria-label="Admin Preview Mode"
   >
-    <div style="display: flex; align-items: center; gap: 0.85rem; font-size: 0.95rem;">
+    <div class="flex items-center gap-3 text-sm">
       <span
-        style={`background: ${isDraft ? '#C66A45' : '#2e7d32'}; color: #fff; font-size: 0.75rem; font-weight: 800; padding: 4px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.05em;`}
+        class={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider text-white ${
+          isDraft ? 'bg-amber-600' : 'bg-emerald-600'
+        }`}
       >
-        {isDraft ? 'Draft Preview' : 'Published'}
+        {isDraft ? <Clock size={14} aria-hidden="true" /> : <CircleCheck size={14} aria-hidden="true" />}
+        <span>{isDraft ? 'Unpublished Draft' : 'Published'}</span>
       </span>
-      <span>
-        {isDraft ? (
-          <><strong>Draft Mode:</strong> This recipe is currently hidden from public visitors.</>
-        ) : (
-          <><strong>Live Recipe:</strong> This recipe is currently live on the public website.</>
-        )}
+      <span class="text-cream/90 font-medium">
+        {isDraft
+          ? 'Draft Preview — Hidden from public visitors and search engines.'
+          : 'Live Recipe — Visible to public visitors.'}
       </span>
     </div>
 
-    <div style="display: flex; align-items: center; gap: 0.65rem;">
+    <div class="flex items-center gap-2.5">
       <a
         href={`/admin/recipes/${recipe.id.replace(/\.md$/, '')}/`}
-        style="background: rgba(255,255,255,0.15); color: #fff; text-decoration: none; padding: 0.45rem 0.95rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; transition: background 0.15s;"
+        class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white/15 text-white hover:bg-white/25 text-xs font-bold transition shadow-xs"
       >
-        ✏️ Edit Recipe
+        <FilePenLine size={14} aria-hidden="true" />
+        <span>Edit Recipe</span>
       </a>
       <a
-        href="/admin/recipes/"
-        style="background: #C66A45; color: #fff; text-decoration: none; padding: 0.45rem 0.95rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; transition: background 0.15s;"
+        href="/admin/"
+        class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-terracotta text-white hover:bg-terracotta-deep text-xs font-bold transition shadow-xs"
       >
-        ← Back to Admin
+        <ArrowLeft size={14} aria-hidden="true" />
+        <span>Back to Admin</span>
       </a>
     </div>
   </aside>

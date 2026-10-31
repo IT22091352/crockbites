@@ -70,7 +70,7 @@ const activeNav = statusParam === 'draft' ? 'drafts' : 'recipes';
 
 <AdminLayout
   title={statusParam === 'draft' ? 'Draft Recipes' : 'Recipe Management'}
-  subtitle="Organize, review, publish, and curate your editorial slow cooker recipe catalog."
+  subtitle="Search, filter, edit, and organize your slow cooker recipe catalog."
   activeNav={activeNav}
   breadcrumbs={[{ label: 'Recipes' }]}
 >
@@ -86,7 +86,7 @@ const activeNav = statusParam === 'draft' ? 'drafts' : 'recipes';
   </div>
 
   <div class="space-y-6">
-    <!-- Toolbar Card -->
+    <!-- Search & Filter Bar -->
     <div class="bg-paper rounded-2xl border border-line/70 p-5 shadow-xs space-y-4">
       <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
         <!-- Search Input -->
@@ -98,7 +98,7 @@ const activeNav = statusParam === 'draft' ? 'drafts' : 'recipes';
             id="searchInput"
             type="search"
             value={queryParam}
-            placeholder="Search recipes by title or keyword..."
+            placeholder="Search recipes by title..."
             aria-label="Search recipes"
             class="w-full pl-10 pr-4 py-2.5 text-sm bg-cream/50 border border-line rounded-xl focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-forest focus:border-forest transition"
           />
@@ -137,7 +137,7 @@ const activeNav = statusParam === 'draft' ? 'drafts' : 'recipes';
               class="px-4 py-2.5 text-sm bg-cream/50 border border-line rounded-xl focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-forest text-ink font-medium cursor-pointer transition"
             >
               <option value="all" selected={statusParam === 'all'}>All Status</option>
-              <option value="tested" selected={statusParam === 'tested'}>Published (Tested)</option>
+              <option value="tested" selected={statusParam === 'tested'}>Published</option>
               <option value="draft" selected={statusParam === 'draft'}>Draft</option>
             </select>
           </div>
@@ -155,7 +155,7 @@ const activeNav = statusParam === 'draft' ? 'drafts' : 'recipes';
         </div>
       </div>
 
-      <!-- Quick Metrics / Status Summary Row -->
+      <!-- Results Count -->
       <div class="flex items-center justify-between text-xs text-ink-soft pt-2 border-t border-line/40">
         <span id="resultsCount">Showing {recipesWithMeta.length} recipes</span>
         <div class="flex items-center gap-3">
@@ -172,64 +172,17 @@ const activeNav = statusParam === 'draft' ? 'drafts' : 'recipes';
       </div>
     </div>
 
-    <!-- Bulk Actions Floating/Sticky Bar -->
-    <div
-      id="bulkActionsBar"
-      class="hidden items-center justify-between gap-4 p-4 bg-forest text-cream rounded-2xl shadow-lg border border-forest-deep transition-all"
-    >
-      <div class="flex items-center gap-3">
-        <div class="flex size-7 items-center justify-center rounded-lg bg-white/10 text-cream font-bold text-xs">
-          <CircleCheck size={16} aria-hidden="true" />
-        </div>
-        <strong id="selectedCountText" class="text-sm font-semibold text-cream">0 recipes selected</strong>
-      </div>
-
-      <div class="flex flex-wrap items-center gap-2.5">
-        <button
-          type="button"
-          id="bulkPublishBtn"
-          class="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 transition shadow-xs cursor-pointer"
-        >
-          <CircleCheck size={14} aria-hidden="true" />
-          <span>Publish Selected</span>
-        </button>
-        <button
-          type="button"
-          id="bulkDraftBtn"
-          class="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg bg-amber-600 text-white hover:bg-amber-500 transition shadow-xs cursor-pointer"
-        >
-          <Clock size={14} aria-hidden="true" />
-          <span>Set as Draft</span>
-        </button>
-        <button
-          type="button"
-          id="bulkClearBtn"
-          class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg text-cream/70 hover:text-white hover:bg-white/10 transition cursor-pointer ml-2"
-        >
-          Clear selection
-        </button>
-      </div>
-    </div>
-
-    <!-- Desktop Table View (Hidden on Small Screens) -->
+    <!-- Desktop Table View -->
     <div class="hidden lg:block bg-paper rounded-2xl border border-line/70 shadow-xs overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse">
           <thead>
             <tr class="border-b border-line/60 bg-cream/40 text-[11px] font-bold uppercase tracking-wider text-ink-soft">
-              <th scope="col" class="w-12 px-5 py-3.5 text-center">
-                <input
-                  type="checkbox"
-                  id="selectAllCheckbox"
-                  aria-label="Select all recipes"
-                  class="size-4 rounded-sm border-line text-forest focus:ring-forest cursor-pointer"
-                />
-              </th>
-              <th scope="col" class="px-4 py-3.5">Recipe</th>
+              <th scope="col" class="px-6 py-3.5">Recipe</th>
               <th scope="col" class="px-4 py-3.5">Category</th>
               <th scope="col" class="px-4 py-3.5">Status</th>
               <th scope="col" class="px-4 py-3.5">Last Updated</th>
-              <th scope="col" class="px-5 py-3.5 text-right">Actions</th>
+              <th scope="col" class="px-6 py-3.5 text-right">Actions</th>
             </tr>
           </thead>
           <tbody id="recipeTableBody" class="divide-y divide-line/40">
@@ -241,23 +194,13 @@ const activeNav = statusParam === 'draft' ? 'drafts' : 'recipes';
                 data-status={recipe.data.reviewStatus}
                 class="hover:bg-cream/30 transition-colors group"
               >
-                <!-- Selection Checkbox -->
-                <td class="px-5 py-3.5 text-center">
-                  <input
-                    type="checkbox"
-                    class="recipe-select-checkbox size-4 rounded-sm border-line text-forest focus:ring-forest cursor-pointer"
-                    data-slug={recipe.slug}
-                    aria-label={`Select ${recipe.data.title}`}
-                  />
-                </td>
-
                 <!-- Recipe Thumbnail & Title -->
-                <td class="px-4 py-3.5">
+                <td class="px-6 py-3.5">
                   <div class="flex items-center gap-3.5">
                     <img
                       src={recipe.thumbUrl}
                       alt=""
-                      class="size-13 rounded-xl object-cover bg-cream border border-line/70 shrink-0"
+                      class="size-12 rounded-xl object-cover bg-cream border border-line/70 shrink-0"
                       loading="lazy"
                     />
                     <div class="min-w-0 max-w-md">
@@ -302,14 +245,14 @@ const activeNav = statusParam === 'draft' ? 'drafts' : 'recipes';
                 </td>
 
                 <!-- Actions -->
-                <td class="px-5 py-3.5 text-right">
+                <td class="px-6 py-3.5 text-right">
                   <div class="flex items-center justify-end gap-1.5">
                     <!-- View / Preview Link -->
                     <a
                       href={recipe.data.reviewStatus === 'tested' ? `/recipe/${recipe.slug}/` : `/admin/recipes/preview/${recipe.slug}/`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      class="view-link p-2 rounded-lg text-ink-soft hover:text-forest hover:bg-cream transition"
+                      class="p-2 rounded-lg text-ink-soft hover:text-forest hover:bg-cream transition"
                       title={recipe.data.reviewStatus === 'tested' ? 'View live recipe' : 'Preview draft recipe'}
                       aria-label={recipe.data.reviewStatus === 'tested' ? 'View live recipe' : 'Preview draft recipe'}
                     >
@@ -326,32 +269,7 @@ const activeNav = statusParam === 'draft' ? 'drafts' : 'recipes';
                       <FilePenLine size={16} aria-hidden="true" />
                     </a>
 
-                    <!-- Single Status Quick Action -->
-                    {recipe.data.reviewStatus === 'tested' ? (
-                      <button
-                        type="button"
-                        data-single-status="draft"
-                        data-slug={recipe.slug}
-                        class="single-status-btn p-2 rounded-lg text-amber-700 hover:text-amber-900 hover:bg-amber-50 transition cursor-pointer"
-                        title="Unpublish (set to draft)"
-                        aria-label="Set to draft"
-                      >
-                        <Clock size={16} aria-hidden="true" />
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        data-single-status="tested"
-                        data-slug={recipe.slug}
-                        class="single-status-btn p-2 rounded-lg text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50 transition cursor-pointer"
-                        title="Publish recipe"
-                        aria-label="Publish recipe"
-                      >
-                        <CircleCheck size={16} aria-hidden="true" />
-                      </button>
-                    )}
-
-                    <!-- Delete Button -->
+                    <!-- Delete Button with Confirmation -->
                     <button
                       type="button"
                       data-delete={recipe.slug}
@@ -370,7 +288,7 @@ const activeNav = statusParam === 'draft' ? 'drafts' : 'recipes';
       </div>
     </div>
 
-    <!-- Mobile Card View (Visible on < lg Screens) -->
+    <!-- Mobile Card View -->
     <div id="recipeCardsContainer" class="lg:hidden space-y-4">
       {recipesWithMeta.map((recipe) => (
         <article
@@ -381,14 +299,6 @@ const activeNav = statusParam === 'draft' ? 'drafts' : 'recipes';
           class="recipe-mobile-card bg-paper rounded-2xl border border-line/70 p-4 shadow-xs space-y-3"
         >
           <div class="flex items-start gap-3.5">
-            <!-- Mobile Select Checkbox -->
-            <input
-              type="checkbox"
-              class="recipe-select-checkbox size-4 mt-1 rounded-sm border-line text-forest focus:ring-forest cursor-pointer shrink-0"
-              data-slug={recipe.slug}
-              aria-label={`Select ${recipe.data.title}`}
-            />
-
             <!-- Thumbnail -->
             <img
               src={recipe.thumbUrl}
@@ -434,7 +344,7 @@ const activeNav = statusParam === 'draft' ? 'drafts' : 'recipes';
                 href={recipe.data.reviewStatus === 'tested' ? `/recipe/${recipe.slug}/` : `/admin/recipes/preview/${recipe.slug}/`}
                 target="_blank"
                 rel="noopener noreferrer"
-                class="view-link inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-forest bg-cream hover:bg-cream/70 border border-line/60"
+                class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-forest bg-cream hover:bg-cream/70 border border-line/60"
               >
                 <span>{recipe.data.reviewStatus === 'tested' ? 'View' : 'Preview'}</span>
                 <ArrowUpRight size={12} aria-hidden="true" />
@@ -473,7 +383,7 @@ const activeNav = statusParam === 'draft' ? 'drafts' : 'recipes';
       </div>
       <h2 class="font-display font-bold text-lg text-forest">No recipes found</h2>
       <p class="text-sm text-ink-soft mt-1.5 max-w-sm mx-auto">
-        No recipes match your current search criteria or active filters. Try broadening your terms or reset the filters.
+        No recipes match your search criteria. Try a different title or reset your filters.
       </p>
       <button
         type="button"
@@ -494,12 +404,6 @@ const activeNav = statusParam === 'draft' ? 'drafts' : 'recipes';
   const categoryFilter = document.getElementById('categoryFilter') as HTMLSelectElement | null;
   const statusFilter = document.getElementById('statusFilter') as HTMLSelectElement | null;
   const emptyState = document.getElementById('emptyState') as HTMLDivElement | null;
-  const selectAllCheckbox = document.getElementById('selectAllCheckbox') as HTMLInputElement | null;
-  const bulkActionsBar = document.getElementById('bulkActionsBar') as HTMLDivElement | null;
-  const selectedCountText = document.getElementById('selectedCountText') as HTMLElement | null;
-  const bulkPublishBtn = document.getElementById('bulkPublishBtn') as HTMLButtonElement | null;
-  const bulkDraftBtn = document.getElementById('bulkDraftBtn') as HTMLButtonElement | null;
-  const bulkClearBtn = document.getElementById('bulkClearBtn') as HTMLButtonElement | null;
   const clearFiltersBtn = document.getElementById('clearFiltersBtn') as HTMLButtonElement | null;
   const emptyResetBtn = document.getElementById('emptyResetBtn') as HTMLButtonElement | null;
   const resultsCount = document.getElementById('resultsCount') as HTMLElement | null;
@@ -510,7 +414,7 @@ const activeNav = statusParam === 'draft' ? 'drafts' : 'recipes';
     ?.split('=')[1] ?? '';
 
   if (!tableBody || !searchInput || !categoryFilter || !statusFilter || !emptyState) {
-    throw new Error('Admin recipe table elements are missing.');
+    throw new Error('Admin recipe elements are missing.');
   }
 
   const safeTableBody = tableBody;
@@ -518,38 +422,6 @@ const activeNav = statusParam === 'draft' ? 'drafts' : 'recipes';
   const safeCategoryFilter = categoryFilter;
   const safeStatusFilter = statusFilter;
   const safeEmptyState = emptyState;
-
-  function getSelectedSlugs(): string[] {
-    const checkedBoxes = Array.from(document.querySelectorAll<HTMLInputElement>('.recipe-select-checkbox:checked'));
-    const uniqueSlugs = new Set<string>();
-    checkedBoxes.forEach((cb) => {
-      const slug = cb.dataset.slug;
-      if (slug) uniqueSlugs.add(slug);
-    });
-    return Array.from(uniqueSlugs);
-  }
-
-  function updateBulkBar() {
-    const selected = getSelectedSlugs();
-    if (bulkActionsBar && selectedCountText) {
-      if (selected.length > 0) {
-        bulkActionsBar.classList.remove('hidden');
-        bulkActionsBar.classList.add('flex');
-        selectedCountText.textContent = `${selected.length} recipe${selected.length === 1 ? '' : 's'} selected`;
-      } else {
-        bulkActionsBar.classList.add('hidden');
-        bulkActionsBar.classList.remove('flex');
-      }
-    }
-    if (selectAllCheckbox) {
-      const visibleCheckboxes = Array.from(safeTableBody.querySelectorAll<HTMLInputElement>('tr:not([hidden]) .recipe-select-checkbox'));
-      if (visibleCheckboxes.length > 0) {
-        selectAllCheckbox.checked = visibleCheckboxes.every((cb) => cb.checked);
-      } else {
-        selectAllCheckbox.checked = false;
-      }
-    }
-  }
 
   function applyFilters() {
     const query = safeSearchInput.value.trim().toLowerCase();
@@ -585,7 +457,6 @@ const activeNav = statusParam === 'draft' ? 'drafts' : 'recipes';
     if (resultsCount) {
       resultsCount.textContent = `Showing ${visible} recipe${visible === 1 ? '' : 's'}`;
     }
-    updateBulkBar();
   }
 
   safeSearchInput.addEventListener('input', applyFilters);
@@ -602,152 +473,14 @@ const activeNav = statusParam === 'draft' ? 'drafts' : 'recipes';
   clearFiltersBtn?.addEventListener('click', resetFilters);
   emptyResetBtn?.addEventListener('click', resetFilters);
 
-  selectAllCheckbox?.addEventListener('change', () => {
-    const isChecked = selectAllCheckbox.checked;
-    const visibleCheckboxes = safeTableBody.querySelectorAll<HTMLInputElement>('tr:not([hidden]) .recipe-select-checkbox');
-    visibleCheckboxes.forEach((cb) => {
-      cb.checked = isChecked;
-      // Also sync matching mobile checkbox
-      const slug = cb.dataset.slug;
-      if (slug && cardsContainer) {
-        const mobileCb = cardsContainer.querySelector<HTMLInputElement>(`.recipe-select-checkbox[data-slug="${slug}"]`);
-        if (mobileCb) mobileCb.checked = isChecked;
-      }
-    });
-    updateBulkBar();
-  });
-
-  // Handle checkbox changes across table and mobile cards
-  document.addEventListener('change', (e) => {
-    const target = e.target as HTMLElement;
-    if (target.classList.contains('recipe-select-checkbox')) {
-      const input = target as HTMLInputElement;
-      const slug = input.dataset.slug;
-      if (slug) {
-        // Sync desktop and mobile checkboxes for the same slug
-        const matchingCheckboxes = document.querySelectorAll<HTMLInputElement>(`.recipe-select-checkbox[data-slug="${slug}"]`);
-        matchingCheckboxes.forEach((cb) => {
-          cb.checked = input.checked;
-        });
-      }
-      updateBulkBar();
-    }
-  });
-
-  bulkClearBtn?.addEventListener('click', () => {
-    document.querySelectorAll<HTMLInputElement>('.recipe-select-checkbox').forEach((cb) => {
-      cb.checked = false;
-    });
-    if (selectAllCheckbox) selectAllCheckbox.checked = false;
-    updateBulkBar();
-  });
-
-  async function applyBulkStatusChange(targetStatus: 'draft' | 'tested', targetSlugs?: string[]) {
-    const slugs = targetSlugs && targetSlugs.length > 0 ? targetSlugs : getSelectedSlugs();
-    if (slugs.length === 0) return;
-
-    const label = targetStatus === 'tested' ? 'Published' : 'Draft';
-    const confirmed = window.confirm(
-      `Are you sure you want to change the status of ${slugs.length} recipe(s) to "${label}"? This will commit updates directly to GitHub.`
-    );
-    if (!confirmed) return;
-
-    if (bulkPublishBtn) bulkPublishBtn.disabled = true;
-    if (bulkDraftBtn) bulkDraftBtn.disabled = true;
-    if (selectedCountText) selectedCountText.textContent = `Updating ${slugs.length} recipe(s)...`;
-
-    try {
-      const response = await fetch('/api/admin/recipes/bulk-status/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-csrf-token': csrfToken,
-        },
-        body: JSON.stringify({ slugs, status: targetStatus }),
-      });
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Bulk update failed.');
-      }
-
-      // Update UI for modified rows and cards
-      if (Array.isArray(data.updated)) {
-        data.updated.forEach((slug: string) => {
-          const elements = document.querySelectorAll(`[data-slug="${slug}"]`);
-          elements.forEach((el) => {
-            el.setAttribute('data-status', targetStatus);
-
-            const statusTag = el.querySelector('.status-tag');
-            if (statusTag) {
-              if (targetStatus === 'tested') {
-                statusTag.className = 'status-tag inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200';
-                statusTag.innerHTML = `<span>Published</span>`;
-              } else {
-                statusTag.className = 'status-tag inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200';
-                statusTag.innerHTML = `<span>Draft</span>`;
-              }
-            }
-
-            const viewLink = el.querySelector<HTMLAnchorElement>('.view-link');
-            if (viewLink) {
-              if (targetStatus === 'tested') {
-                viewLink.href = `/recipe/${slug}/`;
-                viewLink.title = 'View live recipe';
-              } else {
-                viewLink.href = `/admin/recipes/preview/${slug}/`;
-                viewLink.title = 'Preview draft recipe';
-              }
-            }
-          });
-        });
-      }
-
-      if (Array.isArray(data.failed) && data.failed.length > 0) {
-        const failDetails = data.failed.map((f: { slug: string; error: string }) => `${f.slug}: ${f.error}`).join('\n');
-        window.alert(
-          `Updated ${data.updated?.length ?? 0} recipe(s).\nFailed to update ${data.failed.length} recipe(s):\n${failDetails}`
-        );
-      } else {
-        window.alert(`Successfully updated ${data.updated?.length ?? 0} recipe(s) to ${label}.`);
-      }
-
-      // Uncheck selection and re-run filter
-      document.querySelectorAll<HTMLInputElement>('.recipe-select-checkbox').forEach((cb) => {
-        cb.checked = false;
-      });
-      if (selectAllCheckbox) selectAllCheckbox.checked = false;
-      applyFilters();
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'Status update failed.');
-    } finally {
-      if (bulkPublishBtn) bulkPublishBtn.disabled = false;
-      if (bulkDraftBtn) bulkDraftBtn.disabled = false;
-      updateBulkBar();
-    }
-  }
-
-  bulkPublishBtn?.addEventListener('click', () => applyBulkStatusChange('tested'));
-  bulkDraftBtn?.addEventListener('click', () => applyBulkStatusChange('draft'));
-
-  // Quick single-status toggle buttons
-  document.querySelectorAll<HTMLButtonElement>('.single-status-btn').forEach((button) => {
-    button.addEventListener('click', () => {
-      const targetStatus = button.dataset.singleStatus as 'draft' | 'tested' | undefined;
-      const slug = button.dataset.slug;
-      if (targetStatus && slug) {
-        applyBulkStatusChange(targetStatus, [slug]);
-      }
-    });
-  });
-
-  // Single recipe delete handler
+  // Single recipe delete handler with confirmation
   document.querySelectorAll('[data-delete]').forEach((button) => {
     button.addEventListener('click', async () => {
       const slug = (button as HTMLElement).dataset.delete;
-      const confirmed = window.confirm(`Delete recipe "${slug}"? This will permanently remove the recipe file from GitHub and clean up unused media. This action cannot be undone.`);
-      if (!confirmed || !slug) return;
+      if (!slug) return;
+
+      const confirmed = window.confirm(`Delete recipe "${slug}"? This will permanently remove the recipe file from GitHub. This action cannot be undone.`);
+      if (!confirmed) return;
 
       try {
         const response = await fetch(`/api/admin/recipes/${slug}/`, {

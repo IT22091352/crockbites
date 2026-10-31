@@ -1,31 +1,19 @@
 ---
 export const prerender = false;
 
-import { ADMIN_COOKIE_NAME, CSRF_COOKIE_NAME, createCsrfToken, getAdminSessionSecret, parseAdminSessionCookie, verifySessionCookie } from '../../lib/admin';
+import AdminLayout from '../../layouts/AdminLayout.astro';
 import { getGithubConfig } from '../../lib/github';
 import { getCloudinaryConfig } from '../../lib/cloudinary';
 import { getD1BindingStatus } from '../../lib/db';
 import { isTransactionalEmailConfigured } from '../../lib/user-auth';
-
-const adminCookie = Astro.cookies.get(ADMIN_COOKIE_NAME)?.value ?? '';
-const session = parseAdminSessionCookie(adminCookie);
-const secret = getAdminSessionSecret();
-
-if (!secret || !session || !verifySessionCookie(adminCookie, secret)) {
-  Astro.cookies.delete(ADMIN_COOKIE_NAME, { path: '/' });
-  Astro.cookies.delete(CSRF_COOKIE_NAME, { path: '/' });
-  return Astro.redirect('/admin/login/?error=Session+expired');
-}
-
-const csrfToken = createCsrfToken(secret, session.id);
-const isHttps = Astro.url.protocol === 'https:';
-Astro.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
-  httpOnly: false,
-  sameSite: 'lax',
-  secure: isHttps,
-  path: '/',
-  maxAge: 60 * 60 * 12,
-});
+import {
+  GitBranch,
+  Image as ImageIcon,
+  Database,
+  Mail,
+  CircleCheck,
+  CircleAlert,
+} from '@lucide/astro';
 
 // Inspect Configurations
 const gh = getGithubConfig();
@@ -34,181 +22,148 @@ const cl = getCloudinaryConfig();
 const clConfigured = cl.isConfigured;
 const d1Status = getD1BindingStatus(Astro.locals);
 const emailStatus = isTransactionalEmailConfigured();
-
-const isDev = import.meta.env.DEV;
 ---
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Admin Settings &amp; Integrations | CrockBites</title>
-    <style>
-      :root {
-        --forest: #243A2D;
-        --cream: #F7F1E5;
-        --terracotta: #C66A45;
-        --paper: #fffdf8;
-        --line: rgba(36,58,45,0.12);
-        --green: #2e7d32;
-        --red: #c62828;
-      }
-      * { box-sizing: border-box; }
-      body { margin: 0; background: var(--cream); color: var(--forest); font-family: system-ui, sans-serif; }
-      .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
-      .sidebar { background: var(--forest); color: #fff; padding: 1.5rem 1rem; }
-      .nav { display: grid; gap: 0.5rem; margin-top: 1.5rem; }
-      .nav a { color: rgba(255,255,255,0.9); text-decoration: none; display: block; padding: 0.8rem 0.85rem; border-radius: 10px; }
-      .nav a.active { background: rgba(255,255,255,0.1); font-weight: 700; }
-      .main { padding: 2rem; max-width: 1000px; }
-      .card { background: rgba(255,255,255,0.9); border: 1px solid var(--line); border-radius: 18px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 4px 12px rgba(36,58,45,0.04); }
-      .status-badge { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.75rem; border-radius: 999px; font-size: 0.82rem; font-weight: 700; }
-      .badge-ok { background: #e8f5e9; color: var(--green); }
-      .badge-missing { background: #ffebee; color: var(--red); }
-      .grid-params { display: grid; grid-template-columns: 240px 1fr; gap: 0.75rem; font-size: 0.95rem; margin-top: 1rem; padding: 1rem; background: var(--cream); border-radius: 12px; }
-      .param-name { font-family: monospace; font-weight: 700; }
-      .param-val { display: flex; align-items: center; gap: 0.5rem; }
-      .btn { border: none; border-radius: 10px; padding: 0.75rem 1.1rem; font-weight: 700; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; }
-      .btn-primary { background: var(--forest); color: #fff; }
-      .btn-subtle { background: rgba(36,58,45,0.08); color: var(--forest); }
-      .env-notice { font-size: 0.9rem; margin-top: 0.5rem; color: rgba(36,58,45,0.75); line-height: 1.5; }
-      @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } .grid-params { grid-template-columns: 1fr; } }
-    </style>
-  </head>
-  <body>
-    <div class="layout">
-      <aside class="sidebar">
-        <div style="font-weight: 800; font-size: 1.15rem; display: flex; align-items: center; gap: 0.6rem;">
-          <span style="background: var(--terracotta); border-radius: 8px; width: 2rem; height: 2rem; display: grid; place-items: center;">C</span>
-          CrockBites Admin
-        </div>
-        <nav class="nav">
-          <a href="/admin/">Overview</a>
-          <a href="/admin/recipes/">Recipes</a>
-          <a href="/admin/recipes/new/">New Recipe</a>
-          <a href="/admin/reviews/">Reviews</a>
-          <a class="active" href="/admin/settings/">Settings</a>
-        </nav>
-      </aside>
-      <main class="main">
-        <h1 style="margin-top: 0; font-size: 2rem;">Settings &amp; Integrations</h1>
-        <p class="env-notice" style="margin-bottom: 1.5rem;">
-          Environment mode: <strong>{isDev ? 'Local Development (.env)' : 'Production / Cloudflare Worker'}</strong>.
-          Credentials and secrets are managed server-side and never exposed to client browsers.
-        </p>
-
-        <!-- GitHub Publishing Status -->
-        <div class="card">
-          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-            <div>
-              <h2 style="margin: 0; font-size: 1.35rem;">GitHub Recipe Publishing</h2>
-              <p style="margin: 0.35rem 0 0; color: rgba(36,58,45,0.75); font-size: 0.95rem;">
-                Enables creating, editing, and deleting recipe Markdown files directly in your repository.
-              </p>
+<AdminLayout
+  title="Settings"
+  subtitle="Connected service integrations and publishing infrastructure."
+  activeNav="settings"
+  breadcrumbs={[{ label: 'Settings' }]}
+>
+  <div class="space-y-6 max-w-4xl">
+    <!-- Integration Status Cards Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <!-- 1. GitHub Integration -->
+      <div class="bg-paper rounded-2xl border border-line/70 p-5 shadow-xs space-y-3 flex flex-col justify-between">
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <div class="flex size-9 items-center justify-center rounded-xl bg-forest text-cream">
+                <GitBranch size={18} aria-hidden="true" />
+              </div>
+              <h2 class="font-display font-bold text-base text-forest">GitHub Publishing</h2>
             </div>
-            <div>
-              {ghConfigured ? (
-                <span class="status-badge badge-ok">✓ Configured</span>
-              ) : (
-                <span class="status-badge badge-missing">✕ Not Configured</span>
-              )}
-            </div>
+            {ghConfigured ? (
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <CircleCheck size={12} class="text-emerald-600" aria-hidden="true" />
+                <span>Connected</span>
+              </span>
+            ) : (
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-800 border border-rose-200">
+                <CircleAlert size={12} class="text-rose-600" aria-hidden="true" />
+                <span>Not Set</span>
+              </span>
+            )}
           </div>
-
-          <div class="grid-params">
-            <div class="param-name">ADMIN_GITHUB_TOKEN</div>
-            <div class="param-val">{gh.token ? '•••••••• (Set)' : 'Not set'}</div>
-
-            <div class="param-name">ADMIN_GITHUB_OWNER</div>
-            <div class="param-val">{gh.owner ? gh.owner : 'Not set'}</div>
-
-            <div class="param-name">ADMIN_GITHUB_REPO</div>
-            <div class="param-val">{gh.repo ? gh.repo : 'Not set'}</div>
-
-            <div class="param-name">ADMIN_GITHUB_BRANCH</div>
-            <div class="param-val">{gh.branch || 'main'}</div>
-          </div>
-          <p class="env-notice">
-            Required token permission: <code>contents:write</code> on the target repository.
+          <p class="text-xs text-ink-soft">
+            Commits recipe Markdown files directly to the content repository.
           </p>
         </div>
 
-        <!-- Cloudinary Image Management Status -->
-        <div class="card">
-          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-            <div>
-              <h2 style="margin: 0; font-size: 1.35rem;">Cloudinary Image Management</h2>
-              <p style="margin: 0.35rem 0 0; color: rgba(36,58,45,0.75); font-size: 0.95rem;">
-                Uploads recipe photos directly to Cloudinary with automatic WebP/AVIF format and responsive sizing.
-              </p>
+        <div class="p-3 rounded-xl bg-cream/40 text-xs text-ink-soft space-y-1 border border-line/40">
+          <div><span class="font-semibold text-forest">Repository:</span> {gh.owner && gh.repo ? `${gh.owner}/${gh.repo}` : 'Not set'}</div>
+          <div><span class="font-semibold text-forest">Branch:</span> {gh.branch || 'main'}</div>
+        </div>
+      </div>
+
+      <!-- 2. Cloudinary Integration -->
+      <div class="bg-paper rounded-2xl border border-line/70 p-5 shadow-xs space-y-3 flex flex-col justify-between">
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <div class="flex size-9 items-center justify-center rounded-xl bg-terracotta text-white">
+                <ImageIcon size={18} aria-hidden="true" />
+              </div>
+              <h2 class="font-display font-bold text-base text-forest">Cloudinary Media</h2>
             </div>
-            <div>
-              {clConfigured ? (
-                <span class="status-badge badge-ok">✓ Configured</span>
-              ) : (
-                <span class="status-badge badge-missing">✕ Not Configured</span>
-              )}
-            </div>
+            {clConfigured ? (
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <CircleCheck size={12} class="text-emerald-600" aria-hidden="true" />
+                <span>Connected</span>
+              </span>
+            ) : (
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-800 border border-rose-200">
+                <CircleAlert size={12} class="text-rose-600" aria-hidden="true" />
+                <span>Not Set</span>
+              </span>
+            )}
           </div>
-
-          <div class="grid-params">
-            <div class="param-name">CLOUDINARY_CLOUD_NAME</div>
-            <div class="param-val">{cl.cloudName ? cl.cloudName : 'Not set'}</div>
-
-            <div class="param-name">CLOUDINARY_API_KEY</div>
-            <div class="param-val">{cl.apiKey ? '•••••••• (Set)' : 'Not set'}</div>
-
-            <div class="param-name">CLOUDINARY_API_SECRET</div>
-            <div class="param-val">{cl.apiSecret ? '•••••••• (Set)' : 'Not set'}</div>
-          </div>
-          <p class="env-notice">
-            Uploaded images are placed into the <code>crockbites/recipes/</code> folder on Cloudinary.
+          <p class="text-xs text-ink-soft">
+            Hosts and optimizes high-resolution food photography.
           </p>
         </div>
 
-        <!-- Cloudflare D1 Community Database Status -->
-        <div class="card">
-          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-            <div>
-              <h2 style="margin: 0; font-size: 1.35rem;">Cloudflare D1 Community Database</h2>
-              <p style="margin: 0.35rem 0 0; color: rgba(36,58,45,0.75); font-size: 0.95rem;">
-                Stores user accounts, sessions, saved favorites, custom collections, recently viewed recipes, and community reviews.
-              </p>
+        <div class="p-3 rounded-xl bg-cream/40 text-xs text-ink-soft space-y-1 border border-line/40">
+          <div><span class="font-semibold text-forest">Cloud Name:</span> {cl.cloudName || 'Not set'}</div>
+          <div><span class="font-semibold text-forest">Folder:</span> crockbites/recipes</div>
+        </div>
+      </div>
+
+      <!-- 3. Cloudflare D1 Database -->
+      <div class="bg-paper rounded-2xl border border-line/70 p-5 shadow-xs space-y-3 flex flex-col justify-between">
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <div class="flex size-9 items-center justify-center rounded-xl bg-forest-soft text-white">
+                <Database size={18} aria-hidden="true" />
+              </div>
+              <h2 class="font-display font-bold text-base text-forest">Cloudflare D1 Database</h2>
             </div>
-            <div>
-              {d1Status.isD1Bound || d1Status.mode === 'local-sqlite' ? (
-                <span class="status-badge badge-ok">✓ Active ({d1Status.mode})</span>
-              ) : (
-                <span class="status-badge badge-missing">✕ D1 Binding Not Configured</span>
-              )}
-            </div>
+            {d1Status.isD1Bound || d1Status.mode === 'local-sqlite' ? (
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <CircleCheck size={12} class="text-emerald-600" aria-hidden="true" />
+                <span>Active</span>
+              </span>
+            ) : (
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-800 border border-rose-200">
+                <CircleAlert size={12} class="text-rose-600" aria-hidden="true" />
+                <span>Not Bound</span>
+              </span>
+            )}
           </div>
-
-          <div class="grid-params">
-            <div class="param-name">D1 Binding Name</div>
-            <div class="param-val"><code>DB</code></div>
-
-            <div class="param-name">Migration File</div>
-            <div class="param-val"><code>migrations/0001_community_platform.sql</code></div>
-
-            <div class="param-name">Transactional Email</div>
-            <div class="param-val">
-              {emailStatus.configured ? `✓ Configured (${emailStatus.provider})` : '✕ Not Configured (Set RESEND_API_KEY & EMAIL_FROM)'}
-            </div>
-          </div>
-          <p class="env-notice">
-            {d1Status.details}
+          <p class="text-xs text-ink-soft">
+            Stores user accounts, community reviews, ratings, and saved recipes.
           </p>
         </div>
 
-        <div style="display: flex; gap: 0.85rem; margin-top: 1.5rem;">
-          <a class="btn btn-primary" href="/admin/">Back to dashboard</a>
-          <form method="POST" action="/api/admin/logout/">
-            <input type="hidden" name="csrfToken" value={csrfToken} />
-            <button class="btn btn-subtle" type="submit">Log out</button>
-          </form>
+        <div class="p-3 rounded-xl bg-cream/40 text-xs text-ink-soft space-y-1 border border-line/40">
+          <div><span class="font-semibold text-forest">Binding:</span> DB</div>
+          <div><span class="font-semibold text-forest">Runtime Mode:</span> {d1Status.mode === 'cloudflare-d1' ? 'Cloudflare D1 (Production)' : 'Local SQLite (Dev)'}</div>
         </div>
-      </main>
+      </div>
+
+      <!-- 4. Resend Transactional Email -->
+      <div class="bg-paper rounded-2xl border border-line/70 p-5 shadow-xs space-y-3 flex flex-col justify-between">
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <div class="flex size-9 items-center justify-center rounded-xl bg-forest text-cream">
+                <Mail size={18} aria-hidden="true" />
+              </div>
+              <h2 class="font-display font-bold text-base text-forest">Resend Email Delivery</h2>
+            </div>
+            {emailStatus.configured ? (
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <CircleCheck size={12} class="text-emerald-600" aria-hidden="true" />
+                <span>Ready</span>
+              </span>
+            ) : (
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                <CircleAlert size={12} class="text-amber-600" aria-hidden="true" />
+                <span>Secret Needed</span>
+              </span>
+            )}
+          </div>
+          <p class="text-xs text-ink-soft">
+            Delivers email verification and password reset transactional messages.
+          </p>
+        </div>
+
+        <div class="p-3 rounded-xl bg-cream/40 text-xs text-ink-soft space-y-1 border border-line/40">
+          <div><span class="font-semibold text-forest">Sending Domain:</span> mail.crockbites.site</div>
+          <div><span class="font-semibold text-forest">Sender Address:</span> no-reply@mail.crockbites.site</div>
+        </div>
+      </div>
     </div>
-  </body>
-</html>
+  </div>
+</AdminLayout>

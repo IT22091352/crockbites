@@ -1,17 +1,23 @@
 ---
 export const prerender = false;
 
-import { ADMIN_COOKIE_NAME, CSRF_COOKIE_NAME, createCsrfToken, getAdminSessionSecret, parseAdminSessionCookie, verifySessionCookie } from '../../../lib/admin';
-import { isCloudinaryConfigured } from '../../../lib/cloudinary';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import {
+  CSRF_COOKIE_NAME,
+  createCsrfToken,
+  getAdminSessionSecret,
+  parseAdminSessionCookie,
+  verifySessionCookie,
+} from '../../../lib/admin';
 import { getGithubConfig } from '../../../lib/github';
+import { isCloudinaryConfigured } from '../../../lib/cloudinary';
+import { ArrowLeft } from '@lucide/astro';
 
-const adminCookie = Astro.cookies.get(ADMIN_COOKIE_NAME)?.value ?? '';
-const session = parseAdminSessionCookie(adminCookie);
+const sessionCookie = Astro.cookies.get('crockbites_admin_session')?.value ?? '';
 const secret = getAdminSessionSecret();
+const session = parseAdminSessionCookie(sessionCookie);
 
-if (!secret || !session || !verifySessionCookie(adminCookie, secret)) {
-  Astro.cookies.delete(ADMIN_COOKIE_NAME, { path: '/' });
-  Astro.cookies.delete(CSRF_COOKIE_NAME, { path: '/' });
+if (!secret || !session || !verifySessionCookie(sessionCookie, secret)) {
   return Astro.redirect('/admin/login/?error=Session+expired');
 }
 
@@ -25,9 +31,8 @@ Astro.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
   maxAge: 60 * 60 * 12,
 });
 
+const ghActive = Boolean(getGithubConfig().token);
 const cloudinaryActive = isCloudinaryConfigured();
-const gh = getGithubConfig();
-const ghActive = Boolean(gh.token && gh.owner && gh.repo);
 
 const categories = [
   ['slow-cooker-chicken', 'Slow Cooker Chicken'],
@@ -39,810 +44,603 @@ const categories = [
   ['desserts-baking', 'Desserts & Baking'],
 ];
 ---
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>New Recipe | CrockBites Admin</title>
-    <style is:global>
-      :root {
-        --forest: #243A2D;
-        --cream: #F7F1E5;
-        --terracotta: #C66A45;
-        --paper: #fffdf8;
-        --line: rgba(36,58,45,0.12);
-        --focus: #1b5e20;
-      }
-      * { box-sizing: border-box; }
-      body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: var(--cream); color: var(--forest); }
-      .layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
-      .sidebar { background: var(--forest); color: #fff; padding: 1.5rem 1rem; }
-      .nav { display: grid; gap: 0.5rem; margin-top: 1.5rem; }
-      .nav a { color: rgba(255,255,255,0.9); text-decoration: none; display: block; padding: 0.8rem 0.85rem; border-radius: 10px; }
-      .nav a.active { background: rgba(255,255,255,0.1); font-weight: 700; }
-      .main { padding: 2rem; max-width: 1080px; }
-      .top { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
-      .card { background: rgba(255,255,255,0.9); border: 1px solid var(--line); border-radius: 20px; padding: 1.75rem; box-shadow: 0 4px 14px rgba(36,58,45,0.04); }
-      .section-box { border: 1px solid var(--line); border-radius: 16px; padding: 1.35rem; background: var(--paper); margin-bottom: 1.5rem; }
-      .section-box h3 { margin: 0 0 1rem; font-size: 1.25rem; display: flex; align-items: center; justify-content: space-between; }
-      .grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 1.25rem; }
-      .stack { display: grid; gap: 1.25rem; }
-      label { display: grid; gap: 0.45rem; font-weight: 700; font-size: 0.95rem; }
-      input, textarea, select { width: 100%; border: 1px solid rgba(36,58,45,0.2); border-radius: 12px; padding: 0.85rem 1rem; font: inherit; background: #fff; color: var(--forest); }
-      input:focus, textarea:focus, select:focus { outline: 2px solid var(--terracotta); border-color: transparent; }
-      textarea { min-height: 110px; resize: vertical; }
-      .hint { font-size: 0.82rem; font-weight: normal; color: rgba(36,58,45,0.7); }
-      .item-row { display: grid; grid-template-columns: 100px 140px 1fr 1fr auto; gap: 0.75rem; align-items: center; margin-bottom: 0.75rem; background: #fff; padding: 0.65rem; border-radius: 12px; border: 1px solid var(--line); }
-      .step-row { display: grid; grid-template-columns: 180px 1fr auto; gap: 0.75rem; align-items: center; margin-bottom: 0.75rem; background: #fff; padding: 0.65rem; border-radius: 12px; border: 1px solid var(--line); }
-      .btn { border: none; border-radius: 10px; padding: 0.8rem 1.25rem; font-weight: 700; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; transition: all 0.15s ease; }
-      .btn-primary { background: var(--forest); color: #fff; }
-      .btn-primary:hover { background: #18281f; }
-      .btn-subtle { background: rgba(36,58,45,0.08); color: var(--forest); }
-      .btn-subtle:hover { background: rgba(36,58,45,0.14); }
-      .btn-danger { background: rgba(198,106,69,0.12); color: var(--terracotta); padding: 0.65rem 0.9rem; }
-      .btn-danger:hover { background: rgba(198,106,69,0.22); }
-      .btn-pill { border-radius: 999px; font-size: 0.8rem; padding: 0.35rem 0.75rem; }
-      
-      /* Image manager styles */
-      .dropzone { border: 2px dashed rgba(36,58,45,0.25); border-radius: 16px; padding: 2rem 1.5rem; text-align: center; cursor: pointer; transition: border-color 0.2s, background-color 0.2s; background: rgba(255,255,255,0.6); }
-      .dropzone.dragover { border-color: var(--terracotta); background: rgba(198,106,69,0.06); }
-      .gallery-grid { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(180px, 220px)) !important; gap: 1rem !important; margin-top: 1.25rem !important; }
-      .image-card { border: 1px solid var(--line) !important; border-radius: 14px !important; overflow: hidden !important; background: #fff !important; position: relative !important; box-shadow: 0 2px 6px rgba(0,0,0,0.03) !important; display: flex !important; flex-direction: column !important; max-width: 220px !important; width: 100% !important; }
-      .image-card.is-primary { border: 2px solid var(--forest) !important; box-shadow: 0 0 0 2px rgba(36,58,45,0.2) !important; }
-      .image-thumb-wrap { width: 100% !important; height: 140px !important; max-height: 140px !important; position: relative !important; overflow: hidden !important; background: #eee !important; display: block !important; }
-      .image-thumb-wrap img, .image-card img { width: 100% !important; height: 140px !important; max-width: 100% !important; max-height: 140px !important; object-fit: cover !important; display: block !important; }
-      .primary-tag { position: absolute; top: 8px; left: 8px; background: var(--forest); color: #fff; font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; z-index: 2; }
-      .image-card-body { padding: 0.85rem; display: flex; flex-direction: column; gap: 0.5rem; flex: 1; }
-      .image-card-actions { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 0.5rem; border-top: 1px solid var(--line); }
-      .status { margin-top: 1.25rem; padding: 1rem 1.25rem; border-radius: 12px; display: none; font-weight: 600; }
-      .status.error { background: #ffebee; color: #c62828; display: block; border: 1px solid #ffcdd2; }
-      .status.success { background: #e8f5e9; color: #2e7d32; display: block; border: 1px solid #c8e6c9; }
-      .alert-banner { padding: 0.9rem 1.2rem; border-radius: 12px; margin-bottom: 1.5rem; font-size: 0.95rem; }
-      .alert-warning { background: #fff3e0; color: #e65100; border: 1px solid #ffe082; }
 
-      @media (max-width: 900px) {
-        .layout { grid-template-columns: 1fr; }
-        .grid { grid-template-columns: 1fr; }
-        .item-row, .step-row { grid-template-columns: 1fr; }
-      }
-    </style>
-  </head>
-  <body>
-    <div class="layout">
-      <aside class="sidebar">
-        <div style="font-weight: 800; font-size: 1.15rem; display: flex; align-items: center; gap: 0.6rem;">
-          <span style="background: var(--terracotta); border-radius: 8px; width: 2rem; height: 2rem; display: grid; place-items: center;">C</span>
-          CrockBites Admin
+<AdminLayout
+  title="Create Recipe"
+  subtitle="Author, configure, and publish a new slow cooker recipe."
+  activeNav="new-recipe"
+  breadcrumbs={[
+    { label: 'Recipes', href: '/admin/recipes/' },
+    { label: 'New Recipe' },
+  ]}
+>
+  <div slot="actions">
+    <a
+      href="/admin/recipes/"
+      class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-line bg-white text-ink text-sm font-semibold hover:bg-cream/50 transition cursor-pointer shadow-xs"
+    >
+      <ArrowLeft size={16} aria-hidden="true" />
+      <span>Back to recipes</span>
+    </a>
+  </div>
+
+  <div class="space-y-6 max-w-4xl">
+    {!ghActive && (
+      <div class="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-sm">
+        ⚠️ <strong>GitHub publishing is not configured.</strong> Recipes cannot be committed until repository credentials are set in <a href="/admin/settings/" class="underline font-bold">Settings</a>.
+      </div>
+    )}
+
+    <form id="recipe-form" class="card stack">
+      <input type="hidden" name="csrfToken" value={csrfToken} />
+      <input type="hidden" name="reviewStatus" id="reviewStatusInput" value="draft" />
+
+      <!-- Essential: Recipe Overview -->
+      <div class="section-box">
+        <h2 class="text-base font-bold text-forest mb-4">Recipe Overview</h2>
+        <div class="grid">
+          <label>
+            Recipe Title *
+            <input name="title" id="titleInput" required placeholder="e.g. Slow Cooker Pulled Pork" />
+          </label>
+          <label>
+            SEO Slug * <span class="hint">(Auto-generated, editable)</span>
+            <input name="slug" id="slugInput" placeholder="slow-cooker-pulled-pork" />
+          </label>
         </div>
-        <nav class="nav">
-          <a href="/admin/">Overview</a>
-          <a href="/admin/recipes/">Recipes</a>
-          <a class="active" href="/admin/recipes/new/">New Recipe</a>
-          <a href="/admin/settings/">Settings</a>
-        </nav>
-      </aside>
 
-      <main class="main">
-        <div class="top">
+        <div class="grid" style="margin-top: 1rem;">
+          <label>
+            Category *
+            <select name="category">
+              {categories.map(([value, label]) => <option value={value}>{label}</option>)}
+            </select>
+          </label>
+          <label>
+            Author
+            <input name="author" value="CrockBites" />
+          </label>
+        </div>
+
+        <div style="margin-top: 1rem;">
+          <label>
+            Short Description / SEO Summary *
+            <textarea name="description" required placeholder="A brief, mouthwatering 1-2 sentence description for search engines and social cards..."></textarea>
+          </label>
+        </div>
+
+        <div class="grid" style="margin-top: 1rem;">
+          <label>
+            Prep Time (Minutes) *
+            <input name="prepMinutes" type="number" min="0" value="15" required />
+          </label>
+          <label>
+            Cook Time (Minutes) *
+            <input name="cookMinutes" type="number" min="0" value="240" required />
+          </label>
+        </div>
+
+        <div class="grid" style="margin-top: 1rem;">
+          <label>
+            Slow Cooker Setting *
+            <select name="slowCookerSetting" id="slowCookerSettingSelect">
+              <option value="Low (6 to 8 hours)">Low (6 to 8 hours)</option>
+              <option value="High (3 to 4 hours)">High (3 to 4 hours)</option>
+              <option value="Low or High Dual">Low or High Dual</option>
+              <option value="Warm">Warm</option>
+            </select>
+          </label>
+          <label>
+            Servings *
+            <input name="servings" type="number" min="1" value="6" required />
+          </label>
+        </div>
+
+        <div style="margin-top: 1rem;">
+          <label>
+            Cook Time Note <span class="hint">(e.g. 6 to 8 hours on LOW or 3 to 4 hours on HIGH)</span>
+            <input name="cookTimeNote" id="cookTimeNoteInput" value="6 to 8 hours on LOW" placeholder="e.g. 6 to 8 hours on LOW" />
+          </label>
+        </div>
+      </div>
+
+      <!-- Essential: Main Recipe Image -->
+      <div class="section-box">
+        <h2 class="text-base font-bold text-forest mb-4">Main Recipe Image</h2>
+        <div class="dropzone" id="imageDropzone">
+          <input type="file" id="imageFileInput" accept="image/jpeg,image/png,image/webp,image/avif" style="display: none;" />
+          <div style="font-size: 2rem; margin-bottom: 0.5rem;">📸</div>
+          <p style="margin: 0; font-weight: 700; font-size: 1rem;">Drag &amp; drop main recipe photo here, or click to browse</p>
+          <p class="hint" style="margin: 0.25rem 0 0;">Uploads to Cloudinary (JPEG, PNG, WebP, AVIF up to 8 MB)</p>
+          <div id="uploadProgress" style="display: none; margin-top: 0.75rem; font-weight: 700; color: var(--terracotta);">
+            Uploading to Cloudinary...
+          </div>
+        </div>
+
+        <div class="grid" style="margin-top: 1rem;">
+          <label>
+            Image URL
+            <input name="image" id="primaryImageUrl" value="../../assets/recipes/placeholder.svg" />
+          </label>
+          <label>
+            Image Alt Text *
+            <input name="imageAlt" id="primaryImageAlt" value="Illustrated CrockBites recipe" required />
+          </label>
+        </div>
+      </div>
+
+      <!-- Essential: Ingredients -->
+      <div class="section-box">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h2 class="text-base font-bold text-forest m-0">Ingredients *</h2>
+          <button type="button" class="btn btn-subtle btn-pill" id="addIngredientBtn">+ Add Ingredient</button>
+        </div>
+        <div id="ingredientList" class="stack"></div>
+      </div>
+
+      <!-- Essential: Instructions -->
+      <div class="section-box">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h2 class="text-base font-bold text-forest m-0">Step-by-Step Instructions *</h2>
+          <button type="button" class="btn btn-subtle btn-pill" id="addInstructionBtn">+ Add Step</button>
+        </div>
+        <div id="instructionList" class="stack"></div>
+      </div>
+
+      <!-- Collapsible: Advanced Details (Optional) -->
+      <details class="section-box cursor-pointer group">
+        <summary class="font-bold text-base text-forest flex items-center justify-between py-1 select-none">
+          <span>Advanced Details (Optional)</span>
+          <span class="text-xs text-ink-soft group-open:rotate-180 transition-transform">▼</span>
+        </summary>
+
+        <div class="pt-5 space-y-6 border-t border-line/60 mt-4 cursor-default">
+          <!-- Difficulty & Tags -->
+          <div class="grid">
+            <label>
+              Difficulty
+              <select name="difficulty" id="difficultySelect">
+                <option value="Easy">Easy</option>
+                <option value="Intermediate">Intermediate</option>
+                <option value="Advanced">Advanced</option>
+              </select>
+            </label>
+            <label>
+              Tags <span class="hint">(Comma-separated)</span>
+              <input name="tags" placeholder="dinner, chicken, easy, comfort food" />
+            </label>
+          </div>
+
+          <!-- Additional Gallery Images -->
           <div>
-            <p style="margin:0 0 0.3rem; text-transform:uppercase; letter-spacing:0.08em; opacity:0.7; font-size:0.8rem; font-weight: 700;">Workflow</p>
-            <h1 style="margin:0; font-size: 2.2rem;">Create Recipe</h1>
-          </div>
-          <a class="btn btn-subtle" href="/admin/recipes/">Back to recipes</a>
-        </div>
-
-        {!ghActive && (
-          <div class="alert-banner alert-warning">
-            ⚠️ <strong>GitHub publishing is not configured.</strong> Recipes cannot be committed to Git until repository secrets are set. Check <a href="/admin/settings/">Admin Settings</a> for instructions.
-          </div>
-        )}
-
-        <form id="recipe-form" class="card stack">
-          <input type="hidden" name="csrfToken" value={csrfToken} />
-
-          <!-- Core Details -->
-          <div class="section-box">
-            <h3>Recipe Overview</h3>
-            <div class="grid">
-              <label>
-                Title <span class="hint">(e.g. Slow Cooker Pulled Pork)</span>
-                <input name="title" id="titleInput" required placeholder="Juicy slow cooker dish..." />
-              </label>
-              <label>
-                Slug <span class="hint">(Unique URL identifier)</span>
-                <input name="slug" id="slugInput" placeholder="auto-generated-from-title" />
-              </label>
-            </div>
-
-            <div class="grid" style="margin-top: 1rem;">
-              <label>
-                Category
-                <select name="category">
-                  {categories.map(([value, label]) => <option value={value}>{label}</option>)}
-                </select>
-              </label>
-              <label>
-                Author
-                <input name="author" value="CrockBites" />
-              </label>
-            </div>
-
-            <div style="margin-top: 1rem;">
-              <label>
-                Description <span class="hint">(Max 200 chars for SEO summary)</span>
-                <textarea name="description" required placeholder="A mouthwatering description of this dish..."></textarea>
-              </label>
-            </div>
-
-            <div class="grid" style="margin-top: 1rem;">
-              <label>
-                Prep Minutes
-                <input name="prepMinutes" type="number" min="0" value="15" required />
-              </label>
-              <label>
-                Cook Minutes
-                <input name="cookMinutes" type="number" min="0" value="240" required />
-              </label>
-            </div>
-
-            <div style="margin-top: 1rem;">
-              <label>
-                Cook Time Note <span class="hint">(Optional plain-language range, e.g. 6 to 7 hours on LOW or 3 to 4 hours on HIGH)</span>
-                <input name="cookTimeNote" placeholder="e.g. 6 to 7 hours on LOW" />
-              </label>
-            </div>
-
-            <div class="grid" style="margin-top: 1rem;">
-              <label>
-                Servings
-                <input name="servings" type="number" min="1" value="6" required />
-              </label>
-              <label>
-                Review Status
-                <select name="reviewStatus">
-                  <option value="tested">Published (Live on Website)</option>
-                  <option value="draft">Draft (Hidden from Website)</option></select>
-              </label>
-            </div>
-
-            <div style="margin-top: 1rem;">
-              <label>
-                Tags <span class="hint">(Comma-separated: slow cooker, chicken, easy)</span>
-                <input name="tags" placeholder="dinner, chicken, easy, comfort food" />
-              </label>
-            </div>
-          </div>
-
-          <!-- Cloudinary Image Manager -->
-          <div class="section-box">
-            <h3>
-              <span>Recipe Images &amp; Gallery</span>
-              <span class="hint" style="font-weight: normal;">Max 10 images · 8MB each</span>
-            </h3>
-
-            {!cloudinaryActive && (
-              <p style="color: #c66a45; font-size: 0.9rem; margin: 0 0 1rem;">
-                Cloudinary is not yet configured. You can still paste an image URL or local asset path below.
-              </p>
-            )}
-
-            <div class="dropzone" id="imageDropzone">
-              <input type="file" id="imageFileInput" accept="image/jpeg,image/png,image/webp,image/avif" multiple style="display: none;" />
-              <div style="font-size: 2rem; margin-bottom: 0.5rem;">📸</div>
-              <p style="margin: 0; font-weight: 700; font-size: 1.05rem;">Drag &amp; drop recipe photos here, or click to browse</p>
-              <p class="hint" style="margin: 0.35rem 0 0;">Supported formats: JPEG, PNG, WebP, AVIF (Max 8 MB per file)</p>
-              <div id="uploadProgress" style="display: none; margin-top: 1rem; font-weight: 700; color: var(--terracotta);">
-                Uploading images to Cloudinary...
-              </div>
-            </div>
-
-            <div class="gallery-grid" id="galleryContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 220px)); gap: 1rem; margin-top: 1.25rem;"></div>
-
-            <div style="margin-top: 1.25rem;">
-              <label>
-                Primary Image URL (Fallback / Manual override)
-                <input name="image" id="primaryImageUrl" value="../../assets/recipes/placeholder.svg" />
-              </label>
-              <label style="margin-top: 0.75rem;">
-                Primary Image Alt Text
-                <input name="imageAlt" id="primaryImageAlt" value="Illustrated CrockBites recipe" />
-              </label>
-            </div>
-          </div>
-
-          <!-- Ingredients -->
-          <div class="section-box">
-            <h3>
-              <span>Ingredients</span>
-              <button type="button" class="btn btn-subtle btn-pill" id="addIngredientBtn">+ Add Ingredient</button>
-            </h3>
-            <div id="ingredientList" class="stack"></div>
-          </div>
-
-          <!-- Instructions -->
-          <div class="section-box">
-            <h3>
-              <span>Instructions</span>
-              <button type="button" class="btn btn-subtle btn-pill" id="addInstructionBtn">+ Add Step</button>
-            </h3>
-            <div id="instructionList" class="stack"></div>
-          </div>
-
-          <!-- Nutrition Information -->
-          <div class="section-box">
-            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
-              <h3 style="margin: 0;">Nutrition &amp; Dietary (Optional)</h3>
-              <span class="hint" style="font-weight: 600;">Per Serving &bull; Leave blank if unverified</span>
-            </div>
-            <p class="hint" style="margin-top: 0; margin-bottom: 1rem;">
-              Provide verified laboratory or USDA values. Unfilled fields will not display zeroes.
-            </p>
-            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem;">
-              <label>
-                Calories (kcal)
-                <input type="number" step="any" min="0" name="nutrition_calories" placeholder="385" />
-              </label>
-              <label>
-                Protein (g)
-                <input type="number" step="any" min="0" name="nutrition_proteinGrams" placeholder="34" />
-              </label>
-              <label>
-                Carbs (g)
-                <input type="number" step="any" min="0" name="nutrition_carbsGrams" placeholder="12.5" />
-              </label>
-              <label>
-                Total Fat (g)
-                <input type="number" step="any" min="0" name="nutrition_fatGrams" placeholder="16" />
-              </label>
-              <label>
-                Sat. Fat (g)
-                <input type="number" step="any" min="0" name="nutrition_saturatedFatGrams" placeholder="4.5" />
-              </label>
-              <label>
-                Unsat. Fat (g)
-                <input type="number" step="any" min="0" name="nutrition_unsaturatedFatGrams" placeholder="8" />
-              </label>
-              <label>
-                Fiber (g)
-                <input type="number" step="any" min="0" name="nutrition_fiberGrams" placeholder="3" />
-              </label>
-              <label>
-                Sugars (g)
-                <input type="number" step="any" min="0" name="nutrition_sugarGrams" placeholder="5" />
-              </label>
-              <label>
-                Sodium (mg)
-                <input type="number" step="any" min="0" name="nutrition_sodiumMilligrams" placeholder="640" />
-              </label>
-              <label>
-                Cholesterol (mg)
-                <input type="number" step="any" min="0" name="nutrition_cholesterolMilligrams" placeholder="85" />
-              </label>
-            </div>
-            <div class="grid" style="grid-template-columns: 2fr 1fr; gap: 0.75rem; margin-top: 0.75rem;">
-              <label>
-                Data Source / Reference
-                <input type="text" name="nutrition_source" placeholder="e.g. USDA FoodData Central #171057" />
-              </label>
-              <label>
-                Verification Date
-                <input type="date" name="nutrition_verifiedDate" />
-              </label>
-            </div>
+            <label class="font-bold text-sm text-forest mb-2 block">
+              Additional Gallery Images
+              <span class="hint font-normal block mt-0.5">Extra step-by-step or plated dish photos</span>
+            </label>
+            <div class="gallery-grid" id="galleryContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 220px)); gap: 1rem; margin-top: 0.5rem;"></div>
           </div>
 
           <!-- Dietary Labels -->
-          <div class="section-box">
-            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
-              <h3 style="margin: 0;">Dietary Labels</h3>
-              <span class="hint" style="font-weight: 600;">Multi-select &bull; Verification required for public display</span>
+          <div>
+            <label class="font-bold text-sm text-forest mb-1 block">Dietary Labels</label>
+            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.5rem; margin-top: 0.5rem;">
+              {['vegetarian', 'vegan', 'gluten-free', 'dairy-free', 'nut-free', 'low-carb', 'keto-friendly', 'high-protein', 'low-sodium', 'pescatarian'].map((label) => (
+                <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer; font-size: 0.9rem;">
+                  <input type="checkbox" name="dietaryLabels" value={label} />
+                  <span class="capitalize">{label.replace('-', ' ')}</span>
+                </label>
+              ))}
             </div>
-            <p class="hint" style="margin-top: 0; margin-bottom: 0.75rem;">
-              Select all dietary styles that suit this recipe. Labels will remain hidden from the public until verified.
-            </p>
-            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.5rem;">
-              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
-                <input type="checkbox" name="dietaryLabels" value="vegetarian" /> Vegetarian
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
-                <input type="checkbox" name="dietaryLabels" value="vegan" /> Vegan
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
-                <input type="checkbox" name="dietaryLabels" value="gluten-free" /> Gluten-Free
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
-                <input type="checkbox" name="dietaryLabels" value="dairy-free" /> Dairy-Free
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
-                <input type="checkbox" name="dietaryLabels" value="nut-free" /> Nut-Free
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
-                <input type="checkbox" name="dietaryLabels" value="low-carb" /> Low-Carb
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
-                <input type="checkbox" name="dietaryLabels" value="keto-friendly" /> Keto-Friendly
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
-                <input type="checkbox" name="dietaryLabels" value="high-protein" /> High-Protein
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
-                <input type="checkbox" name="dietaryLabels" value="low-sodium" /> Low-Sodium
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
-                <input type="checkbox" name="dietaryLabels" value="pescatarian" /> Pescatarian
-              </label>
-            </div>
-            <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--line);">
-              <label style="display: flex; align-items: center; gap: 0.6rem; font-weight: 600; cursor: pointer; color: var(--forest);">
-                <input type="checkbox" name="dietaryVerified" id="dietaryVerifiedInput" />
-                I have reviewed the ingredients and verified these dietary claims.
-              </label>
-              <p class="hint" style="margin: 0.25rem 0 0 1.6rem; font-size: 0.8rem;">
-                When unchecked, labels are saved in the CMS but hidden from public recipe pages and search filters.
-              </p>
-            </div>
+            <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: 600; cursor: pointer; color: var(--forest); margin-top: 0.75rem; font-size: 0.85rem;">
+              <input type="checkbox" name="dietaryVerified" id="dietaryVerifiedInput" />
+              Dietary claims reviewed and verified.
+            </label>
           </div>
 
           <!-- Allergen Information -->
-          <div class="section-box">
-            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
-              <h3 style="margin: 0;">FDA Big 9 Allergen Declaration</h3>
-              <span class="hint" style="font-weight: 600;">Check all allergens contained in recipe</span>
+          <div>
+            <label class="font-bold text-sm text-forest mb-1 block">Major Food Allergens</label>
+            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.5rem; margin-top: 0.5rem;">
+              {['milk', 'eggs', 'fish', 'crustacean-shellfish', 'tree-nuts', 'peanuts', 'wheat', 'soybeans', 'sesame'].map((allergen) => (
+                <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer; font-size: 0.9rem;">
+                  <input type="checkbox" name="allergens" value={allergen} />
+                  <span class="capitalize">{allergen.replace('-', ' ')}</span>
+                </label>
+              ))}
             </div>
-            <p class="hint" style="margin-top: 0; margin-bottom: 0.75rem;">
-              Mark allergens present in any ingredient (including hidden packaged sauces or stocks).
-            </p>
-            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.5rem;">
-              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
-                <input type="checkbox" name="allergens" value="milk" /> Milk
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
-                <input type="checkbox" name="allergens" value="eggs" /> Eggs
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
-                <input type="checkbox" name="allergens" value="fish" /> Fish
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
-                <input type="checkbox" name="allergens" value="crustacean-shellfish" /> Crustacean Shellfish
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
-                <input type="checkbox" name="allergens" value="tree-nuts" /> Tree Nuts
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
-                <input type="checkbox" name="allergens" value="peanuts" /> Peanuts
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
-                <input type="checkbox" name="allergens" value="wheat" /> Wheat
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
-                <input type="checkbox" name="allergens" value="soybeans" /> Soybeans
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer;">
-                <input type="checkbox" name="allergens" value="sesame" /> Sesame
-              </label>
-            </div>
-            <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--line);">
-              <label style="display: flex; align-items: center; gap: 0.6rem; font-weight: 600; cursor: pointer; color: var(--forest);">
+            <div style="margin-top: 0.75rem;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: 600; cursor: pointer; color: var(--forest); font-size: 0.85rem;">
                 <input type="checkbox" name="allergenReviewed" id="allergenReviewedInput" />
-                Allergen information reviewed.
+                Allergens explicitly reviewed.
               </label>
-              <p class="hint" style="margin: 0.25rem 0 0 1.6rem; font-size: 0.8rem;">
-                When checked, confirms that ingredients have been explicitly reviewed for allergens.
-              </p>
-              <label style="margin-top: 0.75rem; display: block;">
-                Allergen Notes / Advisory (Optional)
-                <input type="text" name="allergenNotes" placeholder="e.g. Soy sauce can be substituted with coconut aminos." />
-              </label>
+              <input type="text" name="allergenNotes" placeholder="Allergen notes or substitutions (optional)" style="margin-top: 0.5rem;" />
             </div>
           </div>
 
-          <!-- Submission Toolbar -->
-          <div class="section-box">
-            <h3>Additional Recipe Notes &amp; Food Safety (Optional)</h3>
-            <div class="stack">
-              <label>
-                Food Safety Notes <span class="hint">(One per line — e.g. Cook chicken to an internal temperature of 165°F / 74°C)</span>
-                <textarea name="foodSafety" placeholder="Cook poultry to a minimum internal temperature of 165°F (74°C)."></textarea>
-              </label>
-              <label>
-                Kitchen Tips <span class="hint">(One tip per line)</span>
-                <textarea name="tips" placeholder="Cut vegetables into even pieces so they cook at the same rate."></textarea>
-              </label>
-              <label>
-                Equipment <span class="hint">(One item per line — e.g. 6-quart slow cooker)</span>
-                <textarea name="equipment" style="min-height: 75px;" placeholder="6-quart slow cooker"></textarea>
-              </label>
-              <label>
-                Editorial Body / Story <span class="hint">(Optional Markdown content shown above the recipe card)</span>
-                <textarea name="body" placeholder="Optional recipe story or notes..."></textarea>
-              </label>
+          <!-- Nutrition Panel -->
+          <div>
+            <label class="font-bold text-sm text-forest mb-1 block">Nutrition Information (Optional - Leave blank if unverified)</label>
+            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.5rem; margin-top: 0.5rem;">
+              <label>Calories<input type="number" step="any" min="0" name="nutrition_calories" placeholder="385" /></label>
+              <label>Protein (g)<input type="number" step="any" min="0" name="nutrition_proteinGrams" placeholder="34" /></label>
+              <label>Carbs (g)<input type="number" step="any" min="0" name="nutrition_carbsGrams" placeholder="12" /></label>
+              <label>Fat (g)<input type="number" step="any" min="0" name="nutrition_fatGrams" placeholder="16" /></label>
+              <label>Sat Fat (g)<input type="number" step="any" min="0" name="nutrition_saturatedFatGrams" placeholder="4" /></label>
+              <label>Fiber (g)<input type="number" step="any" min="0" name="nutrition_fiberGrams" placeholder="3" /></label>
+              <label>Sodium (mg)<input type="number" step="any" min="0" name="nutrition_sodiumMilligrams" placeholder="640" /></label>
             </div>
           </div>
 
-          <!-- Submission Toolbar -->
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
-            <a class="btn btn-subtle" href="/admin/recipes/">Cancel</a>
-            <button class="btn btn-primary" type="submit" id="submitBtn">Create &amp; Publish to GitHub</button>
+          <!-- Notes & Food Safety -->
+          <div class="space-y-3">
+            <label>
+              Food Safety Notes <span class="hint">(e.g. Cook poultry to min 165°F / 74°C)</span>
+              <textarea name="foodSafety" placeholder="Cook poultry to a minimum internal temperature of 165°F (74°C)."></textarea>
+            </label>
+            <label>
+              Kitchen Tips
+              <textarea name="tips" placeholder="Helpful slow cooker tips..."></textarea>
+            </label>
+            <label>
+              Equipment
+              <textarea name="equipment" placeholder="6-quart slow cooker"></textarea>
+            </label>
+            <label>
+              Editorial Story / Intro Body
+              <textarea name="body" placeholder="Optional background or recipe notes..."></textarea>
+            </label>
           </div>
+        </div>
+      </details>
 
-          <div id="formStatus" class="status" aria-live="polite"></div>
-        </form>
-      </main>
-    </div>
+      <!-- Submission Actions -->
+      <div class="pt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line/60">
+        <a class="btn btn-subtle" href="/admin/recipes/">Cancel</a>
 
-    <script>
-      // State
-      let images: Array<{
-        url: string;
-        publicId?: string;
-        alt: string;
-        width?: number;
-        height?: number;
-        isPrimary?: boolean;
-      }> = [];
+        <div class="flex items-center gap-2.5">
+          <button
+            type="button"
+            id="saveDraftBtn"
+            class="btn btn-subtle"
+            style="font-weight: 700;"
+          >
+            Save as Draft
+          </button>
+          <button
+            type="button"
+            id="publishBtn"
+            class="btn btn-primary"
+            style="background: #243A2D;"
+          >
+            Publish Recipe
+          </button>
+        </div>
+      </div>
 
-      const csrfInput = document.querySelector('input[name="csrfToken"]') as HTMLInputElement;
-      const csrfToken = csrfInput ? csrfInput.value : '';
+      <div id="formStatus" class="status" aria-live="polite"></div>
+    </form>
+  </div>
+</AdminLayout>
 
-      // Elements
-      const dropzone = document.getElementById('imageDropzone')!;
-      const fileInput = document.getElementById('imageFileInput') as HTMLInputElement;
-      const progressEl = document.getElementById('uploadProgress')!;
-      const galleryEl = document.getElementById('galleryContainer')!;
-      const primaryUrlEl = document.getElementById('primaryImageUrl') as HTMLInputElement;
-      const primaryAltEl = document.getElementById('primaryImageAlt') as HTMLInputElement;
-      const titleInput = document.getElementById('titleInput') as HTMLInputElement;
-      const slugInput = document.getElementById('slugInput') as HTMLInputElement;
-      const form = document.getElementById('recipe-form') as HTMLFormElement;
-      const formStatus = document.getElementById('formStatus')!;
-      const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
+<style is:global>
+  .card { background: rgba(255,255,255,0.95); border: 1px solid var(--line); border-radius: 20px; padding: 1.75rem; box-shadow: 0 4px 14px rgba(36,58,45,0.04); }
+  .section-box { border: 1px solid var(--line); border-radius: 16px; padding: 1.35rem; background: var(--paper); margin-bottom: 1.5rem; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 1.25rem; }
+  .stack { display: grid; gap: 1.25rem; }
+  label { display: grid; gap: 0.45rem; font-weight: 700; font-size: 0.95rem; }
+  input, textarea, select { width: 100%; border: 1px solid rgba(36,58,45,0.2); border-radius: 12px; padding: 0.85rem 1rem; font: inherit; background: #fff; color: var(--forest); }
+  input:focus, textarea:focus, select:focus { outline: 2px solid var(--terracotta); border-color: transparent; }
+  textarea { min-height: 90px; resize: vertical; }
+  .hint { font-size: 0.82rem; font-weight: normal; color: rgba(36,58,45,0.7); }
+  .item-row { display: grid; grid-template-columns: 100px 140px 1fr 1fr auto; gap: 0.75rem; align-items: center; margin-bottom: 0.75rem; background: #fff; padding: 0.65rem; border-radius: 12px; border: 1px solid var(--line); }
+  .step-row { display: grid; grid-template-columns: 180px 1fr auto; gap: 0.75rem; align-items: center; margin-bottom: 0.75rem; background: #fff; padding: 0.65rem; border-radius: 12px; border: 1px solid var(--line); }
+  .btn { border: none; border-radius: 10px; padding: 0.8rem 1.25rem; font-weight: 700; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; transition: all 0.15s ease; font-size: 0.9rem; }
+  .btn-primary { background: var(--forest); color: #fff; }
+  .btn-primary:hover { background: #18281f; }
+  .btn-subtle { background: rgba(36,58,45,0.08); color: var(--forest); }
+  .btn-subtle:hover { background: rgba(36,58,45,0.14); }
+  .btn-danger { background: rgba(198,106,69,0.12); color: var(--terracotta); padding: 0.65rem 0.9rem; }
+  .btn-danger:hover { background: rgba(198,106,69,0.22); }
+  .btn-pill { border-radius: 999px; font-size: 0.8rem; padding: 0.35rem 0.75rem; }
 
-      // Auto-slugify title
-      titleInput.addEventListener('input', () => {
-        if (!slugInput.dataset.manual) {
-          slugInput.value = titleInput.value
-            .toLowerCase()
-            .trim()
-            .replace(/['’]/g, '')
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '');
-        }
+  .dropzone { border: 2px dashed rgba(36,58,45,0.25); border-radius: 16px; padding: 1.75rem 1.25rem; text-align: center; cursor: pointer; transition: border-color 0.2s, background-color 0.2s; background: rgba(255,255,255,0.6); }
+  .dropzone.dragover { border-color: var(--terracotta); background: rgba(198,106,69,0.06); }
+  .status { margin-top: 1.25rem; padding: 1rem 1.25rem; border-radius: 12px; display: none; font-weight: 600; }
+  .status.error { background: #ffebee; color: #c62828; display: block; border: 1px solid #ffcdd2; }
+  .status.success { background: #e8f5e9; color: #2e7d32; display: block; border: 1px solid #c8e6c9; }
+
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: 1fr; }
+    .item-row, .step-row { grid-template-columns: 1fr; }
+  }
+</style>
+
+<script>
+  let images: Array<{
+    url: string;
+    publicId?: string;
+    alt: string;
+    width?: number;
+    height?: number;
+    isPrimary?: boolean;
+  }> = [];
+
+  const csrfInput = document.querySelector('input[name="csrfToken"]') as HTMLInputElement;
+  const csrfToken = csrfInput ? csrfInput.value : '';
+
+  const dropzone = document.getElementById('imageDropzone')!;
+  const fileInput = document.getElementById('imageFileInput') as HTMLInputElement;
+  const progressEl = document.getElementById('uploadProgress')!;
+  const primaryUrlEl = document.getElementById('primaryImageUrl') as HTMLInputElement;
+  const primaryAltEl = document.getElementById('primaryImageAlt') as HTMLInputElement;
+  const titleInput = document.getElementById('titleInput') as HTMLInputElement;
+  const slugInput = document.getElementById('slugInput') as HTMLInputElement;
+  const form = document.getElementById('recipe-form') as HTMLFormElement;
+  const formStatus = document.getElementById('formStatus')!;
+  const saveDraftBtn = document.getElementById('saveDraftBtn') as HTMLButtonElement;
+  const publishBtn = document.getElementById('publishBtn') as HTMLButtonElement;
+  const reviewStatusInput = document.getElementById('reviewStatusInput') as HTMLInputElement;
+
+  // Auto-slugify title
+  titleInput.addEventListener('input', () => {
+    if (!slugInput.dataset.manual) {
+      slugInput.value = titleInput.value
+        .toLowerCase()
+        .trim()
+        .replace(/['’]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    }
+  });
+  slugInput.addEventListener('input', () => {
+    slugInput.dataset.manual = 'true';
+  });
+
+  // Slow cooker setting sync with cookTimeNote
+  const slowCookerSelect = document.getElementById('slowCookerSettingSelect') as HTMLSelectElement;
+  const cookTimeNoteInput = document.getElementById('cookTimeNoteInput') as HTMLInputElement;
+  slowCookerSelect?.addEventListener('change', () => {
+    if (!cookTimeNoteInput.dataset.manual) {
+      cookTimeNoteInput.value = slowCookerSelect.value;
+    }
+  });
+  cookTimeNoteInput?.addEventListener('input', () => {
+    cookTimeNoteInput.dataset.manual = 'true';
+  });
+
+  // Upload Logic
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropzone.classList.add('dragover');
+  });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    if (e.dataTransfer?.files) {
+      uploadFiles(Array.from(e.dataTransfer.files));
+    }
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files) {
+      uploadFiles(Array.from(fileInput.files));
+      fileInput.value = '';
+    }
+  });
+
+  async function uploadFiles(files: File[]) {
+    if (files.length === 0) return;
+    progressEl.style.display = 'block';
+
+    const formData = new FormData();
+    files.forEach((f) => formData.append('images', f));
+
+    try {
+      const res = await fetch('/api/admin/images/upload/', {
+        method: 'POST',
+        headers: { 'x-csrf-token': csrfToken },
+        body: formData,
       });
-      slugInput.addEventListener('input', () => {
-        slugInput.dataset.manual = 'true';
-      });
 
-      // Gallery Rendering
-      function renderGallery() {
-        galleryEl.innerHTML = '';
-        if (images.length === 0) {
-          return;
+      const json = await res.json();
+      if (!res.ok) {
+        alert(json.error || 'Failed to upload images to Cloudinary.');
+        return;
+      }
+
+      if (Array.isArray(json.images) && json.images.length > 0) {
+        const first = json.images[0];
+        primaryUrlEl.value = first.url;
+        if (first.originalName) {
+          primaryAltEl.value = first.originalName.replace(/\.[^/.]+$/, '');
         }
-
-        // Ensure at least one image is primary
-        if (!images.some(img => img.isPrimary) && images.length > 0) {
-          images[0].isPrimary = true;
-        }
-
-        // Sync primary with top inputs
-        const primary = images.find(img => img.isPrimary);
-        if (primary) {
-          primaryUrlEl.value = primary.url;
-          if (primary.alt && primary.alt !== 'Recipe image') {
-            primaryAltEl.value = primary.alt;
-          }
-        }
-
-        images.forEach((img, index) => {
-          const card = document.createElement('div');
-          card.className = `image-card ${img.isPrimary ? 'is-primary' : ''}`;
-          card.style.cssText = `max-width: 220px; width: 100%; border: ${img.isPrimary ? '2px solid var(--forest)' : '1px solid var(--line)'}; border-radius: 14px; overflow: hidden; background: #fff; position: relative; box-shadow: 0 2px 6px rgba(0,0,0,0.03); display: flex; flex-direction: column;`;
-          card.innerHTML = `
-            <div class="image-thumb-wrap" style="width: 100%; height: 140px; position: relative; overflow: hidden; background: #eee;">
-              <img src="${img.url}" alt="${img.alt}" style="width: 100%; height: 140px; max-width: 100%; max-height: 140px; object-fit: cover; display: block;" />
-              ${img.isPrimary ? '<span class="primary-tag" style="position: absolute; top: 8px; left: 8px; background: var(--forest); color: #fff; font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; z-index: 2;">Primary</span>' : ''}
-            </div>
-            <div class="image-card-body" style="padding: 0.85rem; display: flex; flex-direction: column; gap: 0.5rem; flex: 1;">
-              <label style="font-size: 0.8rem; font-weight: 700;">Alt Text:
-                <input type="text" class="img-alt-input" value="${img.alt}" placeholder="Describe image" style="padding: 0.4rem 0.6rem; font-size: 0.85rem;" />
-              </label>
-              <div class="image-card-actions" style="display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 0.5rem; border-top: 1px solid var(--line);">
-                <div style="display: flex; gap: 0.25rem;">
-                  <button type="button" class="btn btn-subtle btn-pill move-left-btn" ${index === 0 ? 'disabled' : ''} title="Move Earlier">←</button>
-                  <button type="button" class="btn btn-subtle btn-pill move-right-btn" ${index === images.length - 1 ? 'disabled' : ''} title="Move Later">→</button>
-                </div>
-                <div style="display: flex; gap: 0.25rem;">
-                  ${!img.isPrimary ? '<button type="button" class="btn btn-subtle btn-pill set-primary-btn" style="color: var(--forest); font-weight: 700;">Set Cover</button>' : ''}
-                  <button type="button" class="btn btn-danger btn-pill remove-img-btn" title="Remove">✕</button>
-                </div>
-              </div>
-            </div>
-          `;
-
-          // Event Listeners for each card
-          const altInput = card.querySelector('.img-alt-input') as HTMLInputElement;
-          altInput.addEventListener('input', () => {
-            img.alt = altInput.value;
-            if (img.isPrimary) primaryAltEl.value = img.alt;
+        json.images.forEach((up: any) => {
+          images.push({
+            url: up.url,
+            publicId: up.publicId,
+            alt: up.originalName ? up.originalName.replace(/\.[^/.]+$/, '') : 'Recipe photo',
+            width: up.width,
+            height: up.height,
+            isPrimary: images.length === 0,
           });
-
-          const moveLeftBtn = card.querySelector('.move-left-btn');
-          moveLeftBtn?.addEventListener('click', () => {
-            if (index > 0) {
-              const temp = images[index];
-              images[index] = images[index - 1];
-              images[index - 1] = temp;
-              renderGallery();
-            }
-          });
-
-          const moveRightBtn = card.querySelector('.move-right-btn');
-          moveRightBtn?.addEventListener('click', () => {
-            if (index < images.length - 1) {
-              const temp = images[index];
-              images[index] = images[index + 1];
-              images[index + 1] = temp;
-              renderGallery();
-            }
-          });
-
-          const setPrimaryBtn = card.querySelector('.set-primary-btn');
-          setPrimaryBtn?.addEventListener('click', () => {
-            images.forEach(item => item.isPrimary = false);
-            img.isPrimary = true;
-            renderGallery();
-          });
-
-          const removeBtn = card.querySelector('.remove-img-btn');
-          removeBtn?.addEventListener('click', () => {
-            images.splice(index, 1);
-            if (img.isPrimary && images.length > 0) {
-              images[0].isPrimary = true;
-            }
-            renderGallery();
-          });
-
-          galleryEl.appendChild(card);
         });
       }
+    } catch (err) {
+      alert('Upload failed: ' + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      progressEl.style.display = 'none';
+    }
+  }
 
-      // Drag and drop & upload logic
-      dropzone.addEventListener('click', () => fileInput.click());
-      dropzone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropzone.classList.add('dragover');
+  // Ingredients & Instructions dynamic builders
+  const ingredientList = document.getElementById('ingredientList')!;
+  const instructionList = document.getElementById('instructionList')!;
+
+  function createIngredientRow(data: any = {}) {
+    const row = document.createElement('div');
+    row.className = 'item-row';
+    row.innerHTML = `
+      <input type="number" step="0.25" placeholder="Qty" value="${data.quantity ?? ''}" class="ing-qty" />
+      <input type="text" placeholder="Unit (cup, lb)" value="${data.unit ?? ''}" class="ing-unit" />
+      <input type="text" placeholder="Ingredient *" value="${data.item ?? ''}" required class="ing-item" />
+      <input type="text" placeholder="Note (diced, etc.)" value="${data.note ?? ''}" class="ing-note" />
+      <button type="button" class="btn btn-danger btn-pill" onclick="this.closest('.item-row').remove()">✕</button>
+    `;
+    return row;
+  }
+
+  function createInstructionRow(data: any = {}) {
+    const row = document.createElement('div');
+    row.className = 'step-row';
+    row.innerHTML = `
+      <input type="text" placeholder="Step title (optional)" value="${data.title ?? ''}" class="step-title" />
+      <input type="text" placeholder="Instruction text *" value="${data.text ?? ''}" required class="step-text" />
+      <button type="button" class="btn btn-danger btn-pill" onclick="this.closest('.step-row').remove()">✕</button>
+    `;
+    return row;
+  }
+
+  document.getElementById('addIngredientBtn')?.addEventListener('click', () => {
+    ingredientList.appendChild(createIngredientRow());
+  });
+  document.getElementById('addInstructionBtn')?.addEventListener('click', () => {
+    instructionList.appendChild(createInstructionRow());
+  });
+
+  // Default initial rows
+  ingredientList.appendChild(createIngredientRow({ quantity: 2, unit: 'lb', item: 'chicken breast' }));
+  instructionList.appendChild(createInstructionRow({ text: 'Place all ingredients into the slow cooker and cook on low.' }));
+
+  // Form submission handler
+  async function submitRecipe(targetStatus: 'draft' | 'tested') {
+    reviewStatusInput.value = targetStatus;
+
+    saveDraftBtn.disabled = true;
+    publishBtn.disabled = true;
+    formStatus.className = 'status';
+    formStatus.style.display = 'block';
+    formStatus.textContent = targetStatus === 'tested' ? 'Publishing recipe to GitHub...' : 'Saving draft to GitHub...';
+
+    const ingredients = Array.from(ingredientList.querySelectorAll('.item-row')).map((row) => {
+      const qty = (row.querySelector('.ing-qty') as HTMLInputElement).value;
+      const unit = (row.querySelector('.ing-unit') as HTMLInputElement).value.trim();
+      const item = (row.querySelector('.ing-item') as HTMLInputElement).value.trim();
+      const note = (row.querySelector('.ing-note') as HTMLInputElement).value.trim();
+      if (!item) return null;
+      return {
+        quantity: qty ? parseFloat(qty) : undefined,
+        unit: unit || undefined,
+        item,
+        note: note || undefined,
+      };
+    }).filter(Boolean);
+
+    const instructions = Array.from(instructionList.querySelectorAll('.step-row')).map((row) => {
+      const title = (row.querySelector('.step-title') as HTMLInputElement).value.trim();
+      const text = (row.querySelector('.step-text') as HTMLInputElement).value.trim();
+      if (!text) return null;
+      return { title: title || undefined, text };
+    }).filter(Boolean);
+
+    const getNutrVal = (n: string) => {
+      const el = form.querySelector(`[name="${n}"]`) as HTMLInputElement | null;
+      return el && el.value.trim() !== '' ? el.value.trim() : undefined;
+    };
+
+    const nutritionObj = {
+      calories: getNutrVal('nutrition_calories'),
+      proteinGrams: getNutrVal('nutrition_proteinGrams'),
+      carbsGrams: getNutrVal('nutrition_carbsGrams'),
+      fatGrams: getNutrVal('nutrition_fatGrams'),
+      saturatedFatGrams: getNutrVal('nutrition_saturatedFatGrams'),
+      fiberGrams: getNutrVal('nutrition_fiberGrams'),
+      sodiumMilligrams: getNutrVal('nutrition_sodiumMilligrams'),
+    };
+    const hasNutrition = Object.values(nutritionObj).some((v) => v !== undefined);
+
+    const selectedDietaryLabels = Array.from(form.querySelectorAll('input[name="dietaryLabels"]:checked')).map((el) => (el as HTMLInputElement).value);
+    const isDietaryVerified = (form.querySelector('input[name="dietaryVerified"]') as HTMLInputElement)?.checked ?? false;
+    const selectedAllergens = Array.from(form.querySelectorAll('input[name="allergens"]:checked')).map((el) => (el as HTMLInputElement).value);
+    const isAllergenReviewed = (form.querySelector('input[name="allergenReviewed"]') as HTMLInputElement)?.checked ?? false;
+    const allergenNotesVal = (form.querySelector('input[name="allergenNotes"]') as HTMLInputElement)?.value.trim() || undefined;
+
+    const cookTimeNoteVal = (form.querySelector('[name="cookTimeNote"]') as HTMLInputElement)?.value.trim() || undefined;
+    const foodSafetyLines = ((form.querySelector('[name="foodSafety"]') as HTMLTextAreaElement)?.value || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    const tipsLines = ((form.querySelector('[name="tips"]') as HTMLTextAreaElement)?.value || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    const equipmentLines = ((form.querySelector('[name="equipment"]') as HTMLTextAreaElement)?.value || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    const bodyVal = ((form.querySelector('[name="body"]') as HTMLTextAreaElement)?.value || '').trim() || undefined;
+
+    const payload = {
+      title: (form.querySelector('[name="title"]') as HTMLInputElement).value.trim(),
+      slug: (form.querySelector('[name="slug"]') as HTMLInputElement).value.trim(),
+      description: (form.querySelector('[name="description"]') as HTMLTextAreaElement).value.trim(),
+      category: (form.querySelector('[name="category"]') as HTMLSelectElement).value,
+      author: (form.querySelector('[name="author"]') as HTMLInputElement).value.trim() || 'CrockBites',
+      prepMinutes: parseInt((form.querySelector('[name="prepMinutes"]') as HTMLInputElement).value) || 0,
+      cookMinutes: parseInt((form.querySelector('[name="cookMinutes"]') as HTMLInputElement).value) || 0,
+      cookTimeNote: cookTimeNoteVal,
+      servings: parseInt((form.querySelector('[name="servings"]') as HTMLInputElement).value) || 1,
+      reviewStatus: targetStatus,
+      tags: (form.querySelector('[name="tags"]') as HTMLInputElement).value.split(',').map((s) => s.trim()).filter(Boolean),
+      image: primaryUrlEl.value.trim(),
+      imageAlt: primaryAltEl.value.trim(),
+      gallery: images,
+      ingredients,
+      instructions,
+      foodSafety: foodSafetyLines,
+      tips: tipsLines,
+      equipment: equipmentLines,
+      body: bodyVal,
+      dietaryLabels: selectedDietaryLabels,
+      dietaryVerified: isDietaryVerified,
+      allergens: selectedAllergens,
+      allergenReviewed: isAllergenReviewed,
+      allergenNotes: allergenNotesVal,
+      nutrition: hasNutrition ? nutritionObj : undefined,
+    };
+
+    if (!payload.title || !payload.description || ingredients.length === 0 || instructions.length === 0) {
+      formStatus.className = 'status error';
+      formStatus.textContent = 'Please provide a title, description, at least one ingredient, and one instruction.';
+      saveDraftBtn.disabled = false;
+      publishBtn.disabled = false;
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/admin/recipes/', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-csrf-token': csrfToken,
+        },
+        body: JSON.stringify(payload),
       });
-      dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
-      dropzone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropzone.classList.remove('dragover');
-        if (e.dataTransfer?.files) {
-          uploadFiles(Array.from(e.dataTransfer.files));
-        }
-      });
 
-      fileInput.addEventListener('change', () => {
-        if (fileInput.files) {
-          uploadFiles(Array.from(fileInput.files));
-          fileInput.value = '';
-        }
-      });
-
-      async function uploadFiles(files: File[]) {
-        if (files.length === 0) return;
-        progressEl.style.display = 'block';
-
-        const formData = new FormData();
-        files.forEach(f => formData.append('images', f));
-
-        try {
-          const res = await fetch('/api/admin/images/upload/', {
-            method: 'POST',
-            headers: {
-              'x-csrf-token': csrfToken,
-            },
-            body: formData,
-          });
-
-          const json = await res.json();
-          if (!res.ok) {
-            alert(json.error || 'Failed to upload images to Cloudinary.');
-            return;
-          }
-
-          if (Array.isArray(json.images)) {
-            json.images.forEach((up: any) => {
-              images.push({
-                url: up.url,
-                publicId: up.publicId,
-                alt: up.originalName ? up.originalName.replace(/\.[^/.]+$/, '') : 'Recipe photo',
-                width: up.width,
-                height: up.height,
-                isPrimary: images.length === 0,
-              });
-            });
-            renderGallery();
-          }
-        } catch (err) {
-          alert('Upload failed: ' + (err instanceof Error ? err.message : String(err)));
-        } finally {
-          progressEl.style.display = 'none';
-        }
+      const data = await res.json();
+      if (!res.ok) {
+        formStatus.className = 'status error';
+        formStatus.textContent = data.error || 'Failed to save recipe.';
+        saveDraftBtn.disabled = false;
+        publishBtn.disabled = false;
+        return;
       }
 
-      // Ingredients & Instructions builder
-      const ingredientList = document.getElementById('ingredientList')!;
-      const instructionList = document.getElementById('instructionList')!;
+      formStatus.className = 'status success';
+      formStatus.textContent = `✓ Recipe successfully ${targetStatus === 'tested' ? 'published' : 'saved as draft'} to GitHub! Redirecting...`;
+      setTimeout(() => {
+        window.location.href = targetStatus === 'tested' ? '/admin/recipes/' : '/admin/recipes/?status=draft';
+      }, 1000);
+    } catch (err) {
+      formStatus.className = 'status error';
+      formStatus.textContent = 'Network error: ' + (err instanceof Error ? err.message : String(err));
+      saveDraftBtn.disabled = false;
+      publishBtn.disabled = false;
+    }
+  }
 
-      function createIngredientRow(data: any = {}) {
-        const row = document.createElement('div');
-        row.className = 'item-row';
-        row.innerHTML = `
-          <input type="number" step="0.25" placeholder="Qty" value="${data.quantity ?? ''}" class="ing-qty" />
-          <input type="text" placeholder="Unit (cup, lb)" value="${data.unit ?? ''}" class="ing-unit" />
-          <input type="text" placeholder="Ingredient *" value="${data.item ?? ''}" required class="ing-item" />
-          <input type="text" placeholder="Note (diced, etc.)" value="${data.note ?? ''}" class="ing-note" />
-          <button type="button" class="btn btn-danger btn-pill" onclick="this.closest('.item-row').remove()">✕</button>
-        `;
-        return row;
-      }
-
-      function createInstructionRow(data: any = {}) {
-        const row = document.createElement('div');
-        row.className = 'step-row';
-        row.innerHTML = `
-          <input type="text" placeholder="Step title (optional)" value="${data.title ?? ''}" class="step-title" />
-          <input type="text" placeholder="Instruction text *" value="${data.text ?? ''}" required class="step-text" />
-          <button type="button" class="btn btn-danger btn-pill" onclick="this.closest('.step-row').remove()">✕</button>
-        `;
-        return row;
-      }
-
-      document.getElementById('addIngredientBtn')?.addEventListener('click', () => {
-        ingredientList.appendChild(createIngredientRow());
-      });
-      document.getElementById('addInstructionBtn')?.addEventListener('click', () => {
-        instructionList.appendChild(createInstructionRow());
-      });
-
-      // Default rows
-      ingredientList.appendChild(createIngredientRow({ quantity: 2, unit: 'lb', item: 'chicken breast' }));
-      instructionList.appendChild(createInstructionRow({ text: 'Place all ingredients into the slow cooker and cook on low.' }));
-
-      // Form submission
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        submitBtn.disabled = true;
-        formStatus.className = 'status';
-        formStatus.style.display = 'block';
-        formStatus.textContent = 'Publishing recipe to GitHub...';
-
-        const ingredients = Array.from(ingredientList.querySelectorAll('.item-row')).map(row => {
-          const qty = (row.querySelector('.ing-qty') as HTMLInputElement).value;
-          const unit = (row.querySelector('.ing-unit') as HTMLInputElement).value.trim();
-          const item = (row.querySelector('.ing-item') as HTMLInputElement).value.trim();
-          const note = (row.querySelector('.ing-note') as HTMLInputElement).value.trim();
-          if (!item) return null;
-          return {
-            quantity: qty ? parseFloat(qty) : undefined,
-            unit: unit || undefined,
-            item,
-            note: note || undefined,
-          };
-        }).filter(Boolean);
-
-        const instructions = Array.from(instructionList.querySelectorAll('.step-row')).map(row => {
-          const title = (row.querySelector('.step-title') as HTMLInputElement).value.trim();
-          const text = (row.querySelector('.step-text') as HTMLInputElement).value.trim();
-          if (!text) return null;
-          return { title: title || undefined, text };
-        }).filter(Boolean);
-
-        const primaryImg = images.find(img => img.isPrimary);
-        const imageUrl = primaryImg ? primaryImg.url : primaryUrlEl.value.trim();
-        const imageAlt = primaryImg ? primaryImg.alt : primaryAltEl.value.trim();
-
-        const getNutrVal = (n: string) => {
-          const el = form.querySelector(`[name="${n}"]`) as HTMLInputElement | null;
-          return el && el.value.trim() !== '' ? el.value.trim() : undefined;
-        };
-
-        const nutritionObj = {
-          calories: getNutrVal('nutrition_calories'),
-          proteinGrams: getNutrVal('nutrition_proteinGrams'),
-          carbsGrams: getNutrVal('nutrition_carbsGrams'),
-          fatGrams: getNutrVal('nutrition_fatGrams'),
-          saturatedFatGrams: getNutrVal('nutrition_saturatedFatGrams'),
-          unsaturatedFatGrams: getNutrVal('nutrition_unsaturatedFatGrams'),
-          fiberGrams: getNutrVal('nutrition_fiberGrams'),
-          sugarGrams: getNutrVal('nutrition_sugarGrams'),
-          sodiumMilligrams: getNutrVal('nutrition_sodiumMilligrams'),
-          cholesterolMilligrams: getNutrVal('nutrition_cholesterolMilligrams'),
-          source: getNutrVal('nutrition_source'),
-          verifiedDate: getNutrVal('nutrition_verifiedDate'),
-        };
-
-        const hasNutrition = Object.values(nutritionObj).some(v => v !== undefined);
-
-        const selectedDietaryLabels = Array.from(form.querySelectorAll('input[name="dietaryLabels"]:checked')).map(el => (el as HTMLInputElement).value);
-        const isDietaryVerified = (form.querySelector('input[name="dietaryVerified"]') as HTMLInputElement)?.checked ?? false;
-        const selectedAllergens = Array.from(form.querySelectorAll('input[name="allergens"]:checked')).map(el => (el as HTMLInputElement).value);
-        const isAllergenReviewed = (form.querySelector('input[name="allergenReviewed"]') as HTMLInputElement)?.checked ?? false;
-        const allergenNotesVal = (form.querySelector('input[name="allergenNotes"]') as HTMLInputElement)?.value.trim() || undefined;
-
-        const cookTimeNoteVal = (form.querySelector('[name="cookTimeNote"]') as HTMLInputElement)?.value.trim() || undefined;
-        const foodSafetyLines = ((form.querySelector('[name="foodSafety"]') as HTMLTextAreaElement)?.value || '')
-          .split(/\r?\n/)
-          .map(s => s.trim())
-          .filter(Boolean);
-        const tipsLines = ((form.querySelector('[name="tips"]') as HTMLTextAreaElement)?.value || '')
-          .split(/\r?\n/)
-          .map(s => s.trim())
-          .filter(Boolean);
-        const equipmentLines = ((form.querySelector('[name="equipment"]') as HTMLTextAreaElement)?.value || '')
-          .split(/\r?\n/)
-          .map(s => s.trim())
-          .filter(Boolean);
-        const bodyVal = ((form.querySelector('[name="body"]') as HTMLTextAreaElement)?.value || '').trim() || undefined;
-
-        const payload = {
-          title: (form.querySelector('[name="title"]') as HTMLInputElement).value.trim(),
-          slug: (form.querySelector('[name="slug"]') as HTMLInputElement).value.trim(),
-          description: (form.querySelector('[name="description"]') as HTMLTextAreaElement).value.trim(),
-          category: (form.querySelector('[name="category"]') as HTMLSelectElement).value,
-          author: (form.querySelector('[name="author"]') as HTMLInputElement).value.trim(),
-          prepMinutes: parseInt((form.querySelector('[name="prepMinutes"]') as HTMLInputElement).value) || 0,
-          cookMinutes: parseInt((form.querySelector('[name="cookMinutes"]') as HTMLInputElement).value) || 0,
-          cookTimeNote: cookTimeNoteVal,
-          servings: parseInt((form.querySelector('[name="servings"]') as HTMLInputElement).value) || 1,
-          reviewStatus: (form.querySelector('[name="reviewStatus"]') as HTMLSelectElement).value,
-          tags: (form.querySelector('[name="tags"]') as HTMLInputElement).value.split(',').map(s => s.trim()).filter(Boolean),
-          image: imageUrl,
-          imageAlt: imageAlt,
-          gallery: images,
-          ingredients,
-          instructions,
-          foodSafety: foodSafetyLines,
-          tips: tipsLines,
-          equipment: equipmentLines,
-          body: bodyVal,
-          dietaryLabels: selectedDietaryLabels,
-          dietaryVerified: isDietaryVerified,
-          allergens: selectedAllergens,
-          allergenReviewed: isAllergenReviewed,
-          allergenNotes: allergenNotesVal,
-          nutrition: hasNutrition ? nutritionObj : undefined,
-        };
-
-        try {
-          const res = await fetch('/api/admin/recipes/', {
-            method: 'POST',
-            headers: {
-              'content-type': 'application/json',
-              'x-csrf-token': csrfToken,
-            },
-            body: JSON.stringify(payload),
-          });
-
-          const data = await res.json();
-          if (!res.ok) {
-            formStatus.className = 'status error';
-            formStatus.textContent = data.error || 'Failed to save recipe.';
-            submitBtn.disabled = false;
-            return;
-          }
-
-          formStatus.className = 'status success';
-          formStatus.textContent = '✓ Recipe successfully saved to GitHub repository! Redirecting...';
-          setTimeout(() => {
-            window.location.href = '/admin/recipes/';
-          }, 1000);
-        } catch (err) {
-          formStatus.className = 'status error';
-          formStatus.textContent = 'Network error: ' + (err instanceof Error ? err.message : String(err));
-          submitBtn.disabled = false;
-        }
-      });
-    </script>
-  </body>
-</html>
+  saveDraftBtn.addEventListener('click', () => submitRecipe('draft'));
+  publishBtn.addEventListener('click', () => submitRecipe('tested'));
+</script>
