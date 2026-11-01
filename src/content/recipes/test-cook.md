@@ -1,5 +1,5 @@
 ---
-title: CrockBites Draft Sync Test
+title: CrockBites Draft Sync Test 2
 slug: test-cook
 description: test cooktest cooktest cooktest cooktest cook
 category: beef-pork
