@@ -1,13 +1,14 @@
 ---
-title: test cook
+title: test cook book
 slug: test-cook
 description: test cooktest cooktest cooktest cooktest cook
 category: beef-pork
 tags: []
 image: https://res.cloudinary.com/dmxumqqpj/image/upload/v1793527783/crockbites/recipes/ohsbfvarthpo5qqefyba.jpg
-imageAlt: VibePick Gold Cart Logo
+imageAlt: test cook book
 author: CrockBites
 pubDate: 2026-11-01
+updatedDate: 2026-11-01
 prepMinutes: 15
 cookMinutes: 240
 cookTimeNote: 6 to 8 hours on LOW
