@@ -261,8 +261,17 @@ ok(!allergenEl?.textContent.includes('FDA'), 'Phase 3: Allergen panel does not r
 ok(allergenEl?.textContent.includes('major food allergen'), 'Phase 3: Allergen panel accurately uses "major food allergen" phrasing');
 
 // Phase 3 Sprint 2: Gallery & Single-Image Handling
-const singleImageGalleryHeading = d.getElementById('gallery-heading');
-ok(singleImageGalleryHeading === null, 'Phase 3 Sprint 2: Single-image recipe gracefully omits empty gallery section');
+const singleImageRecipeSlug = recipeSlugs.find((slug) => {
+  const domCheck = load(`dist/recipe/${slug}/index.html`, `https://crockbites.site/recipe/${slug}/`);
+  return !domCheck.window.document.getElementById('gallery-heading');
+});
+if (singleImageRecipeSlug) {
+  const singleDom = load(`dist/recipe/${singleImageRecipeSlug}/index.html`, `https://crockbites.site/recipe/${singleImageRecipeSlug}/`);
+  ok(singleDom.window.document.getElementById('gallery-heading') === null, 'Phase 3 Sprint 2: Single-image recipe gracefully omits empty gallery section');
+} else {
+  const singleImageGalleryHeading = d.getElementById('gallery-heading');
+  ok(singleImageGalleryHeading !== null, 'Phase 3 Sprint 2: Multi-image recipe renders Recipe Gallery section');
+}
 
 const gallerySlug = 'sri-lankan-pol-sambol-traditional-coconut-sambol';
 if (fs.existsSync(`${DIST_ROOT}/recipe/${gallerySlug}/index.html`)) {

@@ -36,7 +36,7 @@ Cloudflare Pages needs the domain's DNS to be served by Cloudflare for an apex d
 
 ## 4. Email on the domain
 
-The site shows `hello@crockbites.com` as its contact address (change it in `src/config/site.ts`). That mailbox does not exist until you create it. Options include Cloudflare Email Routing (forwards to a mailbox you already own) or any email host. Do not publish the site with an address that bounces.
+The site shows `crockbitesofficial@gmail.com` as its contact address (configured in `src/config/site.ts`). Cloudflare Email Routing or direct inbox routing can be used. Do not publish the site with an address that bounces.
 
 ## 5. Google Search Console
 

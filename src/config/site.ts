@@ -14,8 +14,8 @@ export const site = {
     'Easy slow cooker recipes and everyday meals made for real life. Practical ingredient lists, clear steps, and food safety guidance.',
   locale: 'en_US',
   language: 'en-US',
-  /** Contact address shown on the site. CHANGE THIS to a mailbox you actually control before launch. */
-  contactEmail: 'hello@crockbites.com',
+  /** Contact address shown on the site. */
+  contactEmail: 'crockbitesofficial@gmail.com',
   /** Default social share image (1200x630). A branded PNG ships (rendered by scripts/build-icons.mjs); swap in your own artwork any time. */
   defaultOgImage: '/images/og-default.png',
   /**
