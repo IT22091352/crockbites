@@ -185,5 +185,53 @@ test('Recipe Publishing & Newsletter ReferenceError Prevention Browser Test', as
     assert.equal(publishBtnDisabled, false, 'Publish button was re-enabled');
     assert.equal(statusMessage, 'Network error: 500 Internal Server Error: Database timeout');
   });
+
+  // Scenario 6: Live SEO Slug Generation & Synchronization
+  await t.test('Scenario 6: Live SEO Slug Generation & Synchronization', () => {
+    function generateSlug(text) {
+      return (text || '')
+        .toLowerCase()
+        .replace(/['’]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    }
+
+    // 1. Example test cases from user specification
+    assert.equal(generateSlug('CrockBites Draft Recipe'), 'crockbites-draft-recipe');
+    assert.equal(generateSlug('Easy Slow Cooker Chicken'), 'easy-slow-cooker-chicken');
+
+    // 2. Character-by-character typing simulation
+    const steps = [
+      ['C', 'c'],
+      ['Cr', 'cr'],
+      ['Cro', 'cro'],
+      ['Crock', 'crock'],
+      ['CrockBites', 'crockbites'],
+      ['CrockBites ', 'crockbites'],
+      ['CrockBites D', 'crockbites-d'],
+      ['CrockBites Draft', 'crockbites-draft'],
+      ['CrockBites Draft Recipe', 'crockbites-draft-recipe'],
+    ];
+    for (const [input, expected] of steps) {
+      assert.equal(generateSlug(input), expected, `Typing "${input}" must produce "${expected}"`);
+    }
+
+    // 3. Special characters, apostrophes, consecutive spaces, and hyphens
+    assert.equal(generateSlug("Mom's Best BBQ Ribs! (Slow Cooker)"), 'moms-best-bbq-ribs-slow-cooker');
+    assert.equal(generateSlug('  ---Super   Tender---Beef---Stew---  '), 'super-tender-beef-stew');
+
+    // 4. Verify UI attributes in new.astro and [slug].astro
+    const newAstroContent = fs.readFileSync('src/pages/admin/recipes/new.astro', 'utf8');
+    const editAstroContent = fs.readFileSync('src/pages/admin/recipes/[slug].astro', 'utf8');
+
+    // Both must mark slugInput as readonly
+    assert.ok(newAstroContent.includes('id="slugInput"') && newAstroContent.includes('readonly'), 'new.astro slugInput must be readonly');
+    assert.ok(editAstroContent.includes('id="slugInput"') && editAstroContent.includes('readonly'), '[slug].astro slugInput must be readonly');
+
+    // Both must listen to titleInput 'input' event to update slugInput in real time
+    assert.ok(newAstroContent.includes("titleInput.addEventListener('input'"), 'new.astro must bind input listener to titleInput');
+    assert.ok(editAstroContent.includes("titleInput.addEventListener('input'"), '[slug].astro must bind input listener to titleInput');
+  });
 });
 

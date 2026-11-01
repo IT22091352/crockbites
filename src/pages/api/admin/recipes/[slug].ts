@@ -279,14 +279,32 @@ export const PUT: APIRoute = async ({ params, request, cookies, locals }) => {
       const response = await writeRepoFile(targetRecipePath, markdown, `Update recipe: ${mergedRecipe.title}`, prior.sha);
       shaResult = response.content?.sha ?? response.commit?.sha ?? null;
     } else {
-      let targetSha: string | undefined;
+      // Validate that target slug does not already belong to another recipe
       try {
         const existingTarget = await getRepoFile(targetRecipePath, 'main');
-        targetSha = existingTarget.sha;
+        if (existingTarget && existingTarget.sha) {
+          return new Response(JSON.stringify({ error: `Cannot rename: a recipe with slug "${slug}" already exists.` }), {
+            status: 409,
+            headers: { 'content-type': 'application/json' },
+          });
+        }
       } catch {
-        targetSha = undefined;
+        // Target file not found, which is expected for renaming to an available slug
       }
-      const response = await writeRepoFile(targetRecipePath, markdown, `Rename & update recipe: ${mergedRecipe.title}`, targetSha);
+
+      const allExisting = await getCollection('recipes');
+      const conflict = allExisting.find(
+        (r) => (r.id.replace(/\.md$/, '') === slug || (r.data.slug ?? '').toLowerCase() === slug.toLowerCase()) &&
+               r.id.replace(/\.md$/, '') !== currentSlug
+      );
+      if (conflict) {
+        return new Response(JSON.stringify({ error: `Cannot rename: a recipe with slug "${slug}" already exists.` }), {
+          status: 409,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+
+      const response = await writeRepoFile(targetRecipePath, markdown, `Rename & update recipe: ${mergedRecipe.title}`, undefined);
       shaResult = response.content?.sha ?? response.commit?.sha ?? null;
       await deleteRepoFile(currentRecipePath, prior.sha, `Remove old recipe path after rename: ${currentSlug}`);
 

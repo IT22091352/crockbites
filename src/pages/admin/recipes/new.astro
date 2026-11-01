@@ -85,8 +85,8 @@ const categories = [
             <input name="title" id="titleInput" required placeholder="e.g. Slow Cooker Pulled Pork" />
           </label>
           <label>
-            SEO Slug * <span class="hint">(Auto-generated, editable)</span>
-            <input name="slug" id="slugInput" placeholder="slow-cooker-pulled-pork" />
+            SEO Slug * <span class="hint">(Auto-generated from title)</span>
+            <input name="slug" id="slugInput" placeholder="slow-cooker-pulled-pork" readonly class="bg-cream/40 cursor-not-allowed select-none" />
           </label>
         </div>
 
@@ -1120,19 +1120,18 @@ const categories = [
     }
   }
 
-  // Auto-slugify title
+  // Live SEO Slug synchronization with Recipe Title
+  function generateSlug(text: string): string {
+    return (text || '')
+      .toLowerCase()
+      .replace(/['’]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+
   titleInput.addEventListener('input', () => {
-    if (!slugInput.dataset.manual) {
-      slugInput.value = titleInput.value
-        .toLowerCase()
-        .trim()
-        .replace(/['’]/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-    }
-  });
-  slugInput.addEventListener('input', () => {
-    slugInput.dataset.manual = 'true';
+    slugInput.value = generateSlug(titleInput.value);
   });
 
   // Slow cooker setting sync with cookTimeNote

@@ -12,7 +12,7 @@ import {
   ensureCsrfToken,
 } from '../../../lib/admin';
 import { inferRecipeDraft, normalizeDietaryLabels, normalizeAllergens, serializeRecipeToMarkdown } from '../../../lib/recipe-admin';
-import { repoRecipePath, writeRepoFile } from '../../../lib/github';
+import { getRepoFile, repoRecipePath, writeRepoFile } from '../../../lib/github';
 import { getDb } from '../../../lib/db';
 import { triggerRecipeNewsletterCampaign } from '../../../lib/brevo-campaign';
 import { formatAdminRecipeSummary, getAdminRecipeList, saveAdminRecipeCache, saveAdminFullRecipeCache, parseRecipeMarkdownToFull } from '../../../lib/admin-recipes';
@@ -195,6 +195,16 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
       headers: { 'content-type': 'application/json' },
     });
   }
+
+  try {
+    const existingFile = await getRepoFile(repoRecipePath(finalSlug), 'main');
+    if (existingFile && existingFile.sha) {
+      return new Response(JSON.stringify({ error: `Duplicate slug: ${finalSlug} already exists.` }), {
+        status: 409,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+  } catch {}
 
   const isNewsletterOptedIn = data.notifyNewsletter !== undefined
     ? Boolean(data.notifyNewsletter)

@@ -161,8 +161,8 @@ const initialNotifyNewsletter = (recipe.data as any).notifyNewsletter !== false;
             <input name="title" id="titleInput" value={initialRecipe.title} required />
           </label>
           <label>
-            SEO Slug * <span class="hint">(Keep consistent unless renaming)</span>
-            <input name="slug" id="slugInput" value={initialRecipe.slug} />
+            SEO Slug * <span class="hint">(Auto-generated from title)</span>
+            <input name="slug" id="slugInput" value={initialRecipe.slug} readonly class="bg-cream/40 cursor-not-allowed select-none" />
           </label>
         </div>
 
@@ -1261,6 +1261,28 @@ const initialNotifyNewsletter = (recipe.data as any).notifyNewsletter !== false;
     } finally {
       if (progressEl) progressEl.style.display = 'none';
     }
+  }
+
+  // Live SEO Slug synchronization with Recipe Title
+  const titleInput = document.getElementById('titleInput');
+  const slugInput = document.getElementById('slugInput');
+
+  function generateSlug(text) {
+    return (text || '')
+      .toLowerCase()
+      .replace(/['’]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+
+  if (titleInput && slugInput) {
+    if (!slugInput.value && titleInput.value) {
+      slugInput.value = generateSlug(titleInput.value);
+    }
+    titleInput.addEventListener('input', () => {
+      slugInput.value = generateSlug(titleInput.value);
+    });
   }
 
   // Slow cooker setting sync with cookTimeNote
