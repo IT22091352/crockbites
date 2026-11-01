@@ -30,21 +30,9 @@ gallery:
     width: 1456
     height: 816
     isPrimary: false
-  - url: https://res.cloudinary.com/dmxumqqpj/image/upload/v1793473087/crockbites/recipes/gabdneaj3pvu7aubboky.png
-    publicId: crockbites/recipes/gabdneaj3pvu7aubboky
-    alt: Top Down Crockpot Beef Stew
-    width: 1312
-    height: 1199
-    isPrimary: false
-  - url: https://res.cloudinary.com/dmxumqqpj/image/upload/v1793473097/crockbites/recipes/mftql8seqziqsuspm8ks.png
-    publicId: crockbites/recipes/mftql8seqziqsuspm8ks
-    alt: Black Crockpot Filled with Beef Curry
-    width: 1312
-    height: 1199
-    isPrimary: false
 author: CrockBites
 pubDate: 2026-10-30
-updatedDate: 2026-10-31
+updatedDate: 2026-11-01
 prepMinutes: 15
 cookMinutes: 480
 cookTimeNote: Low 7 to 8 hours (or High 4 to 5 hours)
@@ -116,7 +104,7 @@ tips:
   - "Removing the silver skin is essential: it allows the dry rub and sauce to penetrate the meat, and keeps the ribs from curling while cooking."
   - Do not skip the oven broil step at the end. The intense top heat caramelizes the sugars in the barbecue sauce, turning soft slow cooker meat into authentic sticky barbecue.
 featured: false
-reviewStatus: draft
+reviewStatus: tested
 ---
 
 ### Why This Recipe Works
