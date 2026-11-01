@@ -806,8 +806,15 @@ const activeNav = statusParam === 'draft' ? 'drafts' : 'recipes';
     refreshListBtn.disabled = true;
 
     try {
-      const res = await fetch('/api/admin/recipes/?fresh=1');
-      if (!res.ok) throw new Error('Failed to refresh recipe list');
+      const headers: Record<string, string> = {};
+      if (csrfToken) {
+        headers['x-csrf-token'] = csrfToken;
+      }
+      const res = await fetch('/api/admin/recipes/?fresh=1', { headers });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to refresh recipe list');
+      }
       const data = await res.json();
       if (Array.isArray(data.recipes)) {
         // Clear and rebuild table body

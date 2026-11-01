@@ -27,9 +27,12 @@ const isAuthorized = async (request: Request, cookies: any) => {
   const session = parseAdminSessionCookie(sessionCookie);
   if (!session) return null;
 
-  const csrfCookie = cookies.get(CSRF_COOKIE_NAME)?.value ?? '';
-  if (!(await ensureCsrfToken(request, csrfCookie, secret, session.id))) {
-    return null;
+  // Safe HTTP methods (RFC 9110) do not mutate state and do not require CSRF token
+  if (request.method !== 'GET' && request.method !== 'HEAD' && request.method !== 'OPTIONS') {
+    const csrfCookie = cookies.get(CSRF_COOKIE_NAME)?.value ?? '';
+    if (!(await ensureCsrfToken(request, csrfCookie, secret, session.id))) {
+      return null;
+    }
   }
 
   return session;

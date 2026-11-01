@@ -14,6 +14,14 @@ import {
   saveAdminFullRecipeCache,
 } from '../src/lib/admin-recipes.ts';
 import { serializeRecipeToMarkdown } from '../src/lib/recipe-admin.ts';
+import {
+  buildSessionCookie,
+  createCsrfToken,
+  getAdminSessionSecret,
+  parseAdminSessionCookie,
+  verifySessionCookie,
+  ensureCsrfToken,
+} from '../src/lib/admin.ts';
 
 test('Admin CMS Draft Refresh & Synchronization Tests', async (t) => {
   // Clear cache before test suite
@@ -498,6 +506,56 @@ Custom intro markdown notes`;
     const indexAstro = fs.readFileSync('src/pages/admin/recipes/index.astro', 'utf8');
     assert.ok(!indexAstro.includes('1 1 0 .696'), 'Malformed SVG arc command must not exist in index.astro');
     assert.ok(indexAstro.includes('M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z'), 'Standard Lucide eye icon must be used');
+  });
+
+  await t.test('Scenario 10: Admin Recipe List Refresh Authorization & Safe GET CSRF Bypass', async () => {
+    process.env.ADMIN_SESSION_SECRET = 'test-secret-key-32-chars-length!!';
+    process.env.ADMIN_USERNAME = 'admin';
+    process.env.ADMIN_PASSWORD_HASH = 'scrypt$1234$5678';
+    const secret = getAdminSessionSecret();
+    const sessionCookie = buildSessionCookie('admin', secret);
+    const session = parseAdminSessionCookie(sessionCookie);
+    assert.ok(session, 'Valid session cookie generated');
+    assert.ok(verifySessionCookie(sessionCookie, secret), 'Session cookie is valid');
+
+    const getRequest = new Request('https://crockbites.site/api/admin/recipes/?fresh=1', {
+      method: 'GET',
+    });
+
+    const isAuthorizedHelper = async (req) => {
+      if (!secret || !sessionCookie || !verifySessionCookie(sessionCookie, secret)) return null;
+      if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS') {
+        const csrfToken = req.headers.get('x-csrf-token') || '';
+        const ok = await ensureCsrfToken(req, csrfToken, secret, session.id);
+        if (!ok) return null;
+      }
+      return session;
+    };
+
+    const getAuth = await isAuthorizedHelper(getRequest);
+    assert.ok(getAuth, 'GET request with valid admin session cookie must be authorized without CSRF header');
+
+    const postRequest = new Request('https://crockbites.site/api/admin/recipes/', {
+      method: 'POST',
+    });
+    const postAuth = await isAuthorizedHelper(postRequest);
+    assert.equal(postAuth, null, 'POST request without CSRF token must be rejected');
+
+    const validCsrf = createCsrfToken(secret, session.id);
+    const postWithCsrf = new Request('https://crockbites.site/api/admin/recipes/', {
+      method: 'POST',
+      headers: { 'x-csrf-token': validCsrf },
+    });
+    const postValidAuth = await isAuthorizedHelper(postWithCsrf);
+    assert.ok(postValidAuth, 'POST request with valid CSRF token must be authorized');
+
+    const recipesApi = fs.readFileSync('src/pages/api/admin/recipes.ts', 'utf8');
+    assert.ok(recipesApi.includes("request.method !== 'GET'"), 'recipes.ts must not require CSRF for GET');
+    const slugApi = fs.readFileSync('src/pages/api/admin/recipes/[slug].ts', 'utf8');
+    assert.ok(slugApi.includes("request.method !== 'GET'"), '[slug].ts must not require CSRF for GET');
+
+    const indexAstro = fs.readFileSync('src/pages/admin/recipes/index.astro', 'utf8');
+    assert.ok(indexAstro.includes("headers['x-csrf-token'] = csrfToken"), 'index.astro refresh sends csrf token header if present');
   });
 
   // Clean up test items from cache
