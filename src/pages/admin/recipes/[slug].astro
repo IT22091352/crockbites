@@ -414,6 +414,31 @@ const isDraft = initialRecipe.reviewStatus === 'draft';
         </div>
       </details>
 
+      <!-- Newsletter Notification Option -->
+      {isDraft ? (
+        <div class="mt-4 p-4 rounded-xl border border-line/70 bg-cream/30 flex items-start gap-3">
+          <input
+            type="checkbox"
+            id="sendNewsletterCheckbox"
+            name="sendNewsletter"
+            checked
+            class="mt-1 h-4 w-4 rounded border-line text-forest focus:ring-forest cursor-pointer"
+          />
+          <label for="sendNewsletterCheckbox" class="text-xs sm:text-sm text-ink-soft cursor-pointer select-none">
+            <strong class="text-forest font-semibold block">Email newsletter subscribers about this recipe</strong>
+            <span>Automatically creates and sends a Brevo email campaign to CrockBites Newsletter Subscribers (List #3) upon publishing.</span>
+          </label>
+        </div>
+      ) : (
+        <div id="newsletterStatusBanner" class="mt-4 p-3.5 rounded-xl border border-line/50 bg-paper text-xs text-ink-soft flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="inline-block size-2 rounded-full bg-forest"></span>
+            <span>Recipe is published. Newsletter subscriber notifications will not be re-sent on standard edits.</span>
+          </div>
+          <span id="newsletterCampaignBadge" class="font-mono text-[11px] text-ink-soft/80"></span>
+        </div>
+      )}
+
       <!-- Submission Actions -->
       <div class="pt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line/60">
         <a class="btn btn-subtle" href="/admin/recipes/">Cancel</a>
@@ -1312,6 +1337,7 @@ const isDraft = initialRecipe.reviewStatus === 'draft';
       allergenReviewed: isAllergenReviewed,
       allergenNotes: allergenNotesVal,
       nutrition: hasNutrition ? nutritionObj : undefined,
+      sendNewsletter: targetStatus === 'tested' ? Boolean(document.getElementById('sendNewsletterCheckbox')?.checked) : false,
     };
 
     if (!payload.title || !payload.description || ingredients.length === 0 || instructions.length === 0) {
@@ -1345,13 +1371,22 @@ const isDraft = initialRecipe.reviewStatus === 'draft';
         return;
       }
 
+      let successMsg = `✓ Recipe successfully updated to ${targetStatus === 'tested' ? 'published' : 'draft'} status!`;
+      if (data.newsletter) {
+        if (data.newsletter.status === 'sent') {
+          successMsg += ` (Brevo newsletter campaign #${data.newsletter.campaignId} sent to subscribers)`;
+        } else if (data.newsletter.status === 'failed') {
+          successMsg += ` [Note: Newsletter could not be sent: ${data.newsletter.error}]`;
+        }
+      }
+
       if (formStatus) {
-        formStatus.className = 'status success';
-        formStatus.textContent = `✓ Recipe successfully updated to ${targetStatus === 'tested' ? 'published' : 'draft'} status!`;
+        formStatus.className = data.newsletter?.status === 'failed' ? 'status warning' : 'status success';
+        formStatus.textContent = `${successMsg} Redirecting...`;
       }
       setTimeout(() => {
         window.location.href = targetStatus === 'tested' ? '/admin/recipes/' : '/admin/recipes/?status=draft';
-      }, 1000);
+      }, data.newsletter?.status === 'failed' ? 3000 : 1200);
     } catch (err) {
       if (formStatus) {
         formStatus.className = 'status error';
@@ -1391,4 +1426,21 @@ const isDraft = initialRecipe.reviewStatus === 'draft';
       deleteBtn.disabled = false;
     }
   });
+
+  // Load newsletter campaign badge if already published
+  const campaignBadge = document.getElementById('newsletterCampaignBadge');
+  if (campaignBadge && initialRecipe.slug) {
+    fetch(`/api/admin/recipes/newsletter/?slug=${encodeURIComponent(initialRecipe.slug)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.record?.status === 'sent' && data.record.campaign_id) {
+          campaignBadge.textContent = `Campaign #${data.record.campaign_id} (Sent)`;
+          campaignBadge.className = 'inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200';
+        } else if (data?.record?.status === 'failed') {
+          campaignBadge.textContent = 'Newsletter Failed';
+          campaignBadge.className = 'inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200';
+        }
+      })
+      .catch(() => {});
+  }
 </script>

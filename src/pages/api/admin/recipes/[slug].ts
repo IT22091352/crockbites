@@ -23,6 +23,8 @@ import { deleteRepoFile, getRepoFile, repoRecipePath, writeRepoFile } from '../.
 import { cleanupUnusedRecipeMedia } from '../../../../lib/cloudinary';
 import { getDb } from '../../../../lib/db';
 import { migrateRecipeSlugInCommunityDb } from '../../../../lib/community';
+import { triggerRecipeNewsletterCampaign } from '../../../../lib/brevo-campaign';
+import YAML from 'yaml';
 
 const isAuthorized = async (request: Request, cookies: any) => {
   const secret = getAdminSessionSecret();
@@ -242,6 +244,17 @@ export const PUT: APIRoute = async ({ params, request, cookies, locals }) => {
     const existingMarkdown = prior.content ? Buffer.from(prior.content, 'base64').toString('utf8') : '';
     const mergedRecipe = mergeExistingRecipeWithUpdates(existingMarkdown, updates);
 
+    // Detect if this is a transition from draft to published
+    const priorMatch = existingMarkdown.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    let priorReviewStatus = 'draft';
+    if (priorMatch) {
+      try {
+        const parsedYaml = YAML.parse(priorMatch[1]);
+        priorReviewStatus = parsedYaml?.reviewStatus || 'draft';
+      } catch {}
+    }
+    const isTransitionToPublished = priorReviewStatus !== 'tested' && mergedRecipe.reviewStatus === 'tested';
+
     const validation = inferRecipeDraft({ ...mergedRecipe, slug });
     if (validation.issues.length > 0) {
       return new Response(JSON.stringify({ error: validation.issues.join(' ') }), { status: 400, headers: { 'content-type': 'application/json' } });
@@ -255,9 +268,10 @@ export const PUT: APIRoute = async ({ params, request, cookies, locals }) => {
       reviewStatus: mergedRecipe.reviewStatus === 'tested' ? 'tested' : 'draft',
     });
 
+    let shaResult: string | null = null;
     if (targetRecipePath === currentRecipePath) {
       const response = await writeRepoFile(targetRecipePath, markdown, `Update recipe: ${mergedRecipe.title}`, prior.sha);
-      return new Response(JSON.stringify({ message: 'Recipe updated', slug, sha: response.content?.sha ?? response.commit?.sha ?? null }), { status: 200, headers: { 'content-type': 'application/json' } });
+      shaResult = response.content?.sha ?? response.commit?.sha ?? null;
     } else {
       let targetSha: string | undefined;
       try {
@@ -267,15 +281,69 @@ export const PUT: APIRoute = async ({ params, request, cookies, locals }) => {
         targetSha = undefined;
       }
       const response = await writeRepoFile(targetRecipePath, markdown, `Rename & update recipe: ${mergedRecipe.title}`, targetSha);
+      shaResult = response.content?.sha ?? response.commit?.sha ?? null;
       await deleteRepoFile(currentRecipePath, prior.sha, `Remove old recipe path after rename: ${currentSlug}`);
 
       const db = await getDb(locals);
       if (db && currentSlug && slug !== currentSlug) {
         await migrateRecipeSlugInCommunityDb(db, currentSlug, slug);
       }
-
-      return new Response(JSON.stringify({ message: 'Recipe updated', slug, sha: response.content?.sha ?? response.commit?.sha ?? null }), { status: 200, headers: { 'content-type': 'application/json' } });
     }
+
+    // Trigger newsletter campaign if transitioning from draft to published
+    let newsletterResult: any = undefined;
+    const sendNewsletter = data.sendNewsletter !== false && data.sendNewsletter !== 'false' && data.sendNewsletter !== 0;
+
+    if (isTransitionToPublished) {
+      if (sendNewsletter) {
+        try {
+          const db = await getDb(locals);
+          newsletterResult = await triggerRecipeNewsletterCampaign(db, {
+            slug,
+            title: mergedRecipe.title,
+            description: mergedRecipe.description,
+            image: typeof mergedRecipe.image === 'string' ? mergedRecipe.image : (mergedRecipe.image as any)?.src,
+            imageAlt: mergedRecipe.imageAlt,
+            prepMinutes: mergedRecipe.prepMinutes,
+            cookMinutes: mergedRecipe.cookMinutes,
+            servings: mergedRecipe.servings,
+            category: mergedRecipe.category,
+          });
+        } catch (err) {
+          console.error('[Admin Recipe PUT] Newsletter campaign trigger error:', err);
+          newsletterResult = {
+            ok: false,
+            status: 'failed',
+            error: err instanceof Error ? err.message : String(err),
+          };
+        }
+      } else {
+        newsletterResult = {
+          ok: true,
+          status: 'skipped',
+          reason: 'disabled_by_user',
+        };
+      }
+    } else if (mergedRecipe.reviewStatus === 'tested') {
+      newsletterResult = {
+        ok: true,
+        status: 'skipped',
+        reason: 'already_published',
+      };
+    } else {
+      newsletterResult = {
+        ok: true,
+        status: 'skipped',
+        reason: 'draft',
+      };
+    }
+
+    return new Response(JSON.stringify({
+      message: 'Recipe updated',
+      slug,
+      sha: shaResult,
+      newsletter: newsletterResult,
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'GitHub update failed';
     return new Response(JSON.stringify({ error: message }), { status: 502, headers: { 'content-type': 'application/json' } });

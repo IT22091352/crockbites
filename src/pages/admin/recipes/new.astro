@@ -340,6 +340,21 @@ const categories = [
         </div>
       </details>
 
+      <!-- Newsletter Notification Option -->
+      <div class="mt-4 p-4 rounded-xl border border-line/70 bg-cream/30 flex items-start gap-3">
+        <input
+          type="checkbox"
+          id="sendNewsletterCheckbox"
+          name="sendNewsletter"
+          checked
+          class="mt-1 h-4 w-4 rounded border-line text-forest focus:ring-forest cursor-pointer"
+        />
+        <label for="sendNewsletterCheckbox" class="text-xs sm:text-sm text-ink-soft cursor-pointer select-none">
+          <strong class="text-forest font-semibold block">Email newsletter subscribers about this recipe</strong>
+          <span>Automatically creates and sends a Brevo email campaign to CrockBites Newsletter Subscribers (List #3) when publishing.</span>
+        </label>
+      </div>
+
       <!-- Submission Actions -->
       <div class="pt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line/60">
         <a class="btn btn-subtle" href="/admin/recipes/">Cancel</a>
@@ -1187,6 +1202,7 @@ const categories = [
       allergenReviewed: isAllergenReviewed,
       allergenNotes: allergenNotesVal,
       nutrition: hasNutrition ? nutritionObj : undefined,
+      sendNewsletter: targetStatus === 'tested' ? Boolean((document.getElementById('sendNewsletterCheckbox') as HTMLInputElement | null)?.checked) : false,
     };
 
     if (!payload.title || !payload.description || ingredients.length === 0 || instructions.length === 0) {
@@ -1216,11 +1232,20 @@ const categories = [
         return;
       }
 
-      formStatus.className = 'status success';
-      formStatus.textContent = `✓ Recipe successfully ${targetStatus === 'tested' ? 'published' : 'saved as draft'} to GitHub! Redirecting...`;
+      let successMsg = `✓ Recipe successfully ${targetStatus === 'tested' ? 'published' : 'saved as draft'} to GitHub!`;
+      if (data.newsletter) {
+        if (data.newsletter.status === 'sent') {
+          successMsg += ` (Brevo newsletter campaign #${data.newsletter.campaignId} sent to subscribers)`;
+        } else if (data.newsletter.status === 'failed') {
+          successMsg += ` [Note: Newsletter could not be sent: ${data.newsletter.error}]`;
+        }
+      }
+
+      formStatus.className = data.newsletter?.status === 'failed' ? 'status warning' : 'status success';
+      formStatus.textContent = `${successMsg} Redirecting...`;
       setTimeout(() => {
         window.location.href = targetStatus === 'tested' ? '/admin/recipes/' : '/admin/recipes/?status=draft';
-      }, 1000);
+      }, data.newsletter?.status === 'failed' ? 3000 : 1200);
     } catch (err) {
       formStatus.className = 'status error';
       formStatus.textContent = 'Network error: ' + (err instanceof Error ? err.message : String(err));

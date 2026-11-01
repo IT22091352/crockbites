@@ -13,6 +13,8 @@ import {
 } from '../../../lib/admin';
 import { inferRecipeDraft, normalizeDietaryLabels, normalizeAllergens, serializeRecipeToMarkdown } from '../../../lib/recipe-admin';
 import { repoRecipePath, writeRepoFile } from '../../../lib/github';
+import { getDb } from '../../../lib/db';
+import { triggerRecipeNewsletterCampaign } from '../../../lib/brevo-campaign';
 
 const isAuthorized = async (request: Request, cookies: any) => {
   const secret = getAdminSessionSecret();
@@ -99,7 +101,7 @@ export const GET: APIRoute = async ({ request, cookies }) => {
   });
 };
 
-export const POST: APIRoute = async ({ request, cookies }) => {
+export const POST: APIRoute = async ({ request, cookies, locals }) => {
   const session = await isAuthorized(request, cookies);
   if (!session) {
     return new Response(JSON.stringify({ error: 'Unauthorized or CSRF validation failed.' }), {
@@ -187,7 +189,55 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   try {
     const repoPath = repoRecipePath(finalSlug);
     await writeRepoFile(repoPath, markdown, `Add recipe: ${payload.title}`);
-    return new Response(JSON.stringify({ message: 'Recipe created', slug: finalSlug, path: repoPath }), {
+
+    // Trigger newsletter campaign if published and opted in
+    let newsletterResult: any = undefined;
+    const sendNewsletter = data.sendNewsletter !== false && data.sendNewsletter !== 'false' && data.sendNewsletter !== 0;
+
+    if (payload.reviewStatus === 'tested') {
+      if (sendNewsletter) {
+        try {
+          const db = await getDb(locals);
+          newsletterResult = await triggerRecipeNewsletterCampaign(db, {
+            slug: finalSlug,
+            title: payload.title,
+            description: payload.description,
+            image: payload.image,
+            imageAlt: payload.imageAlt,
+            prepMinutes: payload.prepMinutes,
+            cookMinutes: payload.cookMinutes,
+            servings: payload.servings,
+            category: payload.category,
+          });
+        } catch (err) {
+          console.error('[Admin Recipe POST] Newsletter campaign trigger error:', err);
+          newsletterResult = {
+            ok: false,
+            status: 'failed',
+            error: err instanceof Error ? err.message : String(err),
+          };
+        }
+      } else {
+        newsletterResult = {
+          ok: true,
+          status: 'skipped',
+          reason: 'disabled_by_user',
+        };
+      }
+    } else {
+      newsletterResult = {
+        ok: true,
+        status: 'skipped',
+        reason: 'draft',
+      };
+    }
+
+    return new Response(JSON.stringify({
+      message: 'Recipe created',
+      slug: finalSlug,
+      path: repoPath,
+      newsletter: newsletterResult,
+    }), {
       status: 201,
       headers: { 'content-type': 'application/json' },
     });

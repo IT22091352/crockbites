@@ -6,6 +6,7 @@ import { getGithubConfig } from '../../lib/github';
 import { getCloudinaryConfig } from '../../lib/cloudinary';
 import { getD1BindingStatus } from '../../lib/db';
 import { isTransactionalEmailConfigured } from '../../lib/user-auth';
+import { isBrevoCampaignConfigured } from '../../lib/brevo-campaign';
 import {
   GitBranch,
   Image as ImageIcon,
@@ -22,6 +23,7 @@ const cl = getCloudinaryConfig();
 const clConfigured = cl.isConfigured;
 const d1Status = getD1BindingStatus(Astro.locals);
 const emailStatus = isTransactionalEmailConfigured();
+const brevoStatus = isBrevoCampaignConfigured();
 ---
 
 <AdminLayout
@@ -162,6 +164,40 @@ const emailStatus = isTransactionalEmailConfigured();
         <div class="p-3 rounded-xl bg-cream/40 text-xs text-ink-soft space-y-1 border border-line/40">
           <div><span class="font-semibold text-forest">Sending Domain:</span> mail.crockbites.site</div>
           <div><span class="font-semibold text-forest">Sender Address:</span> no-reply@mail.crockbites.site</div>
+        </div>
+      </div>
+
+      <!-- 5. Brevo Newsletter Campaigns -->
+      <div class="bg-paper rounded-2xl border border-line/70 p-5 shadow-xs space-y-3 flex flex-col justify-between">
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <div class="flex size-9 items-center justify-center rounded-xl bg-forest text-cream">
+                <Mail size={18} aria-hidden="true" />
+              </div>
+              <h2 class="font-display font-bold text-base text-forest">Brevo Newsletter Campaigns</h2>
+            </div>
+            {brevoStatus.configured ? (
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <CircleCheck size={12} class="text-emerald-600" aria-hidden="true" />
+                <span>Ready</span>
+              </span>
+            ) : (
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                <CircleAlert size={12} class="text-amber-600" aria-hidden="true" />
+                <span>Secret Needed</span>
+              </span>
+            )}
+          </div>
+          <p class="text-xs text-ink-soft">
+            Dispatches new recipe announcement campaigns to newsletter subscribers upon publishing.
+          </p>
+        </div>
+
+        <div class="p-3 rounded-xl bg-cream/40 text-xs text-ink-soft space-y-1 border border-line/40">
+          <div><span class="font-semibold text-forest">Audience List:</span> ID #{brevoStatus.listId} (CrockBites Newsletter Subscribers)</div>
+          <div><span class="font-semibold text-forest">Sender Identity:</span> {brevoStatus.sender}</div>
+          <div><span class="font-semibold text-forest">Secret Binding:</span> BREVO_API_KEY</div>
         </div>
       </div>
     </div>
