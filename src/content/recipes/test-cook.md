@@ -1,11 +1,11 @@
 ---
-title: CrockBites Draft Sync Test 2
+title: CrockBites Draft Sync Test 3
 slug: test-cook
 description: test cooktest cooktest cooktest cooktest cook
 category: beef-pork
 tags: []
 image: https://res.cloudinary.com/dmxumqqpj/image/upload/v1793527783/crockbites/recipes/ohsbfvarthpo5qqefyba.jpg
-imageAlt: test cook book
+imageAlt: test cook book 2
 author: CrockBites
 pubDate: 2026-11-01
 updatedDate: 2026-11-01
