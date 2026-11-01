@@ -24,6 +24,7 @@ import { cleanupUnusedRecipeMedia } from '../../../../lib/cloudinary';
 import { getDb } from '../../../../lib/db';
 import { migrateRecipeSlugInCommunityDb } from '../../../../lib/community';
 import { triggerRecipeNewsletterCampaign } from '../../../../lib/brevo-campaign';
+import { formatAdminRecipeSummary, saveAdminRecipeCache, removeAdminRecipeCache } from '../../../../lib/admin-recipes';
 import YAML from 'yaml';
 
 const isAuthorized = async (request: Request, cookies: any) => {
@@ -290,6 +291,36 @@ export const PUT: APIRoute = async ({ params, request, cookies, locals }) => {
       }
     }
 
+    // Sync to local disk if accessible in dev environment
+    try {
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+      const localDir = path.resolve(process.cwd(), 'src/content/recipes');
+      if (fs.existsSync(localDir)) {
+        if (currentSlug && currentSlug !== slug) {
+          const oldLocalPath = path.join(localDir, `${currentSlug}.md`);
+          if (fs.existsSync(oldLocalPath)) fs.unlinkSync(oldLocalPath);
+          removeAdminRecipeCache(currentSlug);
+        }
+        fs.writeFileSync(path.join(localDir, `${slug}.md`), markdown, 'utf8');
+      }
+    } catch {}
+
+    // Prepare updated recipe summary and cache
+    const recipeSummary = formatAdminRecipeSummary({
+      slug,
+      title: mergedRecipe.title,
+      description: mergedRecipe.description,
+      category: mergedRecipe.category,
+      reviewStatus: mergedRecipe.reviewStatus,
+      image: mergedRecipe.image,
+      pubDate: mergedRecipe.pubDate,
+      updatedDate: new Date().toISOString(),
+      ingredients: mergedRecipe.ingredients,
+      instructions: mergedRecipe.instructions,
+    });
+    saveAdminRecipeCache(recipeSummary);
+
     // Trigger newsletter campaign if transitioning from draft to published
     let newsletterResult: any = undefined;
     const sendNewsletter = data.sendNewsletter !== false && data.sendNewsletter !== 'false' && data.sendNewsletter !== 0;
@@ -342,6 +373,7 @@ export const PUT: APIRoute = async ({ params, request, cookies, locals }) => {
       message: 'Recipe updated',
       slug,
       sha: shaResult,
+      recipe: recipeSummary,
       newsletter: newsletterResult,
     }), { status: 200, headers: { 'content-type': 'application/json' } });
   } catch (error) {
@@ -410,6 +442,14 @@ export const DELETE: APIRoute = async ({ params, request, cookies }) => {
         };
       }
     }
+
+    removeAdminRecipeCache(slug);
+    try {
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+      const localFile = path.resolve(process.cwd(), 'src/content/recipes', `${slug}.md`);
+      if (fs.existsSync(localFile)) fs.unlinkSync(localFile);
+    } catch {}
 
     return new Response(JSON.stringify({
       message: 'Recipe deleted',

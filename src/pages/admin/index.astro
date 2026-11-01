@@ -1,11 +1,10 @@
 ---
 export const prerender = false;
 
-import { getCollection } from 'astro:content';
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { getDb } from '../../lib/db';
 import { listAdminReviews } from '../../lib/community';
-import { getOptimizedCloudinaryUrl } from '../../lib/cloudinary';
+import { getAdminRecipeList } from '../../lib/admin-recipes';
 import {
   BookOpen,
   CircleCheck,
@@ -17,10 +16,10 @@ import {
   Eye,
 } from '@lucide/astro';
 
-const recipes = await getCollection('recipes');
+const recipes = await getAdminRecipeList();
 const totalRecipes = recipes.length;
-const published = recipes.filter((recipe) => recipe.data.reviewStatus === 'tested').length;
-const drafts = recipes.filter((recipe) => recipe.data.reviewStatus === 'draft').length;
+const published = recipes.filter((recipe) => recipe.reviewStatus === 'tested').length;
+const drafts = recipes.filter((recipe) => recipe.reviewStatus === 'draft').length;
 
 // Get real reviews count from D1
 const db = await getDb(Astro.locals);
@@ -34,28 +33,16 @@ if (db) {
   }
 }
 
-// Sort recently updated or published recipes (latest 5)
-const recent = [...recipes]
-  .sort((a, b) => {
-    const aDate = a.data.updatedDate ?? a.data.pubDate;
-    const bDate = b.data.updatedDate ?? b.data.pubDate;
-    return Number(bDate) - Number(aDate);
-  })
-  .slice(0, 5);
-
-const recentWithMeta = recent.map((recipe) => {
-  const slug = recipe.id.replace(/\.md$/, '');
-  const rawImage = recipe.data.image;
-  const imageUrl = typeof rawImage === 'string' ? rawImage : (rawImage as any)?.src || '/placeholder.svg';
-  const isCloudinary = imageUrl.startsWith('http://') || imageUrl.startsWith('https://');
-  const thumbUrl = isCloudinary ? getOptimizedCloudinaryUrl(imageUrl, 160) : imageUrl;
-  return {
-    ...recipe,
-    slug,
-    thumbUrl,
-    displayDate: (recipe.data.updatedDate ?? recipe.data.pubDate).toISOString().slice(0, 10),
-  };
-});
+// Recipes are already sorted newest first by getAdminRecipeList
+const recentWithMeta = recipes.slice(0, 5).map((recipe) => ({
+  ...recipe,
+  data: {
+    title: recipe.title,
+    category: recipe.category,
+    reviewStatus: recipe.reviewStatus,
+  },
+  displayDate: (recipe.updatedDate || recipe.pubDate).slice(0, 10),
+}));
 ---
 
 <AdminLayout

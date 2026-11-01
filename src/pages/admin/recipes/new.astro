@@ -1241,11 +1241,21 @@ const categories = [
         }
       }
 
+      // Store flash message and saved recipe for instant optimistic display on the destination list
+      try {
+        sessionStorage.setItem('crockbites_admin_flash', JSON.stringify({
+          type: data.newsletter?.status === 'failed' ? 'warning' : 'success',
+          title: targetStatus === 'tested' ? 'Recipe Published' : 'Draft Saved',
+          message: successMsg,
+          recipe: data.recipe,
+          status: targetStatus,
+          timestamp: Date.now(),
+        }));
+      } catch {}
+
       formStatus.className = data.newsletter?.status === 'failed' ? 'status warning' : 'status success';
-      formStatus.textContent = `${successMsg} Redirecting...`;
-      setTimeout(() => {
-        window.location.href = targetStatus === 'tested' ? '/admin/recipes/' : '/admin/recipes/?status=draft';
-      }, data.newsletter?.status === 'failed' ? 3000 : 1200);
+      formStatus.textContent = `${successMsg} Redirecting to recipe list...`;
+      window.location.href = targetStatus === 'tested' ? '/admin/recipes/' : '/admin/recipes/?status=draft';
     } catch (err) {
       formStatus.className = 'status error';
       formStatus.textContent = 'Network error: ' + (err instanceof Error ? err.message : String(err));

@@ -29,11 +29,33 @@ if (!slugParam) {
 }
 
 const recipes = await getCollection('recipes');
-const recipe = recipes.find(
+let recipe = recipes.find(
   (entry) =>
     entry.id.replace(/\.md$/, '') === slugParam ||
     (entry.data.slug ?? '').toLowerCase() === slugParam.toLowerCase()
 );
+
+if (!recipe) {
+  // Fall back to GitHub or local disk for newly created drafts before Astro re-compiles
+  try {
+    const { repoRecipePath, getRepoFile } = await import('../../../lib/github');
+    const YAML = (await import('yaml')).default;
+    const repoFile = await getRepoFile(repoRecipePath(slugParam), 'main');
+    if (repoFile?.content) {
+      const rawContent = Buffer.from(repoFile.content, 'base64').toString('utf8');
+      const match = rawContent.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+      if (match) {
+        const data = YAML.parse(match[1]);
+        const body = rawContent.slice(match[0].length).trim();
+        recipe = {
+          id: `${slugParam}.md`,
+          data,
+          body,
+        } as any;
+      }
+    }
+  } catch {}
+}
 
 if (!recipe) {
   return Astro.redirect('/admin/recipes/?error=Recipe+not+found');
@@ -1380,13 +1402,23 @@ const isDraft = initialRecipe.reviewStatus === 'draft';
         }
       }
 
+      // Store flash message and updated recipe for instant optimistic display on the destination list
+      try {
+        sessionStorage.setItem('crockbites_admin_flash', JSON.stringify({
+          type: data.newsletter?.status === 'failed' ? 'warning' : 'success',
+          title: targetStatus === 'tested' ? 'Recipe Published' : 'Draft Updated',
+          message: successMsg,
+          recipe: data.recipe,
+          status: targetStatus,
+          timestamp: Date.now(),
+        }));
+      } catch {}
+
       if (formStatus) {
         formStatus.className = data.newsletter?.status === 'failed' ? 'status warning' : 'status success';
-        formStatus.textContent = `${successMsg} Redirecting...`;
+        formStatus.textContent = `${successMsg} Redirecting to recipe list...`;
       }
-      setTimeout(() => {
-        window.location.href = targetStatus === 'tested' ? '/admin/recipes/' : '/admin/recipes/?status=draft';
-      }, data.newsletter?.status === 'failed' ? 3000 : 1200);
+      window.location.href = targetStatus === 'tested' ? '/admin/recipes/' : '/admin/recipes/?status=draft';
     } catch (err) {
       if (formStatus) {
         formStatus.className = 'status error';

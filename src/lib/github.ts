@@ -44,7 +44,8 @@ function getGithubHeaders(token: string, extra: Record<string, string> = {}) {
   };
 }
 
-type GitHubFile = {
+export type GitHubFile = {
+  name?: string;
   sha: string;
   path: string;
   url: string;

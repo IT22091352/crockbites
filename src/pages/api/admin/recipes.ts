@@ -15,6 +15,7 @@ import { inferRecipeDraft, normalizeDietaryLabels, normalizeAllergens, serialize
 import { repoRecipePath, writeRepoFile } from '../../../lib/github';
 import { getDb } from '../../../lib/db';
 import { triggerRecipeNewsletterCampaign } from '../../../lib/brevo-campaign';
+import { formatAdminRecipeSummary, getAdminRecipeList, saveAdminRecipeCache } from '../../../lib/admin-recipes';
 
 const isAuthorized = async (request: Request, cookies: any) => {
   const secret = getAdminSessionSecret();
@@ -95,8 +96,25 @@ export const GET: APIRoute = async ({ request, cookies }) => {
     });
   }
 
-  const recipes = await getCollection('recipes');
-  return new Response(JSON.stringify(recipes.map((recipe) => ({ slug: recipe.id.replace(/\.md$/, ''), title: recipe.data.title, status: recipe.data.reviewStatus, category: recipe.data.category }))), {
+  const url = new URL(request.url);
+  const statusFilter = url.searchParams.get('status');
+  const isFresh = url.searchParams.get('fresh') === 'true' || url.searchParams.get('fresh') === '1';
+  const query = (url.searchParams.get('q') || '').trim().toLowerCase();
+
+  const allRecipes = await getAdminRecipeList({ fresh: isFresh });
+  let recipes = allRecipes;
+
+  if (statusFilter && statusFilter !== 'all') {
+    recipes = recipes.filter((r) => r.reviewStatus === statusFilter);
+  }
+
+  if (query) {
+    recipes = recipes.filter(
+      (r) => r.title.toLowerCase().includes(query) || r.slug.toLowerCase().includes(query)
+    );
+  }
+
+  return new Response(JSON.stringify({ success: true, count: recipes.length, recipes }), {
     headers: { 'content-type': 'application/json' },
   });
 };
@@ -190,6 +208,33 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     const repoPath = repoRecipePath(finalSlug);
     await writeRepoFile(repoPath, markdown, `Add recipe: ${payload.title}`);
 
+    // If running in local node environment with accessible filesystem, write file locally as well
+    try {
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+      const localDir = path.resolve(process.cwd(), 'src/content/recipes');
+      if (fs.existsSync(localDir)) {
+        fs.writeFileSync(path.join(localDir, `${finalSlug}.md`), markdown, 'utf8');
+      }
+    } catch {
+      // Worker environment or read-only filesystem
+    }
+
+    // Format rich recipe summary and cache for immediate retrieval
+    const recipeSummary = formatAdminRecipeSummary({
+      slug: finalSlug,
+      title: payload.title,
+      description: payload.description,
+      category: payload.category,
+      reviewStatus: payload.reviewStatus,
+      image: payload.image,
+      pubDate: payload.pubDate,
+      updatedDate: new Date().toISOString(),
+      ingredients: payload.ingredients,
+      instructions: payload.instructions,
+    });
+    saveAdminRecipeCache(recipeSummary);
+
     // Trigger newsletter campaign if published and opted in
     let newsletterResult: any = undefined;
     const sendNewsletter = data.sendNewsletter !== false && data.sendNewsletter !== 'false' && data.sendNewsletter !== 0;
@@ -236,6 +281,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
       message: 'Recipe created',
       slug: finalSlug,
       path: repoPath,
+      recipe: recipeSummary,
       newsletter: newsletterResult,
     }), {
       status: 201,
