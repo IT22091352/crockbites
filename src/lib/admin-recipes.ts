@@ -384,14 +384,14 @@ export async function getAdminRecipeBySlug(slug: string): Promise<AdminRecipeSum
  */
 export async function getLatestAdminRecipe(
   slug: string,
-  _options: { fresh?: boolean } = {}
+  options: { fresh?: boolean; locals?: any; db?: any } = {}
 ): Promise<FullAdminRecipe | null> {
   const safeSlug = String(slug || '').trim();
   if (!safeSlug) return null;
 
   // 1. Primary: Cloudflare D1
   try {
-    const db = await getDb();
+    const db = options.db || (await getDb(options.locals));
     if (db) {
       const r = await getRecipeBySlugFromDb(db, safeSlug);
       if (r) {

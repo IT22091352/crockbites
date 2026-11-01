@@ -40,8 +40,8 @@ if (!slug) {
   return Astro.redirect('/admin/recipes/');
 }
 
-// Fetch the absolute latest recipe data from GitHub/cache (bypasses stale build bundle)
-const latestRecipe = await getLatestAdminRecipe(slug, { fresh: true });
+// Fetch the absolute latest recipe data from D1/cache (bypasses stale build bundle)
+const latestRecipe = await getLatestAdminRecipe(slug, { fresh: true, locals: Astro.locals });
 
 if (!latestRecipe) {
   return Astro.redirect('/admin/recipes/?error=Recipe+not+found');
@@ -112,6 +112,15 @@ const recipe = {
     substitutions: Array.isArray(latestRecipe.data.substitutions)
       ? latestRecipe.data.substitutions
       : (Array.isArray(staticRecipe?.data?.substitutions) ? staticRecipe.data.substitutions : []),
+    dietaryLabels: Array.isArray(latestRecipe.data.dietaryLabels)
+      ? latestRecipe.data.dietaryLabels
+      : (Array.isArray(staticRecipe?.data?.dietaryLabels) ? staticRecipe.data.dietaryLabels : []),
+    dietaryVerified: Boolean(latestRecipe.data.dietaryVerified ?? staticRecipe?.data?.dietaryVerified),
+    allergens: Array.isArray(latestRecipe.data.allergens)
+      ? latestRecipe.data.allergens
+      : (Array.isArray(staticRecipe?.data?.allergens) ? staticRecipe.data.allergens : []),
+    allergenReviewed: Boolean(latestRecipe.data.allergenReviewed ?? staticRecipe?.data?.allergenReviewed),
+    allergenNotes: latestRecipe.data.allergenNotes ?? staticRecipe?.data?.allergenNotes,
   },
 };
 

@@ -349,6 +349,7 @@ const initialNotifyNewsletter = (recipe.data as any).notifyNewsletter !== false;
           <!-- Dietary Labels -->
           <div>
             <label class="font-bold text-sm text-forest mb-1 block">Dietary Labels</label>
+            <p class="text-xs text-ink-soft mb-2">Select the dietary characteristics that apply to this recipe. Claims must be explicitly verified below before public badges appear.</p>
             <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.5rem; margin-top: 0.5rem;">
               {['vegetarian', 'vegan', 'gluten-free', 'dairy-free', 'nut-free', 'low-carb', 'keto-friendly', 'high-protein', 'low-sodium', 'pescatarian'].map((label) => (
                 <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer; font-size: 0.9rem;">
@@ -357,15 +358,45 @@ const initialNotifyNewsletter = (recipe.data as any).notifyNewsletter !== false;
                 </label>
               ))}
             </div>
-            <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: 600; cursor: pointer; color: var(--forest); margin-top: 0.75rem; font-size: 0.85rem;">
-              <input type="checkbox" name="dietaryVerified" id="dietaryVerifiedInput" checked={initialRecipe.dietaryVerified} />
-              Dietary claims reviewed and verified.
-            </label>
+
+            <!-- Dietary Verification Card -->
+            <div style="margin-top: 0.85rem; padding: 0.85rem 1rem; border-radius: 8px; border: 1.5px solid #cbd5e1; background: #f8fafc;">
+              <label style="display: flex; align-items: flex-start; gap: 0.65rem; cursor: pointer;">
+                <input
+                  type="checkbox"
+                  name="dietaryVerified"
+                  id="dietaryVerifiedInput"
+                  checked={initialRecipe.dietaryVerified}
+                  style="margin-top: 0.15rem; width: 1.15rem; height: 1.15rem; accent-color: var(--forest); cursor: pointer;"
+                />
+                <div>
+                  <span style="display: block; font-weight: 700; color: var(--forest); font-size: 0.9rem;">
+                    Dietary claims reviewed and verified
+                  </span>
+                  <span style="display: block; color: #64748b; font-size: 0.8rem; margin-top: 0.2rem; line-height: 1.4;">
+                    Public recipe cards, category pages, and search filters will only display dietary badges when verified. Unverified claims remain stored in the CMS for editorial review.
+                  </span>
+                </div>
+              </label>
+            </div>
+
+            <!-- Dynamic Warning when labels are selected without verification -->
+            <div
+              id="dietaryUnverifiedWarning"
+              role="alert"
+              style="display: none; margin-top: 0.65rem; padding: 0.75rem 1rem; border-radius: 8px; background: #fffbeb; border: 1.5px solid #fde68a; color: #92400e; font-size: 0.825rem; line-height: 1.45;"
+            >
+              <div style="font-weight: 700; display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.2rem;">
+                <span>⚠️</span> <span>Dietary Claims Notice</span>
+              </div>
+              <span>One or more dietary labels are selected above, but verification is not checked. These dietary labels will <strong>not</strong> appear on public recipe cards, detail pages, or search filters until verified.</span>
+            </div>
           </div>
 
           <!-- Allergen Information -->
           <div>
             <label class="font-bold text-sm text-forest mb-1 block">Major Food Allergens</label>
+            <p class="text-xs text-ink-soft mb-2">Select any of the 9 major food allergens present in this recipe. Live preview updates immediately below.</p>
             <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.5rem; margin-top: 0.5rem;">
               {['milk', 'eggs', 'fish', 'crustacean-shellfish', 'tree-nuts', 'peanuts', 'wheat', 'soybeans', 'sesame'].map((allergen) => (
                 <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; cursor: pointer; font-size: 0.9rem;">
@@ -379,7 +410,37 @@ const initialNotifyNewsletter = (recipe.data as any).notifyNewsletter !== false;
                 <input type="checkbox" name="allergenReviewed" id="allergenReviewedInput" checked={initialRecipe.allergenReviewed} />
                 Allergens explicitly reviewed.
               </label>
-              <input type="text" name="allergenNotes" value={initialRecipe.allergenNotes} placeholder="Allergen notes or substitutions (optional)" style="margin-top: 0.5rem;" />
+              <input type="text" name="allergenNotes" id="allergenNotesInput" value={initialRecipe.allergenNotes} placeholder="Allergen notes or substitutions (optional)" style="margin-top: 0.5rem;" />
+            </div>
+
+            <!-- Live Allergen Preview -->
+            <div id="allergenLivePreview" style="margin-top: 0.85rem; padding: 0.85rem 1rem; border-radius: 8px; border: 1.5px solid #cbd5e1; background: #f8fafc;">
+              <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--forest);">
+                  Live Allergen Preview
+                </span>
+                <span id="previewAllergenStatusBadge" style="font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 999px;"></span>
+              </div>
+
+              <!-- When allergens are selected -->
+              <div id="previewAllergensList" style="margin-top: 0.5rem; font-size: 0.875rem;">
+                <strong style="color: #c2410c;">Contains:</strong> <span id="previewAllergensListText"></span>
+              </div>
+
+              <!-- When no allergens are selected -->
+              <div id="previewAllergensEmpty" style="margin-top: 0.5rem; font-size: 0.85rem; color: #64748b; font-style: italic;">
+                No major food allergens currently selected.
+              </div>
+
+              <!-- Notes row -->
+              <div id="previewAllergenNotesRow" style="display: none; margin-top: 0.4rem; font-size: 0.825rem; color: #334155;">
+                <strong style="color: var(--forest);">Notes:</strong> <span id="previewAllergenNotesText"></span>
+              </div>
+
+              <!-- Unreviewed Notice -->
+              <div id="previewAllergenUnreviewedNotice" style="display: none; margin-top: 0.5rem; font-size: 0.75rem; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 0.4rem 0.6rem; line-height: 1.35;">
+                ⚠️ <strong>Unreviewed:</strong> Ingredients have not been verified against major food allergens. This status will be noted on the recipe.
+              </div>
             </div>
           </div>
 
@@ -1634,6 +1695,102 @@ const initialNotifyNewsletter = (recipe.data as any).notifyNewsletter !== false;
       deleteBtn.disabled = false;
     }
   });
+
+  // Dynamic warning when dietary labels are selected but verification is unchecked
+  const dietaryLabelsInputs = form?.querySelectorAll('input[name="dietaryLabels"]') || [];
+  const dietaryVerifiedInput = form?.querySelector('input[name="dietaryVerified"]');
+  const dietaryWarningEl = document.getElementById('dietaryUnverifiedWarning');
+
+  function syncDietaryWarning() {
+    if (!dietaryWarningEl || !dietaryVerifiedInput) return;
+    const anySelected = Array.from(dietaryLabelsInputs).some((el) => el.checked);
+    const isVerified = dietaryVerifiedInput.checked;
+    if (anySelected && !isVerified) {
+      dietaryWarningEl.style.display = 'block';
+    } else {
+      dietaryWarningEl.style.display = 'none';
+    }
+  }
+
+  dietaryLabelsInputs.forEach((el) => el.addEventListener('change', syncDietaryWarning));
+  dietaryVerifiedInput?.addEventListener('change', syncDietaryWarning);
+  syncDietaryWarning();
+
+  // Live Allergen Preview synchronization
+  const allergenNamesMap = {
+    'milk': 'Milk',
+    'eggs': 'Eggs',
+    'fish': 'Fish',
+    'crustacean-shellfish': 'Crustacean Shellfish',
+    'tree-nuts': 'Tree Nuts',
+    'peanuts': 'Peanuts',
+    'wheat': 'Wheat',
+    'soybeans': 'Soybeans',
+    'sesame': 'Sesame',
+  };
+
+  const allergenInputs = form?.querySelectorAll('input[name="allergens"]') || [];
+  const allergenReviewedInput = form?.querySelector('input[name="allergenReviewed"]');
+  const allergenNotesInput = form?.querySelector('input[name="allergenNotes"]');
+
+  const previewStatusBadge = document.getElementById('previewAllergenStatusBadge');
+  const previewList = document.getElementById('previewAllergensList');
+  const previewListText = document.getElementById('previewAllergensListText');
+  const previewEmpty = document.getElementById('previewAllergensEmpty');
+  const previewNotesRow = document.getElementById('previewAllergenNotesRow');
+  const previewNotesText = document.getElementById('previewAllergenNotesText');
+  const previewUnreviewedNotice = document.getElementById('previewAllergenUnreviewedNotice');
+
+  function syncAllergenLivePreview() {
+    if (!previewStatusBadge) return;
+
+    const checkedAllergens = Array.from(allergenInputs)
+      .filter((el) => el.checked)
+      .map((el) => allergenNamesMap[el.value] || el.value);
+
+    const isReviewed = Boolean(allergenReviewedInput?.checked);
+    const notes = allergenNotesInput?.value.trim() || '';
+
+    // Status Badge & Unreviewed Notice
+    if (isReviewed) {
+      previewStatusBadge.textContent = '✓ Reviewed';
+      previewStatusBadge.style.background = '#dcfce7';
+      previewStatusBadge.style.color = '#15803d';
+      previewStatusBadge.style.border = '1px solid #bbf7d0';
+      if (previewUnreviewedNotice) previewUnreviewedNotice.style.display = 'none';
+    } else {
+      previewStatusBadge.textContent = '⚠️ Unreviewed';
+      previewStatusBadge.style.background = '#fef3c7';
+      previewStatusBadge.style.color = '#92400e';
+      previewStatusBadge.style.border = '1px solid #fde68a';
+      if (previewUnreviewedNotice) {
+        previewUnreviewedNotice.style.display = (checkedAllergens.length > 0 || notes) ? 'block' : 'none';
+      }
+    }
+
+    // Allergens list vs empty state
+    if (checkedAllergens.length > 0) {
+      if (previewList) previewList.style.display = 'block';
+      if (previewListText) previewListText.textContent = checkedAllergens.join(', ');
+      if (previewEmpty) previewEmpty.style.display = 'none';
+    } else {
+      if (previewList) previewList.style.display = 'none';
+      if (previewEmpty) previewEmpty.style.display = 'block';
+    }
+
+    // Notes row
+    if (notes) {
+      if (previewNotesRow) previewNotesRow.style.display = 'block';
+      if (previewNotesText) previewNotesText.textContent = notes;
+    } else {
+      if (previewNotesRow) previewNotesRow.style.display = 'none';
+    }
+  }
+
+  allergenInputs.forEach((el) => el.addEventListener('change', syncAllergenLivePreview));
+  allergenReviewedInput?.addEventListener('change', syncAllergenLivePreview);
+  allergenNotesInput?.addEventListener('input', syncAllergenLivePreview);
+  syncAllergenLivePreview();
 
   // Load newsletter campaign badge if already published
   const campaignBadge = document.getElementById('newsletterCampaignBadge');

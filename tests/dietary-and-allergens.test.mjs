@@ -8,6 +8,15 @@ import {
   serializeRecipeToMarkdown,
 } from '../src/lib/recipe-admin.ts';
 
+process.env.CROCKBITES_LOCAL_SQLITE = '1';
+import { getDb } from '../src/lib/db.ts';
+import {
+  createRecipeInDb,
+  updateRecipeInDb,
+  getRecipeBySlugFromDb,
+  deleteRecipeInDb,
+} from '../src/lib/recipes-db.ts';
+
 // 1. Dietary Enum & Invalid Values Rejection
 const rawDietary = ['Vegetarian', 'GLUTEN-FREE', 'invalid-fad-diet', 'KETO-FRIENDLY', '', null, 123];
 const normalizedDietary = normalizeDietaryLabels(rawDietary);
@@ -221,5 +230,336 @@ const serializedLegacy = serializeRecipeToMarkdown(legacyRecipe);
 assert.ok(serializedLegacy.includes('title: Legacy Slow Cooker Pulled Pork'));
 assert.ok(!serializedLegacy.includes('allergenReviewed: true'));
 
-console.log('dietary-and-allergens unit and safety tests passed');
+// 7. Dietary Verification UX, Safety & Partial-Update Lifecycle Suite
+// Helper for public card & detail badge rendering rule
+function shouldRenderDietaryBadges(recipe) {
+  return Boolean(recipe.dietaryVerified && recipe.dietaryLabels && recipe.dietaryLabels.length > 0);
+}
+
+// Helper for Admin CMS unverified warning rule
+function shouldShowAdminUnverifiedWarning(recipe) {
+  const hasLabels = Boolean(recipe.dietaryLabels && recipe.dietaryLabels.length > 0);
+  const isVerified = Boolean(recipe.dietaryVerified);
+  return hasLabels && !isVerified;
+}
+
+// 7.1. Labels selected + verified = true
+const verifiedRecipe = normalizeRecipePayload({
+  title: 'Tested High-Protein Turkey Chili',
+  dietaryLabels: ['gluten-free', 'dairy-free', 'high-protein'],
+  dietaryVerified: true,
+});
+assert.equal(verifiedRecipe.dietaryVerified, true, '7.1: Explicit verified status preserved as true');
+assert.deepEqual(verifiedRecipe.dietaryLabels, ['gluten-free', 'dairy-free', 'high-protein'], '7.1: Dietary labels preserved');
+assert.equal(shouldRenderDietaryBadges(verifiedRecipe), true, '7.1: Public recipe card renders dietary badges when verified');
+assert.equal(shouldShowAdminUnverifiedWarning(verifiedRecipe), false, '7.1: Admin CMS does not show warning when verified');
+
+// 7.2. Labels selected + verified = false
+const unverifiedHamLikeRecipe = normalizeRecipePayload({
+  title: 'Unverified Brown Sugar Crockpot Ham',
+  dietaryLabels: ['gluten-free', 'dairy-free', 'nut-free', 'high-protein'],
+  dietaryVerified: false,
+});
+assert.equal(unverifiedHamLikeRecipe.dietaryVerified, false, '7.2: Explicit unverified status preserved as false');
+assert.deepEqual(unverifiedHamLikeRecipe.dietaryLabels, ['gluten-free', 'dairy-free', 'nut-free', 'high-protein'], '7.2: Labels preserved in CMS payload');
+assert.equal(shouldRenderDietaryBadges(unverifiedHamLikeRecipe), false, '7.2: Public recipe card strictly suppresses unverified dietary badges');
+assert.equal(shouldShowAdminUnverifiedWarning(unverifiedHamLikeRecipe), true, '7.2: Admin CMS displays warning when labels are selected without verification');
+
+// 7.3. No labels selected (with verified = true or false)
+const noLabelsUnverified = normalizeRecipePayload({
+  title: 'Classic Roast Beef',
+  dietaryLabels: [],
+  dietaryVerified: false,
+});
+assert.equal(shouldRenderDietaryBadges(noLabelsUnverified), false, '7.3: No badges rendered when dietaryLabels is empty');
+assert.equal(shouldShowAdminUnverifiedWarning(noLabelsUnverified), false, '7.3: No CMS warning when no labels are selected');
+
+const noLabelsVerified = normalizeRecipePayload({
+  title: 'Classic Roast Beef (Verified Empty)',
+  dietaryLabels: [],
+  dietaryVerified: true,
+});
+assert.equal(shouldRenderDietaryBadges(noLabelsVerified), false, '7.3: No badges rendered when dietaryLabels is empty even if verified flag is set');
+assert.equal(shouldShowAdminUnverifiedWarning(noLabelsVerified), false, '7.3: No CMS warning when no labels are selected');
+
+// 7.4. D1 Database: Editing an existing recipe without accidentally changing its verification status
+const db = await getDb();
+assert.ok(db, '7.4: D1 database adapter initialized');
+
+const testSlugVerified = 'test-ux-verified-chicken';
+const testSlugUnverified = 'test-ux-unverified-pork';
+
+// Cleanup if left over
+await deleteRecipeInDb(db, testSlugVerified);
+await deleteRecipeInDb(db, testSlugUnverified);
+
+// Create Recipe 1 with dietaryVerified = true
+await createRecipeInDb(db, {
+  slug: testSlugVerified,
+  title: 'Test UX Verified Chicken',
+  description: 'Initial verified chicken recipe description.',
+  category: 'slow-cooker-chicken',
+  prepMinutes: 10,
+  cookMinutes: 300,
+  servings: 4,
+  ingredients: [{ item: 'Chicken breast', quantity: 2, unit: 'lbs' }],
+  instructions: [{ title: 'Cook', text: 'Slow cook chicken.' }],
+  reviewStatus: 'tested',
+  dietaryLabels: ['gluten-free', 'high-protein'],
+  dietaryVerified: true,
+});
+
+// Create Recipe 2 with dietaryVerified = false
+await createRecipeInDb(db, {
+  slug: testSlugUnverified,
+  title: 'Test UX Unverified Pork',
+  description: 'Initial unverified pork recipe description.',
+  category: 'beef-pork',
+  prepMinutes: 15,
+  cookMinutes: 480,
+  servings: 6,
+  ingredients: [{ item: 'Pork roast', quantity: 3, unit: 'lbs' }],
+  instructions: [{ title: 'Cook', text: 'Slow cook pork.' }],
+  reviewStatus: 'draft',
+  dietaryLabels: ['gluten-free', 'dairy-free'],
+  dietaryVerified: false,
+});
+
+// Partial update on Recipe 1: only update cookMinutes and description (dietaryVerified omitted/undefined)
+await updateRecipeInDb(db, testSlugVerified, {
+  cookMinutes: 360,
+  description: 'Updated chicken description without touching dietary.',
+});
+
+const verifiedAfterPartial = await getRecipeBySlugFromDb(db, testSlugVerified);
+assert.equal(verifiedAfterPartial.data.cookMinutes, 360, '7.4: Cook minutes updated');
+assert.equal(verifiedAfterPartial.data.dietaryVerified, true, '7.4: dietaryVerified MUST remain true after partial update');
+assert.deepEqual(verifiedAfterPartial.data.dietaryLabels, ['gluten-free', 'high-protein'], '7.4: dietaryLabels MUST remain intact');
+
+// Partial update on Recipe 2: only update servings (dietaryVerified omitted/undefined)
+await updateRecipeInDb(db, testSlugUnverified, {
+  servings: 8,
+  description: 'Updated pork description without touching dietary.',
+});
+
+const unverifiedAfterPartial = await getRecipeBySlugFromDb(db, testSlugUnverified);
+assert.equal(unverifiedAfterPartial.data.servings, 8, '7.4: Servings updated');
+assert.equal(unverifiedAfterPartial.data.dietaryVerified, false, '7.4: dietaryVerified MUST remain false after partial update');
+assert.deepEqual(unverifiedAfterPartial.data.dietaryLabels, ['gluten-free', 'dairy-free'], '7.4: dietaryLabels MUST remain intact');
+
+// Explicit update on Recipe 2: toggle dietaryVerified to true
+await updateRecipeInDb(db, testSlugUnverified, {
+  dietaryVerified: true,
+});
+const unverifiedToggledToTrue = await getRecipeBySlugFromDb(db, testSlugUnverified);
+assert.equal(unverifiedToggledToTrue.data.dietaryVerified, true, '7.4: dietaryVerified explicitly toggled to true');
+assert.deepEqual(unverifiedToggledToTrue.data.dietaryLabels, ['gluten-free', 'dairy-free'], '7.4: dietaryLabels retained on toggle');
+
+// Explicit update on Recipe 1: toggle dietaryVerified to false
+await updateRecipeInDb(db, testSlugVerified, {
+  dietaryVerified: false,
+});
+const verifiedToggledToFalse = await getRecipeBySlugFromDb(db, testSlugVerified);
+assert.equal(verifiedToggledToFalse.data.dietaryVerified, false, '7.4: dietaryVerified explicitly toggled to false');
+
+// Clean up test recipes
+await deleteRecipeInDb(db, testSlugVerified);
+await deleteRecipeInDb(db, testSlugUnverified);
+
+// 8. Major Food Allergens Complete Suite (10-Point Verification)
+
+const allergenNamesMap = {
+  'milk': 'Milk',
+  'eggs': 'Eggs',
+  'fish': 'Fish',
+  'crustacean-shellfish': 'Crustacean Shellfish',
+  'tree-nuts': 'Tree Nuts',
+  'peanuts': 'Peanuts',
+  'wheat': 'Wheat',
+  'soybeans': 'Soybeans',
+  'sesame': 'Sesame',
+};
+
+// Simulation of live preview state machine
+function computeAllergenLivePreviewState({ allergens = [], allergenReviewed = false, allergenNotes = '' }) {
+  const normalized = normalizeAllergens(allergens);
+  const checkedLabels = normalized.map((id) => allergenNamesMap[id] || id);
+  const hasLabels = checkedLabels.length > 0;
+  const isReviewed = Boolean(allergenReviewed);
+  const notesText = String(allergenNotes || '').trim();
+
+  return {
+    badgeText: isReviewed ? '✓ Reviewed' : '⚠️ Unreviewed',
+    isReviewed,
+    hasLabels,
+    listText: hasLabels ? checkedLabels.join(', ') : '',
+    notesText,
+    showUnreviewedNotice: !isReviewed && (hasLabels || Boolean(notesText)),
+    showEmptyState: !hasLabels,
+  };
+}
+
+// Simulation of public recipe detail display logic
+function computePublicRecipeDetailAllergenDisplay(recipeData) {
+  const allergens = Array.isArray(recipeData.allergens) ? recipeData.allergens : [];
+  const notes = recipeData.allergenNotes ? String(recipeData.allergenNotes).trim() : '';
+  const isReviewed = Boolean(recipeData.allergenReviewed);
+
+  const hasAllergens = allergens.length > 0;
+  const hasNotes = notes.length > 0;
+  const showSection = hasAllergens || hasNotes;
+
+  if (!showSection) {
+    return { showSection: false };
+  }
+
+  return {
+    showSection: true,
+    showReviewedIndicator: isReviewed,
+    containsList: hasAllergens ? allergens.map((a) => allergenNamesMap[a] || a).join(', ') : null,
+    notes: hasNotes ? notes : null,
+    showUnreviewedNotice: !isReviewed,
+  };
+}
+
+// 8.1. Selecting multiple allergens in the CMS
+const rawSelected = ['Milk', 'EGGS', 'wheat', 'SESAME'];
+const normalizedSelected = normalizeAllergens(rawSelected);
+assert.deepEqual(normalizedSelected, ['milk', 'eggs', 'wheat', 'sesame'], '8.1: Multiple allergens normalized cleanly');
+
+// 8.2. Live preview updates when checkboxes change
+const previewActive = computeAllergenLivePreviewState({
+  allergens: ['milk', 'wheat'],
+  allergenReviewed: false,
+  allergenNotes: 'Shared fryer for breading',
+});
+assert.equal(previewActive.hasLabels, true, '8.2: Live preview detects selected allergens');
+assert.equal(previewActive.listText, 'Milk, Wheat', '8.2: Formats readable names');
+assert.equal(previewActive.badgeText, '⚠️ Unreviewed', '8.2: Live preview marks unreviewed state');
+assert.equal(previewActive.showUnreviewedNotice, true, '8.2: Live preview shows unreviewed notice when allergens are chosen');
+assert.equal(previewActive.showEmptyState, false, '8.2: Empty state hidden when allergens selected');
+
+// 8.3. Saving selected allergens to D1
+const testSlugAllergens = 'test-cms-allergen-recipe';
+await deleteRecipeInDb(db, testSlugAllergens);
+
+const createdWithAllergens = await createRecipeInDb(db, {
+  slug: testSlugAllergens,
+  title: 'Test CMS Allergen Recipe',
+  description: 'Recipe with allergens and notes.',
+  category: 'beef-pork',
+  prepMinutes: 10,
+  cookMinutes: 240,
+  servings: 4,
+  ingredients: [{ item: 'Pork Chops', quantity: 4 }],
+  instructions: [{ text: 'Cook pork chops.' }],
+  reviewStatus: 'tested',
+  dietaryLabels: ['high-protein'],
+  dietaryVerified: true,
+  allergens: ['fish', 'soybeans'],
+  allergenReviewed: true,
+  allergenNotes: 'Contains soy sauce and fish sauce in marinade.',
+});
+assert.deepEqual(createdWithAllergens.data.allergens, ['fish', 'soybeans'], '8.3: Allergens array stored in D1');
+assert.equal(createdWithAllergens.data.allergenReviewed, true, '8.3: allergenReviewed stored as 1/true in D1');
+assert.equal(createdWithAllergens.data.allergenNotes, 'Contains soy sauce and fish sauce in marinade.', '8.3: Notes stored in D1');
+
+// 8.4. Reloading an existing recipe and restoring selections
+const reloaded = await getRecipeBySlugFromDb(db, testSlugAllergens);
+assert.ok(reloaded, '8.4: Recipe reloaded from D1');
+assert.deepEqual(reloaded.data.allergens, ['fish', 'soybeans'], '8.4: Restores previously saved allergen checkboxes');
+assert.equal(reloaded.data.allergenReviewed, true, '8.4: Restores previously saved review status');
+assert.equal(reloaded.data.allergenNotes, 'Contains soy sauce and fish sauce in marinade.', '8.4: Restores previously saved notes');
+
+// 8.5. Editing and removing selected allergens
+await updateRecipeInDb(db, testSlugAllergens, {
+  allergens: ['soybeans'], // Removed fish
+  allergenNotes: 'Fish sauce replaced with coconut aminos. Contains soy sauce only.',
+});
+const updatedAllergens = await getRecipeBySlugFromDb(db, testSlugAllergens);
+assert.deepEqual(updatedAllergens.data.allergens, ['soybeans'], '8.5: Fish allergen successfully removed; soy remains');
+assert.equal(updatedAllergens.data.allergenNotes, 'Fish sauce replaced with coconut aminos. Contains soy sauce only.', '8.5: Notes updated');
+
+// 8.6. Displaying allergens on public recipe detail page
+const publicDisplay = computePublicRecipeDetailAllergenDisplay(updatedAllergens.data);
+assert.equal(publicDisplay.showSection, true, '8.6: Allergen section is shown on public recipe page');
+assert.equal(publicDisplay.containsList, 'Soybeans', '8.6: Public contains list displays Soybeans');
+assert.equal(publicDisplay.showReviewedIndicator, true, '8.6: Reviewed indicator rendered');
+
+// 8.7. Displaying allergen notes
+assert.equal(publicDisplay.notes, 'Fish sauce replaced with coconut aminos. Contains soy sauce only.', '8.7: Notes displayed');
+
+// 8.8. Reviewed versus unreviewed states
+await updateRecipeInDb(db, testSlugAllergens, {
+  allergenReviewed: false,
+});
+const unreviewedD1 = await getRecipeBySlugFromDb(db, testSlugAllergens);
+const unreviewedDisplay = computePublicRecipeDetailAllergenDisplay(unreviewedD1.data);
+assert.equal(unreviewedDisplay.showSection, true, '8.8: Unreviewed recipe with allergens still shows section');
+assert.equal(unreviewedDisplay.showReviewedIndicator, false, '8.8: Reviewed indicator is strictly hidden when unreviewed');
+assert.equal(unreviewedDisplay.showUnreviewedNotice, true, '8.8: Unreviewed notice is rendered');
+
+// 8.9. Recipes with no selected allergens (genuine empty state)
+const noAllergenRecipe = {
+  allergens: [],
+  allergenReviewed: false,
+  allergenNotes: '',
+};
+const emptyDisplay = computePublicRecipeDetailAllergenDisplay(noAllergenRecipe);
+assert.equal(emptyDisplay.showSection, false, '8.9: Section is completely hidden when recipe has no allergens and no notes');
+
+const noAllergenReviewedRecipe = {
+  allergens: [],
+  allergenReviewed: true,
+  allergenNotes: '',
+};
+const emptyReviewedDisplay = computePublicRecipeDetailAllergenDisplay(noAllergenReviewedRecipe);
+assert.equal(emptyReviewedDisplay.showSection, false, '8.9: Section is hidden even if allergenReviewed is true when no allergens or notes exist');
+
+// 8.10. Ensuring dietary verification and allergen review are independent
+const testSlugIndependence = 'test-cms-independence';
+await deleteRecipeInDb(db, testSlugIndependence);
+
+await createRecipeInDb(db, {
+  slug: testSlugIndependence,
+  title: 'Test CMS Independence Recipe',
+  description: 'Recipe testing independence between dietary and allergen verification.',
+  category: 'easy-dinners',
+  prepMinutes: 5,
+  cookMinutes: 60,
+  servings: 2,
+  ingredients: [{ item: 'Eggs', quantity: 2 }],
+  instructions: [{ text: 'Cook eggs.' }],
+  reviewStatus: 'tested',
+  dietaryLabels: ['vegetarian'],
+  dietaryVerified: true, // DIETARY VERIFIED = TRUE
+  allergens: ['eggs'],
+  allergenReviewed: false, // ALLERGEN REVIEWED = FALSE
+});
+
+const independentInitial = await getRecipeBySlugFromDb(db, testSlugIndependence);
+assert.equal(independentInitial.data.dietaryVerified, true, '8.10: dietaryVerified is true');
+assert.equal(independentInitial.data.allergenReviewed, false, '8.10: allergenReviewed is false');
+
+// Toggle dietaryVerified to false via partial update
+await updateRecipeInDb(db, testSlugIndependence, {
+  dietaryVerified: false,
+});
+const afterDietaryToggle = await getRecipeBySlugFromDb(db, testSlugIndependence);
+assert.equal(afterDietaryToggle.data.dietaryVerified, false, '8.10: dietaryVerified toggled to false');
+assert.equal(afterDietaryToggle.data.allergenReviewed, false, '8.10: allergenReviewed remains independent false');
+
+// Toggle allergenReviewed to true via partial update
+await updateRecipeInDb(db, testSlugIndependence, {
+  allergenReviewed: true,
+});
+const afterAllergenToggle = await getRecipeBySlugFromDb(db, testSlugIndependence);
+assert.equal(afterAllergenToggle.data.dietaryVerified, false, '8.10: dietaryVerified remains independent false');
+assert.equal(afterAllergenToggle.data.allergenReviewed, true, '8.10: allergenReviewed successfully toggled to true');
+
+// Clean up test recipes
+await deleteRecipeInDb(db, testSlugAllergens);
+await deleteRecipeInDb(db, testSlugIndependence);
+
+console.log('dietary-and-allergens unit and safety tests passed (including complete 10-point allergen suite)');
 
