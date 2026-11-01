@@ -7,11 +7,11 @@ import {
   extractCloudinaryPublicId,
   getOptimizedCloudinaryUrl,
   isCloudinaryConfigured,
+  listCloudinaryAssets,
 } from '../../../lib/cloudinary';
 import {
   Upload,
   Search,
-  RotateCcw,
   Copy,
   ExternalLink,
   Trash,
@@ -97,8 +97,32 @@ for (const recipe of recipes) {
   }
 }
 
-const mediaItems = Array.from(mediaMap.values());
 const isConfigured = isCloudinaryConfigured();
+
+if (isConfigured) {
+  try {
+    const cldResources = await listCloudinaryAssets('crockbites/recipes', 500);
+    for (const res of cldResources) {
+      const key = res.public_id;
+      if (!mediaMap.has(key)) {
+        const rawName = (res.public_id.split('/').pop() || '').replace(/[_-]+/g, ' ');
+        mediaMap.set(key, {
+          id: key,
+          url: res.secure_url,
+          publicId: res.public_id,
+          alt: rawName || 'Recipe photo',
+          isCloudinary: true,
+          thumbUrl: getOptimizedCloudinaryUrl(res.secure_url, 360),
+          usages: [],
+        });
+      }
+    }
+  } catch (cldErr) {
+    console.warn('[Media Page] Cloudinary listing skipped:', cldErr);
+  }
+}
+
+const mediaItems = Array.from(mediaMap.values());
 ---
 
 <AdminLayout
@@ -127,7 +151,7 @@ const isConfigured = isCloudinaryConfigured();
       <form id="uploadForm">
         <div
           id="dropzone"
-          class="border-2 border-dashed border-line/80 hover:border-forest rounded-2xl p-6 text-center bg-cream/30 hover:bg-cream/60 transition-all cursor-pointer flex flex-col items-center justify-center gap-2 group"
+          class="block border-2 border-dashed border-line/80 hover:border-forest rounded-2xl p-6 text-center bg-cream/30 hover:bg-cream/60 transition-all cursor-pointer flex flex-col items-center justify-center gap-2 group"
         >
           <div class="flex size-12 items-center justify-center rounded-xl bg-cream text-forest group-hover:scale-105 group-hover:bg-forest group-hover:text-cream transition shadow-xs">
             <Upload size={20} aria-hidden="true" />
@@ -136,17 +160,17 @@ const isConfigured = isCloudinaryConfigured();
             <p class="text-sm font-bold text-forest">
               <span class="text-terracotta underline cursor-pointer">Choose image</span> or drag and drop here
             </p>
-            <p class="text-xs text-ink-soft mt-0.5">JPEG, PNG, WebP, AVIF up to 8 MB</p>
+            <p class="text-xs text-ink-soft mt-0.5">JPEG, PNG, WebP, AVIF, SVG, GIF up to 8 MB</p>
           </div>
-          <input
-            type="file"
-            id="fileInput"
-            name="images"
-            multiple
-            accept="image/jpeg,image/png,image/webp,image/avif"
-            class="sr-only"
-          />
         </div>
+        <input
+          type="file"
+          id="fileInput"
+          name="images"
+          multiple
+          accept="image/jpeg,image/png,image/webp,image/avif,image/svg+xml,image/gif,.jpg,.jpeg,.png,.webp,.avif,.svg,.gif"
+          class="sr-only"
+        />
 
         <div id="uploadStatus" class="hidden items-center justify-between p-3 bg-cream/70 rounded-xl border border-line text-xs text-forest mt-3">
           <div class="flex items-center gap-2">
@@ -295,10 +319,11 @@ const isConfigured = isCloudinaryConfigured();
   const mediaGrid = document.getElementById('mediaGrid') as HTMLDivElement | null;
   const emptyState = document.getElementById('mediaEmptyState') as HTMLDivElement | null;
 
-  const csrfToken = document.cookie
-    .split('; ')
-    .find((entry) => entry.startsWith('crockbites_admin_csrf='))
-    ?.split('=')[1] ?? '';
+  const csrfToken = document.body.dataset.adminCsrf ||
+    (document.cookie
+      .split('; ')
+      .find((entry) => entry.startsWith('crockbites_admin_csrf='))
+      ?.split('=')[1] ?? '');
 
   // Copy URL to clipboard
   document.querySelectorAll<HTMLButtonElement>('.copy-url-btn').forEach((btn) => {
@@ -383,7 +408,9 @@ const isConfigured = isCloudinaryConfigured();
   searchInput?.addEventListener('input', filterMedia);
 
   // Upload handling
-  dropzone?.addEventListener('click', () => fileInput?.click());
+  dropzone?.addEventListener('click', () => {
+    fileInput?.click();
+  });
   dropzone?.addEventListener('dragover', (e) => {
     e.preventDefault();
     dropzone.classList.add('border-forest', 'bg-cream/70');
@@ -408,11 +435,15 @@ const isConfigured = isCloudinaryConfigured();
 
   async function handleFiles(files: File[]) {
     if (files.length === 0) return;
+    if (uploadStatusText) {
+      uploadStatusText.textContent = `Uploading ${files.length} image${files.length > 1 ? 's' : ''} to Cloudinary...`;
+    }
     if (uploadStatus) uploadStatus.classList.remove('hidden');
     if (uploadStatus) uploadStatus.classList.add('flex');
 
     const formData = new FormData();
     files.forEach((f) => formData.append('images', f));
+    formData.append('csrfToken', csrfToken);
 
     try {
       const response = await fetch('/api/admin/images/upload/', {
@@ -424,6 +455,10 @@ const isConfigured = isCloudinaryConfigured();
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(data.error || 'Upload failed.');
+      }
+
+      if (data.errors && data.errors.length > 0) {
+        window.alert(`Uploaded ${data.images.length} images. ${data.errors.length} file(s) failed: ${data.errors.map((e: any) => e.name + ': ' + e.error).join(', ')}`);
       }
 
       window.location.reload();

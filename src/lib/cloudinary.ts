@@ -63,7 +63,7 @@ export async function uploadImageBuffer(
   });
 
   const folder = options.folder ?? 'crockbites/recipes';
-  const allowedFormats = options.allowedFormats ?? ['jpg', 'jpeg', 'png', 'webp', 'avif'];
+  const allowedFormats = options.allowedFormats ?? ['jpg', 'jpeg', 'png', 'webp', 'avif', 'svg', 'gif'];
 
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
@@ -272,4 +272,44 @@ export function getOptimizedCloudinaryUrl(url: string, width?: number): string {
 
   const transformString = transformations.join(',');
   return `${url.slice(0, uploadIndex + 8)}${transformString}/${url.slice(uploadIndex + 8)}`;
+}
+
+export interface CloudinaryResource {
+  public_id: string;
+  secure_url: string;
+  format: string;
+  bytes: number;
+  width: number;
+  height: number;
+  created_at: string;
+}
+
+/**
+ * Lists uploaded assets from Cloudinary under a specific folder.
+ */
+export async function listCloudinaryAssets(
+  folder = 'crockbites/recipes',
+  maxResults = 500
+): Promise<CloudinaryResource[]> {
+  const config = getCloudinaryConfig();
+  if (!config.isConfigured) return [];
+
+  cloudinary.config({
+    cloud_name: config.cloudName,
+    api_key: config.apiKey,
+    api_secret: config.apiSecret,
+    secure: true,
+  });
+
+  try {
+    const result = await cloudinary.api.resources({
+      type: 'upload',
+      prefix: folder,
+      max_results: maxResults,
+    });
+    return (result.resources as CloudinaryResource[]) || [];
+  } catch (err) {
+    console.warn('[Cloudinary list resources failed]:', err);
+    return [];
+  }
 }

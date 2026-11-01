@@ -145,29 +145,84 @@ const categories = [
         </div>
       </div>
 
-      <!-- Essential: Main Recipe Image -->
+      <!-- Essential: Main Recipe Image & Upload -->
       <div class="section-box">
-        <h2 class="text-base font-bold text-forest mb-4">Main Recipe Image</h2>
-        <div class="dropzone" id="imageDropzone">
-          <input type="file" id="imageFileInput" accept="image/jpeg,image/png,image/webp,image/avif" style="display: none;" />
-          <div style="font-size: 2rem; margin-bottom: 0.5rem;">📸</div>
-          <p style="margin: 0; font-weight: 700; font-size: 1rem;">Drag &amp; drop main recipe photo here, or click to browse</p>
-          <p class="hint" style="margin: 0.25rem 0 0;">Uploads to Cloudinary (JPEG, PNG, WebP, AVIF up to 8 MB)</p>
-          <div id="uploadProgress" style="display: none; margin-top: 0.75rem; font-weight: 700; color: var(--terracotta);">
-            Uploading to Cloudinary...
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+          <div>
+            <h2 class="text-base font-bold text-forest m-0">Main Recipe Image</h2>
+            <p class="hint" style="margin: 0.25rem 0 0;">Upload photos or select from Media Library. Choose any photo below as the main recipe cover.</p>
+          </div>
+          <div style="display: flex; gap: 0.5rem;">
+            <button type="button" id="browseImageBtn" class="btn btn-primary btn-pill" style="font-size: 0.8rem; padding: 0.4rem 0.9rem; cursor: pointer;">
+              📁 Upload Images
+            </button>
+            <button type="button" id="openMediaLibraryBtn" class="btn btn-subtle btn-pill" style="font-size: 0.8rem; padding: 0.4rem 0.9rem; cursor: pointer; background: #fff; border: 1px solid rgba(36,58,45,0.2);">
+              🖼️ Choose from Media Library
+            </button>
           </div>
         </div>
 
-        <div class="grid" style="margin-top: 1rem;">
-          <label>
-            Image URL
-            <input name="image" id="primaryImageUrl" value="../../assets/recipes/placeholder.svg" />
-          </label>
-          <label>
-            Image Alt Text *
-            <input name="imageAlt" id="primaryImageAlt" value="Illustrated CrockBites recipe" required />
-          </label>
+        <div class="dropzone" id="imageDropzone">
+          <div style="font-size: 2.25rem; margin-bottom: 0.5rem;">📸</div>
+          <p style="margin: 0; font-weight: 700; font-size: 1rem; color: var(--forest);">Drag &amp; drop recipe photos here, or browse</p>
+          <p class="hint" style="margin: 0.25rem 0 0.75rem;">Supports multi-select: 1st image becomes Cover if none selected (JPEG, PNG, WebP, AVIF up to 8 MB)</p>
+          <div style="display: flex; justify-content: center; gap: 0.5rem; flex-wrap: wrap;">
+            <button type="button" id="dropzoneBrowseBtn" class="btn btn-subtle btn-pill" style="font-size: 0.85rem; padding: 0.45rem 1.25rem; cursor: pointer;">
+              📁 Select from Computer
+            </button>
+            <button type="button" id="dropzoneLibraryBtn" class="btn btn-subtle btn-pill" style="font-size: 0.85rem; padding: 0.45rem 1.25rem; cursor: pointer; background: #fff; border: 1px solid rgba(36,58,45,0.2);">
+              🖼️ Open Media Library
+            </button>
+          </div>
+          <div id="uploadProgress" style="display: none; margin-top: 0.75rem; font-weight: 700; color: var(--terracotta);">
+            ⏳ Uploading to Cloudinary, please wait...
+          </div>
+          <div id="uploadSuccess" style="display: none; margin-top: 0.75rem; padding: 0.5rem 0.75rem; border-radius: 0.5rem; background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; font-size: 0.85rem; font-weight: 600;"></div>
+          <div id="uploadError" style="display: none; margin-top: 0.75rem; padding: 0.5rem 0.75rem; border-radius: 0.5rem; background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; font-size: 0.825rem; font-weight: 600;"></div>
         </div>
+        <input type="file" id="imageFileInput" multiple accept="image/jpeg,image/png,image/webp,image/avif,image/gif,.jpg,.jpeg,.png,.webp,.avif,.gif" style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; opacity: 0;" />
+
+        <input type="hidden" name="image" id="primaryImageUrl" value="" />
+        <input type="hidden" name="imageAlt" id="primaryImageAlt" value="" />
+      </div>
+
+      <!-- Essential: Additional Gallery Images (Directly Below Main Image) -->
+      <div class="section-box" id="additionalGallerySection">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+              <h2 class="text-base font-bold text-forest m-0">Additional Gallery Images</h2>
+              <span id="galleryCountBadge" style="background: rgba(36,58,45,0.08); color: var(--forest); font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 999px;">0 photos</span>
+            </div>
+            <p class="hint" style="margin: 0.25rem 0 0;">Step-by-step prep or plated dish photos shown in the public recipe gallery</p>
+          </div>
+          <div style="display: flex; gap: 0.5rem;">
+            <button type="button" id="galleryUploadBtn" class="btn btn-primary btn-pill" style="font-size: 0.8rem; padding: 0.4rem 0.9rem; cursor: pointer;">
+              📁 Upload Gallery Photos
+            </button>
+            <button type="button" id="galleryMediaLibraryBtn" class="btn btn-subtle btn-pill" style="font-size: 0.8rem; padding: 0.4rem 0.9rem; cursor: pointer; background: #fff; border: 1px solid rgba(36,58,45,0.2);">
+              🖼️ Pick from Library
+            </button>
+          </div>
+        </div>
+
+        <input type="file" id="galleryFileInput" multiple accept="image/jpeg,image/png,image/webp,image/avif,image/gif,.jpg,.jpeg,.png,.webp,.avif,.gif" style="display: none;" />
+
+        <div id="galleryEmptyNotice" style="padding: 1.75rem 1rem; border: 2px dashed rgba(36,58,45,0.2); border-radius: 14px; text-align: center; color: #64748b; background: rgba(255,255,255,0.5);">
+          <div style="font-size: 1.75rem; margin-bottom: 0.35rem;">🖼️</div>
+          <p style="margin: 0; font-weight: 700; font-size: 0.95rem; color: var(--forest);">No additional gallery images added yet</p>
+          <p class="hint" style="margin: 0.25rem 0 0.85rem;">Upload step-by-step or finished dish photos, or select from Media Library</p>
+          <div style="display: flex; justify-content: center; gap: 0.5rem;">
+            <button type="button" id="emptyNoticeUploadBtn" class="btn btn-subtle btn-pill" style="font-size: 0.8rem; padding: 0.35rem 0.9rem; cursor: pointer;">
+              📁 Upload Photos
+            </button>
+            <button type="button" id="emptyNoticeLibraryBtn" class="btn btn-subtle btn-pill" style="font-size: 0.8rem; padding: 0.35rem 0.9rem; cursor: pointer; background: #fff; border: 1px solid rgba(36,58,45,0.2);">
+              🖼️ Choose from Library
+            </button>
+          </div>
+        </div>
+
+        <div class="gallery-grid" id="galleryContainer" style="display: none; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; margin-top: 0.75rem;"></div>
       </div>
 
       <!-- Essential: Ingredients -->
@@ -210,15 +265,6 @@ const categories = [
               Tags <span class="hint">(Comma-separated)</span>
               <input name="tags" placeholder="dinner, chicken, easy, comfort food" />
             </label>
-          </div>
-
-          <!-- Additional Gallery Images -->
-          <div>
-            <label class="font-bold text-sm text-forest mb-2 block">
-              Additional Gallery Images
-              <span class="hint font-normal block mt-0.5">Extra step-by-step or plated dish photos</span>
-            </label>
-            <div class="gallery-grid" id="galleryContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 220px)); gap: 1rem; margin-top: 0.5rem;"></div>
           </div>
 
           <!-- Dietary Labels -->
@@ -321,6 +367,33 @@ const categories = [
       <div id="formStatus" class="status" aria-live="polite"></div>
     </form>
   </div>
+
+  <!-- Media Library Picker Modal -->
+  <div id="mediaModal" style="display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); align-items: center; justify-content: center; padding: 1.5rem;">
+    <div style="background: #fff; width: 100%; max-width: 920px; max-height: 85vh; border-radius: 20px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35);">
+      <!-- Modal Header -->
+      <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; background: #faf8f5;">
+        <div>
+          <h3 id="modalTitle" style="margin: 0; font-size: 1.15rem; font-weight: 700; color: var(--forest, #243a2d);">Choose from Media Library</h3>
+          <p id="modalSubtitle" style="margin: 0.25rem 0 0; font-size: 0.8rem; color: #64748b;">Select an existing Cloudinary image without re-uploading</p>
+        </div>
+        <button type="button" id="closeMediaModalBtn" style="border: 0; background: none; font-size: 1.5rem; line-height: 1; cursor: pointer; color: #64748b; padding: 0.25rem 0.5rem; border-radius: 6px;">&times;</button>
+      </div>
+      <!-- Search / Filter -->
+      <div style="padding: 0.75rem 1.5rem; border-bottom: 1px solid #e2e8f0; display: flex; gap: 0.75rem; background: #fff;">
+        <input type="search" id="modalSearchInput" placeholder="Search images by name or recipe..." style="flex: 1; padding: 0.5rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.85rem;" />
+        <span id="modalImageCount" style="font-size: 0.8rem; color: #64748b; align-self: center; white-space: nowrap;">Loading images...</span>
+      </div>
+      <!-- Modal Body (Grid) -->
+      <div id="modalBody" style="flex: 1; overflow-y: auto; padding: 1.25rem 1.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; align-content: start;">
+        <div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: #64748b;">Loading images from Media Library...</div>
+      </div>
+      <!-- Modal Footer -->
+      <div style="padding: 1rem 1.5rem; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 0.75rem; background: #faf8f5;">
+        <button type="button" id="cancelMediaModalBtn" class="btn btn-subtle btn-pill" style="font-size: 0.85rem; padding: 0.45rem 1.25rem; cursor: pointer;">Cancel</button>
+      </div>
+    </div>
+  </div>
 </AdminLayout>
 
 <style is:global>
@@ -357,21 +430,34 @@ const categories = [
 </style>
 
 <script>
-  let images: Array<{
+  interface RecipePhoto {
     url: string;
     publicId?: string;
     alt: string;
     width?: number;
     height?: number;
-    isPrimary?: boolean;
-  }> = [];
+    isCover: boolean;
+  }
+
+  let recipeImages: RecipePhoto[] = [];
 
   const csrfInput = document.querySelector('input[name="csrfToken"]') as HTMLInputElement;
   const csrfToken = csrfInput ? csrfInput.value : '';
 
   const dropzone = document.getElementById('imageDropzone')!;
+  const browseImageBtn = document.getElementById('browseImageBtn');
+  const dropzoneBrowseBtn = document.getElementById('dropzoneBrowseBtn');
+  const openMediaLibraryBtn = document.getElementById('openMediaLibraryBtn');
+  const dropzoneLibraryBtn = document.getElementById('dropzoneLibraryBtn');
   const fileInput = document.getElementById('imageFileInput') as HTMLInputElement;
+  const galleryFileInput = document.getElementById('galleryFileInput') as HTMLInputElement;
+  const galleryUploadBtn = document.getElementById('galleryUploadBtn');
+  const galleryMediaLibraryBtn = document.getElementById('galleryMediaLibraryBtn');
+  const galleryContainer = document.getElementById('galleryContainer');
+  const galleryEmptyNotice = document.getElementById('galleryEmptyNotice');
   const progressEl = document.getElementById('uploadProgress')!;
+  const uploadSuccessEl = document.getElementById('uploadSuccess');
+  const uploadErrorEl = document.getElementById('uploadError');
   const primaryUrlEl = document.getElementById('primaryImageUrl') as HTMLInputElement;
   const primaryAltEl = document.getElementById('primaryImageAlt') as HTMLInputElement;
   const titleInput = document.getElementById('titleInput') as HTMLInputElement;
@@ -381,6 +467,560 @@ const categories = [
   const saveDraftBtn = document.getElementById('saveDraftBtn') as HTMLButtonElement;
   const publishBtn = document.getElementById('publishBtn') as HTMLButtonElement;
   const reviewStatusInput = document.getElementById('reviewStatusInput') as HTMLInputElement;
+
+  // Modal elements
+  const mediaModal = document.getElementById('mediaModal');
+  const closeMediaModalBtn = document.getElementById('closeMediaModalBtn');
+  const cancelMediaModalBtn = document.getElementById('cancelMediaModalBtn');
+  const modalSearchInput = document.getElementById('modalSearchInput') as HTMLInputElement | null;
+  const modalBody = document.getElementById('modalBody');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalSubtitle = document.getElementById('modalSubtitle');
+  const modalImageCount = document.getElementById('modalImageCount');
+
+  let modalMode: 'primary' | 'gallery' = 'primary';
+  let cachedMedia: any[] | null = null;
+
+  function escapeHtml(str: string): string {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  // Helper for optimized Cloudinary thumbnails
+  function getThumb(url: string, width = 360): string {
+    if (!url || !url.includes('res.cloudinary.com')) return url || '/placeholder.svg';
+    const uploadIdx = url.indexOf('/upload/');
+    if (uploadIdx === -1) return url;
+    return `${url.slice(0, uploadIdx + 8)}f_auto,q_auto,w_${width},c_limit/${url.slice(uploadIdx + 8)}`;
+  }
+
+  // Keep hidden cover inputs synchronized with current cover photo
+  function syncCoverInputs() {
+    const cover = recipeImages.find((img) => img.isCover) || recipeImages[0];
+    if (cover) {
+      cover.isCover = true;
+      if (primaryUrlEl) primaryUrlEl.value = cover.url;
+      if (primaryAltEl) primaryAltEl.value = cover.alt || '';
+    } else {
+      if (primaryUrlEl) primaryUrlEl.value = '';
+      if (primaryAltEl) primaryAltEl.value = '';
+    }
+  }
+
+  function setAsCover(idx: number) {
+    if (idx < 0 || idx >= recipeImages.length) return;
+    recipeImages.forEach((img, i) => {
+      img.isCover = (i === idx);
+    });
+    syncCoverInputs();
+    renderGallery();
+  }
+
+  // Render Additional Gallery Cards
+  function renderGallery() {
+    if (!galleryContainer) return;
+    galleryContainer.innerHTML = '';
+
+    syncCoverInputs();
+
+    const countBadge = document.getElementById('galleryCountBadge');
+    if (countBadge) {
+      countBadge.textContent = `${recipeImages.length} photo${recipeImages.length === 1 ? '' : 's'}`;
+    }
+
+    if (recipeImages.length === 0) {
+      if (galleryEmptyNotice) galleryEmptyNotice.style.display = 'block';
+      galleryContainer.style.display = 'none';
+      return;
+    }
+
+    if (galleryEmptyNotice) galleryEmptyNotice.style.display = 'none';
+    galleryContainer.style.display = 'grid';
+
+    recipeImages.forEach((img, idx) => {
+      const card = document.createElement('div');
+      card.className = 'gallery-card';
+      card.setAttribute('data-index', String(idx));
+      card.style.cssText = `border: ${img.isCover ? '2px solid #166534' : '1px solid #cbd5e1'}; border-radius: 14px; overflow: hidden; background: #fff; display: flex; flex-direction: column; box-shadow: ${img.isCover ? '0 4px 14px rgba(22, 101, 52, 0.16)' : '0 2px 6px rgba(0,0,0,0.04)'}; transition: all 0.2s;`;
+
+      const rawUrl = img.url || '';
+      const thumbUrl = getThumb(rawUrl, 400);
+
+      card.innerHTML = `
+        <div style="aspect-ratio: 4/3; position: relative; overflow: hidden; background: #f8fafc; border-bottom: 1px solid ${img.isCover ? '#bbf7d0' : '#e2e8f0'};">
+          <img
+            src="${thumbUrl}"
+            alt="${escapeHtml(img.alt || 'Recipe photo')}"
+            loading="lazy"
+            style="width: 100%; height: 100%; object-fit: cover; display: block;"
+            onerror="if(!this.dataset.retry){this.dataset.retry='1';this.src='${rawUrl}';}else{this.onerror=null;this.src='/placeholder.svg';}"
+          />
+          <div style="position: absolute; top: 8px; left: 8px; display: flex; align-items: center; gap: 4px;">
+            ${img.isCover ? `
+              <span style="background: #166534; color: #fff; font-size: 0.72rem; font-weight: 800; padding: 3px 9px; border-radius: 999px; letter-spacing: 0.04em; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 2px 6px rgba(0,0,0,0.25);">
+                ★ COVER
+              </span>
+            ` : `
+              <span style="background: rgba(15, 23, 42, 0.7); color: #fff; font-size: 0.72rem; font-weight: 700; padding: 2px 7px; border-radius: 6px; backdrop-filter: blur(4px);">
+                #${idx + 1}
+              </span>
+            `}
+          </div>
+
+          ${!img.isCover ? `
+            <div style="position: absolute; top: 8px; right: 8px;">
+              <button
+                type="button"
+                class="make-cover-btn"
+                data-index="${idx}"
+                title="Set this photo as the main recipe cover"
+                style="background: rgba(255, 255, 255, 0.95); color: #166534; font-size: 0.72rem; font-weight: 700; padding: 3px 9px; border: 1px solid rgba(22, 101, 52, 0.35); border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; gap: 3px; box-shadow: 0 2px 4px rgba(0,0,0,0.12); backdrop-filter: blur(4px);"
+              >
+                ⭐ Set as Cover
+              </button>
+            </div>
+          ` : ''}
+        </div>
+
+        <div style="padding: 0.75rem; display: flex; flex-direction: column; gap: 0.55rem; flex: 1; background: ${img.isCover ? '#f0fdf4' : '#fff'};">
+          <div>
+            <label style="font-size: 0.72rem; font-weight: 700; color: ${img.isCover ? '#166534' : '#64748b'}; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.25rem; display: block;">
+              ${img.isCover ? 'Cover Alt Text *' : 'Gallery Alt Text'}
+            </label>
+            <input
+              type="text"
+              placeholder="Describe this photo..."
+              value="${escapeHtml(img.alt || '')}"
+              class="gallery-alt-input"
+              data-index="${idx}"
+              style="font-size: 0.8rem; padding: 0.45rem 0.65rem; width: 100%; border: 1px solid ${img.isCover ? '#86efac' : '#cbd5e1'}; border-radius: 8px; box-sizing: border-box; background: #fff;"
+            />
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.4rem; border-top: 1px solid ${img.isCover ? '#dcfce7' : '#f1f5f9'}; margin-top: auto;">
+            <div style="display: flex; gap: 0.25rem;">
+              <button
+                type="button"
+                class="move-left-btn"
+                data-index="${idx}"
+                title="Move photo left"
+                style="font-size: 0.75rem; padding: 0.25rem 0.55rem; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; ${idx === 0 ? 'opacity: 0.35; cursor: not-allowed;' : ''}"
+                ${idx === 0 ? 'disabled' : ''}
+              >◀</button>
+              <button
+                type="button"
+                class="move-right-btn"
+                data-index="${idx}"
+                title="Move photo right"
+                style="font-size: 0.75rem; padding: 0.25rem 0.55rem; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer; ${idx === recipeImages.length - 1 ? 'opacity: 0.35; cursor: not-allowed;' : ''}"
+                ${idx === recipeImages.length - 1 ? 'disabled' : ''}
+              >▶</button>
+            </div>
+
+            <button
+              type="button"
+              class="remove-gallery-btn"
+              data-index="${idx}"
+              title="Remove photo from recipe (does not delete Cloudinary asset)"
+              style="font-size: 0.72rem; font-weight: 700; padding: 0.25rem 0.55rem; background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; border-radius: 6px; cursor: pointer;"
+            >✕ Remove</button>
+          </div>
+        </div>
+      `;
+
+      // Alt input listener
+      const altInp = card.querySelector<HTMLInputElement>('.gallery-alt-input');
+      altInp?.addEventListener('input', (e) => {
+        const val = (e.target as HTMLInputElement).value;
+        recipeImages[idx].alt = val;
+        if (recipeImages[idx].isCover && primaryAltEl) {
+          primaryAltEl.value = val;
+        }
+      });
+
+      // Set as Cover button
+      const makeCoverBtn = card.querySelector('.make-cover-btn');
+      makeCoverBtn?.addEventListener('click', () => {
+        setAsCover(idx);
+      });
+
+      // Move Left
+      const moveLeftBtn = card.querySelector('.move-left-btn');
+      moveLeftBtn?.addEventListener('click', () => {
+        if (idx > 0) {
+          const temp = recipeImages[idx];
+          recipeImages[idx] = recipeImages[idx - 1];
+          recipeImages[idx - 1] = temp;
+          renderGallery();
+        }
+      });
+
+      // Move Right
+      const moveRightBtn = card.querySelector('.move-right-btn');
+      moveRightBtn?.addEventListener('click', () => {
+        if (idx < recipeImages.length - 1) {
+          const temp = recipeImages[idx];
+          recipeImages[idx] = recipeImages[idx + 1];
+          recipeImages[idx + 1] = temp;
+          renderGallery();
+        }
+      });
+
+      // Remove button
+      const removeBtn = card.querySelector('.remove-gallery-btn');
+      removeBtn?.addEventListener('click', () => {
+        const wasCover = recipeImages[idx].isCover;
+        recipeImages.splice(idx, 1);
+        if (wasCover && recipeImages.length > 0) {
+          recipeImages[0].isCover = true;
+        }
+        syncCoverInputs();
+        renderGallery();
+      });
+
+      galleryContainer.appendChild(card);
+    });
+  }
+
+  // Initial gallery render
+  renderGallery();
+
+  // Empty state buttons
+  document.getElementById('emptyNoticeUploadBtn')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    fileInput?.click();
+  });
+  document.getElementById('emptyNoticeLibraryBtn')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    openMediaModal('primary');
+  });
+
+  // Media Library Modal handling
+  async function openMediaModal(targetMode: 'primary' | 'gallery') {
+    modalMode = targetMode;
+    if (modalTitle) {
+      modalTitle.textContent = targetMode === 'primary' ? 'Choose Main Recipe Cover' : 'Add Photos to Gallery';
+    }
+    if (modalSubtitle) {
+      modalSubtitle.textContent = targetMode === 'primary'
+        ? 'Select any existing photo from Cloudinary as the main cover'
+        : 'Select one or more existing photos to add to this recipe’s gallery';
+    }
+    if (mediaModal) mediaModal.style.display = 'flex';
+
+    if (!cachedMedia) {
+      if (modalBody) modalBody.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: #64748b;">⏳ Loading images from Cloudinary &amp; recipes...</div>';
+      try {
+        const res = await fetch('/api/admin/images/');
+        const data = await res.json();
+        if (res.ok && Array.isArray(data.images)) {
+          cachedMedia = data.images;
+        } else {
+          cachedMedia = [];
+          if (modalBody) {
+            modalBody.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: #dc2626;">Failed to load images: ${data.error || 'Server error'}</div>`;
+            return;
+          }
+        }
+      } catch {
+        cachedMedia = [];
+        if (modalBody) {
+          modalBody.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: #dc2626;">Network error while loading images.</div>';
+          return;
+        }
+      }
+    }
+
+    renderModalMedia(cachedMedia || []);
+  }
+
+  function closeMediaModal() {
+    if (mediaModal) mediaModal.style.display = 'none';
+  }
+
+  closeMediaModalBtn?.addEventListener('click', closeMediaModal);
+  cancelMediaModalBtn?.addEventListener('click', closeMediaModal);
+  mediaModal?.addEventListener('click', (e) => {
+    if (e.target === mediaModal) closeMediaModal();
+  });
+
+  function renderModalMedia(items: any[]) {
+    if (!modalBody) return;
+    const filterText = (modalSearchInput?.value || '').trim().toLowerCase();
+    const filtered = items.filter((it) => {
+      if (!filterText) return true;
+      const title = (it.alt || '').toLowerCase();
+      const url = (it.url || '').toLowerCase();
+      const usages = (it.usages || []).map((u: any) => u.title.toLowerCase()).join(' ');
+      return title.includes(filterText) || url.includes(filterText) || usages.includes(filterText);
+    });
+
+    if (modalImageCount) {
+      modalImageCount.textContent = `${filtered.length} image${filtered.length === 1 ? '' : 's'}`;
+    }
+
+    modalBody.innerHTML = '';
+    if (filtered.length === 0) {
+      modalBody.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: #64748b;">No matching images found${filterText ? ` for "${escapeHtml(filterText)}"` : ''}.</div>`;
+      return;
+    }
+
+    filtered.forEach((it) => {
+      const card = document.createElement('div');
+      card.className = 'modal-media-item';
+      card.style.cssText = 'border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #fff; cursor: pointer; display: flex; flex-direction: column; transition: transform 0.15s, box-shadow 0.15s;';
+
+      const rawUrl = it.url || '';
+      const thumbUrl = it.thumbUrl || (rawUrl.includes('/upload/') ? rawUrl.replace('/upload/', '/upload/f_auto,q_auto,w_360,c_limit/') : rawUrl);
+      const isAlreadyInRecipe = recipeImages.some((img) => img.url === rawUrl);
+
+      card.innerHTML = `
+        <div style="aspect-ratio: 4/3; position: relative; overflow: hidden; background: #f1f5f9; border-bottom: 1px solid #e2e8f0;">
+          <img
+            src="${thumbUrl}"
+            alt="${escapeHtml(it.alt || 'Recipe photo')}"
+            loading="lazy"
+            style="width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; transition: opacity 0.2s ease-in;"
+            onload="this.style.opacity='1';"
+            onerror="if(!this.dataset.retry){this.dataset.retry='1';this.src='${rawUrl}';}else{this.onerror=null;this.src='/placeholder.svg';}"
+          />
+          ${isAlreadyInRecipe ? `
+            <span style="position: absolute; top: 6px; right: 6px; background: rgba(22, 101, 52, 0.9); color: #fff; font-size: 0.68rem; font-weight: 700; padding: 2px 6px; border-radius: 6px;">In Recipe</span>
+          ` : ''}
+        </div>
+        <div style="padding: 0.65rem; display: flex; flex-direction: column; gap: 0.35rem; flex: 1;">
+          <p style="margin: 0; font-size: 0.75rem; font-weight: 700; color: var(--forest); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(it.alt || '')}">
+            ${escapeHtml(it.alt || 'Recipe photo')}
+          </p>
+          <div style="margin-top: auto; padding-top: 0.35rem;">
+            <button type="button" class="btn btn-primary btn-pill modal-select-btn" style="width: 100%; font-size: 0.75rem; padding: 0.35rem 0.5rem; cursor: pointer;">
+              ${modalMode === 'primary' ? '⭐ Set as Cover' : '+ Add to Recipe'}
+            </button>
+          </div>
+        </div>
+      `;
+
+      card.addEventListener('click', () => {
+        handleSelectMediaItem(it, card);
+      });
+
+      modalBody.appendChild(card);
+    });
+  }
+
+  function handleSelectMediaItem(it: any, cardEl: HTMLElement) {
+    const existingIdx = recipeImages.findIndex((img) => img.url === it.url);
+
+    if (modalMode === 'primary') {
+      if (existingIdx !== -1) {
+        recipeImages.forEach((img, idx) => {
+          img.isCover = (idx === existingIdx);
+        });
+      } else {
+        recipeImages.forEach((img) => { img.isCover = false; });
+        recipeImages.unshift({
+          url: it.url,
+          publicId: it.publicId,
+          alt: it.alt || 'Recipe photo',
+          width: 1200,
+          height: 800,
+          isCover: true,
+        });
+      }
+      syncCoverInputs();
+      renderGallery();
+      closeMediaModal();
+    } else {
+      if (existingIdx !== -1) {
+        alert('This image is already added to this recipe.');
+        return;
+      }
+      const isFirst = recipeImages.length === 0;
+      recipeImages.push({
+        url: it.url,
+        publicId: it.publicId,
+        alt: it.alt || 'Recipe photo',
+        width: 1200,
+        height: 800,
+        isCover: isFirst,
+      });
+      syncCoverInputs();
+      renderGallery();
+
+      const btn = cardEl?.querySelector('.modal-select-btn') as HTMLButtonElement | null;
+      if (btn) {
+        btn.textContent = '✓ Added!';
+        btn.style.background = '#166534';
+        setTimeout(() => {
+          if (btn) {
+            btn.textContent = '+ Add to Recipe';
+            btn.style.background = '';
+          }
+        }, 1200);
+      }
+    }
+  }
+
+  modalSearchInput?.addEventListener('input', () => {
+    renderModalMedia(cachedMedia || []);
+  });
+
+  // Attach Media Library buttons
+  openMediaLibraryBtn?.addEventListener('click', () => openMediaModal('primary'));
+  dropzoneLibraryBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openMediaModal('primary');
+  });
+  galleryMediaLibraryBtn?.addEventListener('click', () => openMediaModal('gallery'));
+
+  // Trigger file picker
+  browseImageBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    fileInput?.click();
+  });
+  dropzoneBrowseBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    fileInput?.click();
+  });
+  dropzone.addEventListener('click', (e) => {
+    if (e.target !== browseImageBtn && !browseImageBtn?.contains(e.target as Node) &&
+        e.target !== dropzoneBrowseBtn && !dropzoneBrowseBtn?.contains(e.target as Node) &&
+        e.target !== dropzoneLibraryBtn && !dropzoneLibraryBtn?.contains(e.target as Node)) {
+      fileInput?.click();
+    }
+  });
+
+  // Additional Gallery upload button
+  galleryUploadBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    galleryFileInput?.click();
+  });
+
+  // Drag and Drop
+  dropzone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropzone.classList.add('dragover');
+  });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+      uploadFiles(Array.from(e.dataTransfer.files));
+    }
+  });
+
+  fileInput.addEventListener('change', () => {
+    const files = fileInput.files ? Array.from(fileInput.files) : [];
+    if (files.length > 0) {
+      uploadFiles(files);
+      fileInput.value = '';
+    }
+  });
+
+  galleryFileInput?.addEventListener('change', () => {
+    const files = galleryFileInput.files ? Array.from(galleryFileInput.files) : [];
+    if (files.length > 0) {
+      uploadFiles(files);
+      galleryFileInput.value = '';
+    }
+  });
+
+  // Upload handler
+  async function uploadFiles(files: File[]) {
+    if (!files || files.length === 0) return;
+    if (uploadErrorEl) {
+      uploadErrorEl.style.display = 'none';
+      uploadErrorEl.textContent = '';
+    }
+    if (uploadSuccessEl) uploadSuccessEl.style.display = 'none';
+    progressEl.textContent = `⏳ Uploading ${files.length} image${files.length > 1 ? 's' : ''} to Cloudinary, please wait...`;
+    progressEl.style.display = 'block';
+
+    const activeCsrf = document.body.dataset.adminCsrf || csrfToken;
+    const formData = new FormData();
+    for (const f of files) {
+      if (f.size > 8 * 1024 * 1024) {
+        alert(`File "${f.name}" exceeds the 8 MB limit.`);
+        progressEl.style.display = 'none';
+        return;
+      }
+      formData.append('images', f);
+    }
+    formData.append('csrfToken', activeCsrf);
+
+    try {
+      const res = await fetch('/api/admin/images/upload/', {
+        method: 'POST',
+        headers: { 'x-csrf-token': activeCsrf },
+        body: formData,
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        const errorMsg = json.error || 'Failed to upload images to Cloudinary.';
+        if (uploadErrorEl) {
+          uploadErrorEl.textContent = errorMsg;
+          uploadErrorEl.style.display = 'block';
+        }
+        alert(errorMsg);
+        return;
+      }
+
+      if (Array.isArray(json.images) && json.images.length > 0) {
+        const hasExistingCover = recipeImages.some((img) => img.isCover);
+
+        json.images.forEach((up: any, idx: number) => {
+          const isCover = !hasExistingCover && idx === 0;
+          const cleanAlt = up.originalName
+            ? up.originalName.replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ')
+            : 'Recipe photo';
+
+          recipeImages.push({
+            url: up.url,
+            publicId: up.publicId,
+            alt: cleanAlt,
+            width: up.width || 1200,
+            height: up.height || 800,
+            isCover,
+          });
+        });
+
+        syncCoverInputs();
+        renderGallery();
+
+        if (uploadSuccessEl) {
+          uploadSuccessEl.textContent = `✓ Uploaded ${json.images.length} photo(s) successfully! Cover: ${recipeImages.find(i => i.isCover)?.alt || 'Selected'}. Click "Save Draft" or "Publish" below to commit changes.`;
+          uploadSuccessEl.style.display = 'block';
+        }
+
+        cachedMedia = null;
+      }
+
+      if (json.errors && json.errors.length > 0) {
+        const warning = `${json.errors.length} file(s) failed: ${json.errors.map((e: any) => e.name).join(', ')}`;
+        if (uploadErrorEl) {
+          uploadErrorEl.textContent = warning;
+          uploadErrorEl.style.display = 'block';
+        }
+      }
+    } catch (err) {
+      const errorMsg = 'Upload failed: ' + (err instanceof Error ? err.message : String(err));
+      if (uploadErrorEl) {
+        uploadErrorEl.textContent = errorMsg;
+        uploadErrorEl.style.display = 'block';
+      }
+      alert(errorMsg);
+    } finally {
+      progressEl.style.display = 'none';
+    }
+  }
 
   // Auto-slugify title
   titleInput.addEventListener('input', () => {
@@ -408,72 +1048,6 @@ const categories = [
   cookTimeNoteInput?.addEventListener('input', () => {
     cookTimeNoteInput.dataset.manual = 'true';
   });
-
-  // Upload Logic
-  dropzone.addEventListener('click', () => fileInput.click());
-  dropzone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropzone.classList.add('dragover');
-  });
-  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
-  dropzone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropzone.classList.remove('dragover');
-    if (e.dataTransfer?.files) {
-      uploadFiles(Array.from(e.dataTransfer.files));
-    }
-  });
-
-  fileInput.addEventListener('change', () => {
-    if (fileInput.files) {
-      uploadFiles(Array.from(fileInput.files));
-      fileInput.value = '';
-    }
-  });
-
-  async function uploadFiles(files: File[]) {
-    if (files.length === 0) return;
-    progressEl.style.display = 'block';
-
-    const formData = new FormData();
-    files.forEach((f) => formData.append('images', f));
-
-    try {
-      const res = await fetch('/api/admin/images/upload/', {
-        method: 'POST',
-        headers: { 'x-csrf-token': csrfToken },
-        body: formData,
-      });
-
-      const json = await res.json();
-      if (!res.ok) {
-        alert(json.error || 'Failed to upload images to Cloudinary.');
-        return;
-      }
-
-      if (Array.isArray(json.images) && json.images.length > 0) {
-        const first = json.images[0];
-        primaryUrlEl.value = first.url;
-        if (first.originalName) {
-          primaryAltEl.value = first.originalName.replace(/\.[^/.]+$/, '');
-        }
-        json.images.forEach((up: any) => {
-          images.push({
-            url: up.url,
-            publicId: up.publicId,
-            alt: up.originalName ? up.originalName.replace(/\.[^/.]+$/, '') : 'Recipe photo',
-            width: up.width,
-            height: up.height,
-            isPrimary: images.length === 0,
-          });
-        });
-      }
-    } catch (err) {
-      alert('Upload failed: ' + (err instanceof Error ? err.message : String(err)));
-    } finally {
-      progressEl.style.display = 'none';
-    }
-  }
 
   // Ingredients & Instructions dynamic builders
   const ingredientList = document.getElementById('ingredientList')!;
@@ -573,6 +1147,10 @@ const categories = [
     const equipmentLines = ((form.querySelector('[name="equipment"]') as HTMLTextAreaElement)?.value || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
     const bodyVal = ((form.querySelector('[name="body"]') as HTMLTextAreaElement)?.value || '').trim() || undefined;
 
+    syncCoverInputs();
+    const coverUrl = primaryUrlEl.value.trim();
+    const coverAlt = primaryAltEl.value.trim();
+
     const payload = {
       title: (form.querySelector('[name="title"]') as HTMLInputElement).value.trim(),
       slug: (form.querySelector('[name="slug"]') as HTMLInputElement).value.trim(),
@@ -585,9 +1163,18 @@ const categories = [
       servings: parseInt((form.querySelector('[name="servings"]') as HTMLInputElement).value) || 1,
       reviewStatus: targetStatus,
       tags: (form.querySelector('[name="tags"]') as HTMLInputElement).value.split(',').map((s) => s.trim()).filter(Boolean),
-      image: primaryUrlEl.value.trim(),
-      imageAlt: primaryAltEl.value.trim(),
-      gallery: images,
+      image: coverUrl,
+      imageAlt: coverAlt,
+      gallery: recipeImages
+        .filter((img) => img.url && img.url !== coverUrl)
+        .map((img) => ({
+          url: img.url,
+          publicId: img.publicId,
+          alt: img.alt || '',
+          width: img.width,
+          height: img.height,
+          isPrimary: false,
+        })),
       ingredients,
       instructions,
       foodSafety: foodSafetyLines,

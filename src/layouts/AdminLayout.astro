@@ -67,7 +67,7 @@ const isDev = import.meta.env.DEV;
     <title>{title} | CrockBites Editorial Admin</title>
     <meta name="robots" content="noindex, nofollow" />
   </head>
-  <body class="min-h-full font-sans text-ink antialiased bg-cream flex flex-col">
+  <body class="min-h-full font-sans text-ink antialiased bg-cream flex flex-col" data-admin-csrf={csrfToken}>
     <div class="flex min-h-screen">
       <!-- Desktop Sidebar -->
       <aside class="hidden lg:flex lg:w-72 lg:flex-col lg:fixed lg:inset-y-0 z-40 bg-forest text-cream border-r border-forest-deep/60 shadow-lg select-none">

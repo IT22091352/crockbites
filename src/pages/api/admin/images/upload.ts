@@ -29,13 +29,38 @@ const isAuthorized = async (request: Request, cookies: any) => {
   return session;
 };
 
-// Allowed image MIME types and limits
+// Allowed image MIME types and file extensions
 const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg',
+  'image/jpg',
+  'image/pjpeg',
   'image/png',
+  'image/x-png',
   'image/webp',
   'image/avif',
+  'image/svg+xml',
+  'image/svg',
+  'image/gif',
 ]);
+
+const ALLOWED_EXTENSIONS = new Set([
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.webp',
+  '.avif',
+  '.svg',
+  '.gif',
+]);
+
+function isAllowedImage(file: File): boolean {
+  if (file.type && ALLOWED_MIME_TYPES.has(file.type.toLowerCase())) {
+    return true;
+  }
+  const name = file.name || '';
+  const ext = name.slice(name.lastIndexOf('.')).toLowerCase();
+  return ALLOWED_EXTENSIONS.has(ext);
+}
 
 const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024; // 8 MB
 
@@ -62,23 +87,25 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   try {
     const formData = await request.formData();
-    const files = formData.getAll('images') as File[];
-
-    if (!files || files.length === 0) {
-      // Check single file fallback 'image'
-      const single = formData.get('image') as File | null;
-      if (single) files.push(single);
+    const rawFiles = formData.getAll('images');
+    const single = formData.get('image');
+    if (single && !rawFiles.includes(single)) {
+      rawFiles.push(single);
     }
 
-    if (!files || files.length === 0) {
-      return new Response(JSON.stringify({ error: 'No image files provided.' }), {
+    const files = rawFiles.filter(
+      (f): f is File => typeof f === 'object' && f !== null && 'size' in f && (f as File).size > 0
+    );
+
+    if (files.length === 0) {
+      return new Response(JSON.stringify({ error: 'No image files provided or selected file is empty.' }), {
         status: 400,
         headers: { 'content-type': 'application/json' },
       });
     }
 
-    // Configurable maximum number of images per upload/batch
-    const MAX_IMAGES_PER_BATCH = 10;
+    // Maximum number of images per batch (supports generous multi-upload)
+    const MAX_IMAGES_PER_BATCH = 25;
     if (files.length > MAX_IMAGES_PER_BATCH) {
       return new Response(
         JSON.stringify({ error: `Cannot upload more than ${MAX_IMAGES_PER_BATCH} images at once.` }),
@@ -87,45 +114,70 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     }
 
     const uploaded = [];
+    const errors: Array<{ name: string; error: string }> = [];
+
     for (const file of files) {
       if (!(file instanceof File)) continue;
 
-      if (!ALLOWED_MIME_TYPES.has(file.type)) {
-        return new Response(
-          JSON.stringify({ error: `Unsupported image format: ${file.type}. Only JPEG, PNG, WebP, and AVIF are allowed.` }),
-          { status: 400, headers: { 'content-type': 'application/json' } }
-        );
+      if (!isAllowedImage(file)) {
+        errors.push({
+          name: file.name,
+          error: `Unsupported format (${file.type || 'unknown'}). Only JPEG, PNG, WebP, AVIF, SVG, and GIF are allowed.`,
+        });
+        continue;
       }
 
       if (file.size > MAX_FILE_SIZE_BYTES) {
-        return new Response(
-          JSON.stringify({ error: `File "${file.name}" exceeds the maximum allowed size of 8 MB.` }),
-          { status: 400, headers: { 'content-type': 'application/json' } }
-        );
+        errors.push({
+          name: file.name,
+          error: `Exceeds the 8 MB maximum size limit (${(file.size / (1024 * 1024)).toFixed(1)} MB).`,
+        });
+        continue;
       }
 
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
 
-      const result = await uploadImageBuffer(buffer, {
-        folder: 'crockbites/recipes',
-      });
+        const result = await uploadImageBuffer(buffer, {
+          folder: 'crockbites/recipes',
+        });
 
-      uploaded.push({
-        url: result.secure_url,
-        publicId: result.public_id,
-        width: result.width,
-        height: result.height,
-        format: result.format,
-        bytes: result.bytes,
-        originalName: file.name,
-      });
+        uploaded.push({
+          url: result.secure_url,
+          publicId: result.public_id,
+          width: result.width,
+          height: result.height,
+          format: result.format,
+          bytes: result.bytes,
+          originalName: file.name,
+        });
+      } catch (uploadErr) {
+        errors.push({
+          name: file.name,
+          error: uploadErr instanceof Error ? uploadErr.message : 'Cloudinary upload failed',
+        });
+      }
     }
 
-    return new Response(JSON.stringify({ images: uploaded }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    });
+    if (uploaded.length === 0 && errors.length > 0) {
+      const summary = errors.map((e) => `${e.name}: ${e.error}`).join('; ');
+      return new Response(
+        JSON.stringify({ error: `Upload failed: ${summary}`, errors }),
+        { status: 400, headers: { 'content-type': 'application/json' } }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        images: uploaded,
+        errors: errors.length > 0 ? errors : undefined,
+      }),
+      {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Image upload failed';
     return new Response(JSON.stringify({ error: message }), {
@@ -134,4 +186,3 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     });
   }
 };
-
