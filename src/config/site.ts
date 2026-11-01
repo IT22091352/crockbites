@@ -48,8 +48,10 @@ export const site = {
   },
 
   newsletter: {
-    /** Form action URL from a real provider (Buttondown, MailerLite, ConvertKit...). Empty = placeholder mode. */
-    formAction: (env.PUBLIC_NEWSLETTER_FORM_ACTION as string | undefined) || '',
+    /** Brevo newsletter subscription form action URL */
+    formAction:
+      (env.PUBLIC_NEWSLETTER_FORM_ACTION as string | undefined) ||
+      'https://52e49387.sibforms.com/serve/MUIFADd5aCKXdM129DKu7s24v-VTJR-kJhW58KRVMLdEsPwsX07xxDU7G4UR9IPHFWtRO7hGRQ0KubE0Kph8HkRC8U3TVdrQfRqyz4TYvcaH0pSEw0Tc0JGS0wdWdDI9RqaveYtIaoZDQX97tDunFRggfGpJrIPyd5qLN1DbDmm4YocYJf1vRyda7W9wrZ_K07QILKcAireVlTB-MA==',
   },
 
   /** Add real profile URLs only when the accounts exist. They feed Organization `sameAs`. */

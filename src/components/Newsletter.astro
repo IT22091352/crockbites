@@ -1,18 +1,68 @@
 ---
-import { Mail } from '@lucide/astro';
+import { Mail, CircleCheck, CircleAlert } from '@lucide/astro';
 import { site } from '../config/site';
 const live = Boolean(site.newsletter.formAction);
 ---
-<section aria-labelledby="newsletter-heading" class="rounded-2xl border border-cream/20 bg-forest-deep/60 p-5 sm:p-6">
+<section aria-labelledby="newsletter-heading" class="rounded-2xl border border-cream/20 bg-forest-deep/60 p-5 sm:p-6" data-newsletter-root>
   <h2 id="newsletter-heading" class="font-display text-xl font-semibold text-cream">Recipe emails</h2>
   {live ? (
     <>
       <p class="mt-2 text-[0.97rem] text-cream/85">Get new recipes by email. No spam; unsubscribe any time.</p>
-      <form action={site.newsletter.formAction} method="post" class="mt-4 flex flex-col gap-3 sm:flex-row">
+
+      <div id="newsletter-success-panel" class="mt-4 hidden rounded-xl border border-cream/30 bg-forest/80 p-4 text-cream" role="status" aria-live="polite">
+        <div class="flex items-start gap-3">
+          <CircleCheck size={20} class="mt-0.5 shrink-0 text-cream" aria-hidden="true" />
+          <div class="space-y-1.5 text-sm">
+            <p class="font-semibold text-cream" id="newsletter-success-msg">
+              Thanks for subscribing! Please check your inbox and confirm your email to join the CrockBites community.
+            </p>
+            <p class="text-xs text-cream/75">
+              A confirmation email was sent. You must click the confirmation link to complete your subscription.
+            </p>
+            <button type="button" id="newsletter-reset-btn" class="mt-2 text-xs font-semibold text-cream underline underline-offset-2 hover:text-paper cursor-pointer">
+              Subscribe another email
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <form
+        id="newsletter-form"
+        action={site.newsletter.formAction}
+        method="post"
+        class="mt-4 flex flex-col gap-3 sm:flex-row"
+        novalidate
+      >
         <label for="newsletter-email" class="sr-only">Email address</label>
-        <input id="newsletter-email" name="email" type="email" required autocomplete="email" placeholder="you@example.com" class="field sm:flex-1" />
-        <button type="submit" class="btn btn-light">Subscribe</button>
+        <input
+          id="newsletter-email"
+          name="EMAIL"
+          type="email"
+          required
+          autocomplete="email"
+          placeholder="you@example.com"
+          class="field sm:flex-1 text-ink bg-paper"
+        />
+
+        {/* Brevo honeypot field (hidden from genuine users, catches bots) */}
+        <div style="display:none !important;" aria-hidden="true">
+          <input type="text" name="email_address_check" value="" tabindex="-1" autocomplete="off" />
+        </div>
+
+        {/* Brevo locale hidden field */}
+        <input type="hidden" name="locale" value="en" />
+
+        <button type="submit" id="newsletter-submit-btn" class="btn btn-light transition-opacity">
+          Subscribe
+        </button>
       </form>
+
+      <div id="newsletter-error-panel" class="mt-3 hidden rounded-xl border border-terracotta/40 bg-terracotta-deep/20 p-3 text-sm text-cream" role="alert" aria-live="assertive">
+        <div class="flex items-start gap-2.5">
+          <CircleAlert size={18} class="mt-0.5 shrink-0 text-terracotta" aria-hidden="true" />
+          <span id="newsletter-error-msg" class="text-xs sm:text-sm text-cream/95"></span>
+        </div>
+      </div>
     </>
   ) : (
     <>
@@ -23,3 +73,151 @@ const live = Boolean(site.newsletter.formAction);
     </>
   )}
 </section>
+
+{live && (
+  <script>
+    function setupNewsletter() {
+      const form = document.getElementById('newsletter-form') as HTMLFormElement | null;
+      if (!form || form.dataset.bound === 'true') return;
+      form.dataset.bound = 'true';
+
+      const emailInput = document.getElementById('newsletter-email') as HTMLInputElement | null;
+      const submitBtn = document.getElementById('newsletter-submit-btn') as HTMLButtonElement | null;
+      const successPanel = document.getElementById('newsletter-success-panel');
+      const successMsg = document.getElementById('newsletter-success-msg');
+      const errorPanel = document.getElementById('newsletter-error-panel');
+      const errorMsg = document.getElementById('newsletter-error-msg');
+      const resetBtn = document.getElementById('newsletter-reset-btn');
+
+      function showError(msg: string) {
+        if (!errorPanel || !errorMsg) return;
+        errorMsg.textContent = msg;
+        errorPanel.classList.remove('hidden');
+        if (successPanel) successPanel.classList.add('hidden');
+      }
+
+      function hideError() {
+        if (errorPanel) errorPanel.classList.add('hidden');
+      }
+
+      function showSuccess(msg?: string) {
+        if (form) form.classList.add('hidden');
+        hideError();
+        if (successPanel) {
+          if (successMsg && msg) successMsg.textContent = msg;
+          successPanel.classList.remove('hidden');
+        }
+      }
+
+      if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+          if (successPanel) successPanel.classList.add('hidden');
+          if (form) {
+            form.classList.remove('hidden');
+            if (emailInput) {
+              emailInput.value = '';
+              emailInput.focus();
+            }
+          }
+          hideError();
+        });
+      }
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        hideError();
+
+        if (!emailInput || !submitBtn) return;
+
+        const email = emailInput.value.trim();
+        if (!email) {
+          showError('Please enter your email address to subscribe.');
+          emailInput.focus();
+          return;
+        }
+
+        // Email format check
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+          showError('Please enter a valid email address and try again.');
+          emailInput.focus();
+          return;
+        }
+
+        // Honeypot check (anti-bot)
+        const hpInput = form.querySelector('input[name="email_address_check"]') as HTMLInputElement | null;
+        if (hpInput && hpInput.value.trim() !== '') {
+          // Bot detected, silently show success without sending
+          showSuccess();
+          return;
+        }
+
+        const originalBtnText = submitBtn.textContent || 'Subscribe';
+        submitBtn.disabled = true;
+        submitBtn.classList.add('opacity-70', 'cursor-not-allowed');
+        submitBtn.textContent = 'Subscribing...';
+        emailInput.readOnly = true;
+
+        try {
+          const actionUrl = form.action || '';
+          const ajaxUrl = actionUrl.includes('?') ? `${actionUrl}&isAjax=1` : `${actionUrl}?isAjax=1`;
+
+          // Explicitly construct FormData with verified fields so browser disabled states never omit them
+          const formData = new FormData();
+          formData.append('EMAIL', email);
+          formData.append('email_address_check', hpInput ? hpInput.value : '');
+          formData.append('locale', 'en');
+
+          const response = await fetch(ajaxUrl, {
+            method: 'POST',
+            body: formData,
+            headers: {
+              'Accept': 'application/json',
+            },
+          });
+
+          let data: any = null;
+          try {
+            data = await response.json();
+          } catch {
+            // Not JSON
+          }
+
+          if (response.ok && data && data.success === true) {
+            showSuccess(data.message);
+          } else {
+            // Error response
+            let message = 'Something went wrong. Please check your email and try again.';
+            if (data) {
+              if (data.errors && typeof data.errors === 'object') {
+                if (data.errors.EMAIL) {
+                  message = data.errors.EMAIL;
+                } else {
+                  const firstErr = Object.values(data.errors)[0];
+                  if (typeof firstErr === 'string') message = firstErr as string;
+                }
+              } else if (data.message) {
+                message = data.message;
+              }
+            }
+            showError(message);
+          }
+        } catch {
+          showError('Unable to connect to the subscription service. Please check your internet connection and try again.');
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+          submitBtn.textContent = originalBtnText;
+          emailInput.readOnly = false;
+        }
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', setupNewsletter);
+    } else {
+      setupNewsletter();
+    }
+    document.addEventListener('astro:page-load', setupNewsletter);
+  </script>
+)}
