@@ -14,19 +14,19 @@ imageAlt: Sticky glazed slow cooker BBQ ribs sliced on a butcher paper lined boa
 gallery:
   - url: https://res.cloudinary.com/dmxumqqpj/image/upload/v1793473075/crockbites/recipes/duhwx4pv9bhgclvuc7gr.jpg
     publicId: crockbites/recipes/duhwx4pv9bhgclvuc7gr
-    alt: Chw8 adNqbYR mZ0UX3A4il1wuyieWhreH8ApGBlSiVlh1FNTQdcd lVX6hp4Yz6pfUWbIa2IrX7EYlOO yxXKtMtWiU10 8 bp3Wm5FvJe 0WgNfgwYP5V8TBhSSSd0us0klE kkqauGYaOzUh7ulbSU8vIzMqxOWw7Ho3phgOVkROXgldb ZNNV0 MrNW
+    alt: Ingredients & Preparation
     width: 2048
     height: 1365
     isPrimary: false
   - url: https://res.cloudinary.com/dmxumqqpj/image/upload/v1793473076/crockbites/recipes/oayfxvvfbhnyy1gd3cj5.jpg
     publicId: crockbites/recipes/oayfxvvfbhnyy1gd3cj5
-    alt: OEzEKMaG0oGGm2xi5igrwSEYss7erIdTuegQsKDPFKY0wVPpKR0uCfXcSvS1PN1 YnpWVf9OzetlE8p9sYVF mzh3DeG1HuZZBPxmSY frQTnGnBWxOmgnMD EG4wRSPRI d AokuejDFbOjn8KNDqhdVmm0QDaUsZ3dP2S5ssCT6HbGWFj75V7vq9LrqAty
+    alt: Cooking Process
     width: 1664
     height: 928
     isPrimary: false
   - url: https://res.cloudinary.com/dmxumqqpj/image/upload/v1793473078/crockbites/recipes/xncaezgofwjxccethgna.jpg
     publicId: crockbites/recipes/xncaezgofwjxccethgna
-    alt: QSIdwUG91YpDg7Mr10 du8tzlMhp9Z75AttW9dCZotbbSn uKykM94nJX6NBM3DY43yoG4rYUhtYmnA8wFF djt qtRkq8Vu5Fl6rhzSbDzv5eVOSgnfaVC3mNUjaoNOVhhl7F fp82qADOHR5lC6lqYCdLbIF5B76rdyq6IK5izS 3mULwe3E6iXmEF6KN9
+    alt: Plated BBQ Ribs
     width: 1456
     height: 816
     isPrimary: false
