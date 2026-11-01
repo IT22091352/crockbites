@@ -24,7 +24,7 @@ import { cleanupUnusedRecipeMedia } from '../../../../lib/cloudinary';
 import { getDb } from '../../../../lib/db';
 import { migrateRecipeSlugInCommunityDb } from '../../../../lib/community';
 import { triggerRecipeNewsletterCampaign } from '../../../../lib/brevo-campaign';
-import { formatAdminRecipeSummary, saveAdminRecipeCache, removeAdminRecipeCache } from '../../../../lib/admin-recipes';
+import { formatAdminRecipeSummary, saveAdminRecipeCache, removeAdminRecipeCache, saveAdminFullRecipeCache, parseRecipeMarkdownToFull } from '../../../../lib/admin-recipes';
 import YAML from 'yaml';
 
 const isAuthorized = async (request: Request, cookies: any) => {
@@ -320,6 +320,10 @@ export const PUT: APIRoute = async ({ params, request, cookies, locals }) => {
       instructions: mergedRecipe.instructions,
     });
     saveAdminRecipeCache(recipeSummary);
+    const parsedFull = parseRecipeMarkdownToFull(slug, markdown);
+    if (parsedFull) {
+      saveAdminFullRecipeCache(slug, parsedFull);
+    }
 
     // Trigger newsletter campaign if transitioning from draft to published
     let newsletterResult: any = undefined;

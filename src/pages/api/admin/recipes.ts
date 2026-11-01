@@ -15,7 +15,7 @@ import { inferRecipeDraft, normalizeDietaryLabels, normalizeAllergens, serialize
 import { repoRecipePath, writeRepoFile } from '../../../lib/github';
 import { getDb } from '../../../lib/db';
 import { triggerRecipeNewsletterCampaign } from '../../../lib/brevo-campaign';
-import { formatAdminRecipeSummary, getAdminRecipeList, saveAdminRecipeCache } from '../../../lib/admin-recipes';
+import { formatAdminRecipeSummary, getAdminRecipeList, saveAdminRecipeCache, saveAdminFullRecipeCache, parseRecipeMarkdownToFull } from '../../../lib/admin-recipes';
 
 const isAuthorized = async (request: Request, cookies: any) => {
   const secret = getAdminSessionSecret();
@@ -234,6 +234,10 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
       instructions: payload.instructions,
     });
     saveAdminRecipeCache(recipeSummary);
+    const parsedFull = parseRecipeMarkdownToFull(finalSlug, markdown);
+    if (parsedFull) {
+      saveAdminFullRecipeCache(finalSlug, parsedFull);
+    }
 
     // Trigger newsletter campaign if published and opted in
     let newsletterResult: any = undefined;

@@ -7,7 +7,10 @@ import {
   removeAdminRecipeCache,
   clearAdminRecipeCache,
   getAdminRecipeBySlug,
+  getLatestAdminRecipe,
   parseRecipeMarkdownToSummary,
+  parseRecipeMarkdownToFull,
+  saveAdminFullRecipeCache,
 } from '../src/lib/admin-recipes.ts';
 
 test('Admin CMS Draft Refresh & Synchronization Tests', async (t) => {
@@ -184,8 +187,73 @@ Instructions go here.
     assert.ok(summary?.thumbUrl.includes('w_160'), 'Thumbnail URL formatted');
   });
 
+  await t.test('Scenario 7: Preview route resolves latest saved Markdown content (bypassing stale build data)', async () => {
+    const slug = 'test-preview-regression-draft';
+
+    // Simulate an old version that was in the static build bundle
+    const oldBuildMarkdown = `---
+title: Old Draft Title
+slug: ${slug}
+description: Stale description from old build.
+category: slow-cooker-chicken
+reviewStatus: draft
+pubDate: 2026-10-25
+---
+Old instructions.
+`;
+    const oldParsed = parseRecipeMarkdownToFull(slug, oldBuildMarkdown);
+    assert.equal(oldParsed?.data.title, 'Old Draft Title', 'Old version has old title');
+
+    // Now simulate an updated save to GitHub / Markdown file with new title and ingredients
+    const updatedMarkdown = `---
+title: CrockBites Draft Sync Test Updated
+slug: ${slug}
+description: Fresh description reflecting latest saved changes.
+category: slow-cooker-chicken
+reviewStatus: draft
+pubDate: 2026-10-25
+updatedDate: 2026-11-01T15:30:00.000Z
+ingredients:
+  - quantity: 3
+    unit: lb
+    item: updated chicken thighs
+instructions:
+  - text: Freshly updated cooking instructions.
+---
+Updated body content.
+`;
+
+    // Parse the fresh markdown
+    const freshFull = parseRecipeMarkdownToFull(slug, updatedMarkdown);
+    assert.ok(freshFull, 'Parsed fresh markdown');
+    assert.equal(freshFull.data.title, 'CrockBites Draft Sync Test Updated');
+    assert.equal(freshFull.data.ingredients[0].item, 'updated chicken thighs');
+
+    // Seed the cache with the updated full recipe
+    saveAdminFullRecipeCache(slug, freshFull);
+
+    // Verify getLatestAdminRecipe resolves the updated title, not the old build title
+    const resolved = await getLatestAdminRecipe(slug);
+    assert.ok(resolved, 'Resolved recipe for preview');
+    assert.equal(resolved.data.title, 'CrockBites Draft Sync Test Updated', 'Preview loader must return the updated title');
+    assert.notEqual(resolved.data.title, 'Old Draft Title', 'Preview loader must NOT return stale build title');
+    assert.equal(resolved.data.description, 'Fresh description reflecting latest saved changes.');
+    assert.equal(resolved.data.ingredients[0].item, 'updated chicken thighs');
+    assert.equal(resolved.data.instructions[0].text, 'Freshly updated cooking instructions.');
+    assert.equal(resolved.data.reviewStatus, 'draft', 'Preview maintains unpublished draft status');
+
+    // Verify anti-caching headers standard
+    const noCacheHeaders = {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0, s-maxage=0',
+      'CDN-Cache-Control': 'no-store',
+      'Cloudflare-CDN-Cache-Control': 'no-store',
+    };
+    assert.ok(noCacheHeaders['Cache-Control'].includes('no-store'), 'Strict anti-caching enabled for preview routes');
+  });
+
   // Clean up test items from cache
   removeAdminRecipeCache('test-lemon-herb-chicken-draft');
   removeAdminRecipeCache('draft-beef-bourguignon');
   removeAdminRecipeCache('draft-tuscan-white-bean-soup');
+  removeAdminRecipeCache('test-preview-regression-draft');
 });

@@ -28,8 +28,52 @@ export interface AdminRecipeSummary {
   instructionsCount?: number;
 }
 
-// In-memory cache for recipes created or updated in this runtime instance
+export interface FullAdminRecipe {
+  id: string;
+  slug: string;
+  body: string;
+  data: {
+    title: string;
+    slug?: string;
+    description: string;
+    category: string;
+    tags: string[];
+    image: string | any;
+    imageAlt: string;
+    gallery: any[];
+    author: string;
+    pubDate: Date;
+    updatedDate?: Date;
+    prepMinutes: number;
+    cookMinutes: number;
+    totalMinutes?: number;
+    cookTimeNote?: string;
+    servings: number;
+    servingsLabel: string;
+    ingredients: any[];
+    instructions: any[];
+    tips?: string[];
+    foodSafety?: string[];
+    equipment?: string[];
+    servingSuggestions?: string[];
+    substitutions?: any[];
+    storage?: any;
+    dietaryLabels: string[];
+    dietaryVerified: boolean;
+    allergens: string[];
+    allergenReviewed: boolean;
+    allergenNotes?: string;
+    nutrition?: any;
+    reviewStatus: 'draft' | 'tested';
+    featured: boolean;
+    [key: string]: any;
+  };
+}
+
+// In-memory caches for recipes created or updated in this runtime instance
 const recentRecipesCache = new Map<string, { summary: AdminRecipeSummary; timestamp: number }>();
+const fullRecipeCache = new Map<string, { recipe: FullAdminRecipe; timestamp: number }>();
+const recipeShas = new Map<string, string>();
 let lastGithubSync = 0;
 const GITHUB_SYNC_TTL_MS = 20 * 1000; // 20 seconds cache
 
@@ -101,14 +145,27 @@ export function saveAdminRecipeCache(summary: AdminRecipeSummary) {
   lastGithubSync = 0;
 }
 
+export function saveAdminFullRecipeCache(slug: string, recipe: FullAdminRecipe) {
+  if (!slug) return;
+  fullRecipeCache.set(slug, {
+    recipe,
+    timestamp: Date.now(),
+  });
+  lastGithubSync = 0;
+}
+
 export function removeAdminRecipeCache(slug: string) {
   if (!slug) return;
   recentRecipesCache.delete(slug);
+  fullRecipeCache.delete(slug);
+  recipeShas.delete(slug);
   lastGithubSync = 0;
 }
 
 export function clearAdminRecipeCache() {
   recentRecipesCache.clear();
+  fullRecipeCache.clear();
+  recipeShas.clear();
   lastGithubSync = 0;
 }
 
@@ -140,10 +197,72 @@ export function parseRecipeMarkdownToSummary(slug: string, markdown: string): Ad
 }
 
 /**
+ * Parses full markdown into a FullAdminRecipe object suitable for preview and edit views
+ */
+export function parseRecipeMarkdownToFull(slug: string, markdown: string): FullAdminRecipe | null {
+  try {
+    const match = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (!match) return null;
+    const data = YAML.parse(match[1]);
+    if (!data || typeof data !== 'object') return null;
+
+    const rawBody = markdown.slice(match[0].length).trim();
+    const finalSlug = data.slug || slug;
+
+    const now = new Date();
+    const pubDate = data.pubDate ? new Date(data.pubDate) : now;
+    const updatedDate = data.updatedDate ? new Date(data.updatedDate) : undefined;
+
+    return {
+      id: `${finalSlug}.md`,
+      slug: finalSlug,
+      body: rawBody,
+      data: {
+        title: String(data.title || 'Untitled Recipe'),
+        slug: finalSlug,
+        description: String(data.description || ''),
+        category: String(data.category || 'easy-dinners'),
+        tags: Array.isArray(data.tags) ? data.tags : [],
+        image: data.image || '/placeholder.svg',
+        imageAlt: String(data.imageAlt || data.title || 'CrockBites recipe'),
+        gallery: Array.isArray(data.gallery) ? data.gallery : [],
+        author: String(data.author || 'CrockBites'),
+        pubDate: isNaN(pubDate.getTime()) ? now : pubDate,
+        updatedDate: updatedDate && !isNaN(updatedDate.getTime()) ? updatedDate : undefined,
+        prepMinutes: Number(data.prepMinutes || 0),
+        cookMinutes: Number(data.cookMinutes || 0),
+        totalMinutes: data.totalMinutes ? Number(data.totalMinutes) : undefined,
+        cookTimeNote: data.cookTimeNote ? String(data.cookTimeNote) : undefined,
+        servings: Number(data.servings || 4),
+        servingsLabel: String(data.servingsLabel || 'servings'),
+        ingredients: Array.isArray(data.ingredients) ? data.ingredients : [],
+        instructions: Array.isArray(data.instructions) ? data.instructions : [],
+        tips: Array.isArray(data.tips) ? data.tips : [],
+        foodSafety: Array.isArray(data.foodSafety) ? data.foodSafety : [],
+        equipment: Array.isArray(data.equipment) ? data.equipment : [],
+        servingSuggestions: Array.isArray(data.servingSuggestions) ? data.servingSuggestions : [],
+        substitutions: Array.isArray(data.substitutions) ? data.substitutions : [],
+        storage: data.storage,
+        dietaryLabels: Array.isArray(data.dietaryLabels) ? data.dietaryLabels : [],
+        dietaryVerified: Boolean(data.dietaryVerified),
+        allergens: Array.isArray(data.allergens) ? data.allergens : [],
+        allergenReviewed: Boolean(data.allergenReviewed),
+        allergenNotes: data.allergenNotes ? String(data.allergenNotes) : undefined,
+        nutrition: data.nutrition,
+        reviewStatus: data.reviewStatus === 'tested' ? 'tested' : 'draft',
+        featured: Boolean(data.featured),
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Returns the unified recipe catalog for Admin CMS, merging:
  * 1. Astro built-in content collections (static / built)
  * 2. In-memory runtime cache of recent writes
- * 3. Newly committed GitHub recipes that haven't been rebuilt into the Astro bundle yet
+ * 3. Newly committed or modified GitHub recipes
  */
 export async function getAdminRecipeList(options: { fresh?: boolean } = {}): Promise<AdminRecipeSummary[]> {
   const recipeMap = new Map<string, AdminRecipeSummary>();
@@ -169,7 +288,7 @@ export async function getAdminRecipeList(options: { fresh?: boolean } = {}): Pro
       recipeMap.set(slug, summary);
     }
   } catch {
-    // Astro content virtual module not available in standalone tests, fallback to filesystem
+    // Astro content virtual module not available in standalone tests
   }
 
   // 2. Check local disk for any markdown files if running in Node / local dev
@@ -197,7 +316,6 @@ export async function getAdminRecipeList(options: { fresh?: boolean } = {}): Pro
 
   // 3. Merge in-memory runtime cache
   for (const [slug, item] of recentRecipesCache.entries()) {
-    // Cache entries valid for 1 hour
     if (Date.now() - item.timestamp < 3600 * 1000) {
       recipeMap.set(slug, item.summary);
     } else {
@@ -225,33 +343,43 @@ export async function getAdminRecipeList(options: { fresh?: boolean } = {}): Pro
         if (!ghSlugs.has(slug)) {
           recipeMap.delete(slug);
           recentRecipesCache.delete(slug);
+          recipeShas.delete(slug);
         }
       }
 
-      // Find files present in GitHub but missing from our recipeMap
-      const missingOrNewer = ghFiles.filter((f) => {
+      // Find files present in GitHub that are either:
+      // a) Missing from recipeMap
+      // b) Have a modified SHA compared to what we previously loaded
+      const missingOrModified = ghFiles.filter((f) => {
         const filename = f.name || f.path.split('/').pop() || '';
         if (!filename.endsWith('.md')) return false;
         const slug = filename.replace(/\.md$/, '');
-        return !recipeMap.has(slug);
+        const isMissing = !recipeMap.has(slug);
+        const isModified = Boolean(f.sha && recipeShas.get(slug) && recipeShas.get(slug) !== f.sha);
+        return isMissing || isModified;
       });
 
-      // Fetch missing files from GitHub
-      for (const file of missingOrNewer) {
+      // Fetch missing or modified files from GitHub
+      for (const file of missingOrModified) {
         const filename = file.name || file.path.split('/').pop() || '';
         const slug = filename.replace(/\.md$/, '');
         try {
           const repoFile = await getRepoFile(file.path, config.branch || 'main');
           if (repoFile?.content) {
             const rawContent = Buffer.from(repoFile.content, 'base64').toString('utf8');
-            const parsed = parseRecipeMarkdownToSummary(slug, rawContent);
-            if (parsed) {
-              recipeMap.set(slug, parsed);
-              saveAdminRecipeCache(parsed);
+            const parsedSummary = parseRecipeMarkdownToSummary(slug, rawContent);
+            const parsedFull = parseRecipeMarkdownToFull(slug, rawContent);
+            if (parsedSummary) {
+              recipeMap.set(slug, parsedSummary);
+              saveAdminRecipeCache(parsedSummary);
+              if (file.sha) recipeShas.set(slug, file.sha);
+            }
+            if (parsedFull) {
+              saveAdminFullRecipeCache(slug, parsedFull);
             }
           }
         } catch (fetchErr) {
-          console.warn(`[Admin Recipes] Failed to fetch missing recipe "${file.path}" from GitHub:`, fetchErr);
+          console.warn(`[Admin Recipes] Failed to fetch updated recipe "${file.path}" from GitHub:`, fetchErr);
         }
       }
     } catch (ghErr) {
@@ -271,34 +399,70 @@ export async function getAdminRecipeList(options: { fresh?: boolean } = {}): Pro
 }
 
 /**
- * Finds a single recipe by slug, falling back to GitHub if missing from content collections.
+ * Resolves the absolute latest recipe data for Admin Preview and Edit workflows.
+ * Prioritizes GitHub and runtime cache over stale Astro build-time collection.
  */
-export async function getAdminRecipeBySlug(slug: string): Promise<AdminRecipeSummary | null> {
+export async function getLatestAdminRecipe(
+  slug: string,
+  options: { fresh?: boolean } = {}
+): Promise<FullAdminRecipe | null> {
   const safeSlug = String(slug || '').trim();
   if (!safeSlug) return null;
 
-  // 1. Check in-memory cache
-  const cached = recentRecipesCache.get(safeSlug);
-  if (cached && Date.now() - cached.timestamp < 3600 * 1000) {
-    return cached.summary;
+  // 1. Check in-memory cache unless fresh requested
+  if (!options.fresh) {
+    const cached = fullRecipeCache.get(safeSlug);
+    if (cached && Date.now() - cached.timestamp < 30 * 1000) {
+      return cached.recipe;
+    }
   }
 
-  // 2. Check local disk if available
+  // 2. Fetch from GitHub directly (the authoritative source of truth in production)
+  const config = getGithubConfig();
+  if (config.token && config.owner && config.repo) {
+    try {
+      const repoPath = repoRecipePath(safeSlug);
+      const repoFile = await getRepoFile(repoPath, config.branch || 'main');
+      if (repoFile?.content) {
+        const rawContent = Buffer.from(repoFile.content, 'base64').toString('utf8');
+        const parsed = parseRecipeMarkdownToFull(safeSlug, rawContent);
+        if (parsed) {
+          saveAdminFullRecipeCache(safeSlug, parsed);
+          const summary = formatAdminRecipeSummary({
+            ...parsed.data,
+            slug: safeSlug,
+          });
+          saveAdminRecipeCache(summary);
+          if (repoFile.sha) recipeShas.set(safeSlug, repoFile.sha);
+          return parsed;
+        }
+      }
+    } catch (err) {
+      console.warn(`[getLatestAdminRecipe] GitHub fetch failed for ${safeSlug}, checking fallbacks:`, err);
+    }
+  }
+
+  // 3. Check local filesystem (for local dev and test environments)
   try {
     const fs = await import('node:fs');
     const path = await import('node:path');
     const localPath = path.resolve(process.cwd(), 'src/content/recipes', `${safeSlug}.md`);
     if (fs.existsSync(localPath)) {
       const content = fs.readFileSync(localPath, 'utf8');
-      const parsed = parseRecipeMarkdownToSummary(safeSlug, content);
+      const parsed = parseRecipeMarkdownToFull(safeSlug, content);
       if (parsed) {
-        saveAdminRecipeCache(parsed);
+        saveAdminFullRecipeCache(safeSlug, parsed);
+        const summary = formatAdminRecipeSummary({
+          ...parsed.data,
+          slug: safeSlug,
+        });
+        saveAdminRecipeCache(summary);
         return parsed;
       }
     }
   } catch {}
 
-  // 3. Check Astro content collection
+  // 4. Fall back to Astro static content collection
   try {
     const { getCollection } = await import('astro:content');
     const staticRecipes = await getCollection('recipes');
@@ -308,38 +472,77 @@ export async function getAdminRecipeBySlug(slug: string): Promise<AdminRecipeSum
         (entry.data.slug ?? '').toLowerCase() === safeSlug.toLowerCase()
     );
     if (found) {
-      const summary = formatAdminRecipeSummary({
+      return {
+        id: found.id,
         slug: found.id.replace(/\.md$/, ''),
-        title: found.data.title,
-        description: found.data.description,
-        category: found.data.category,
-        reviewStatus: found.data.reviewStatus,
-        image: found.data.image,
-        pubDate: found.data.pubDate,
-        updatedDate: found.data.updatedDate,
-        ingredients: found.data.ingredients,
-        instructions: found.data.instructions,
-      });
-      return summary;
+        body: found.body || '',
+        data: { ...found.data },
+      } as FullAdminRecipe;
     }
   } catch {}
 
-  // 4. Fetch from GitHub directly
-  const config = getGithubConfig();
-  if (config.token && config.owner && config.repo) {
-    try {
-      const repoPath = repoRecipePath(safeSlug);
-      const repoFile = await getRepoFile(repoPath, config.branch || 'main');
-      if (repoFile?.content) {
-        const rawContent = Buffer.from(repoFile.content, 'base64').toString('utf8');
-        const parsed = parseRecipeMarkdownToSummary(safeSlug, rawContent);
-        if (parsed) {
-          saveAdminRecipeCache(parsed);
-          return parsed;
-        }
-      }
-    } catch {}
+  // 5. Fall back to recent in-memory summary if available
+  const summaryCached = recentRecipesCache.get(safeSlug);
+  if (summaryCached && Date.now() - summaryCached.timestamp < 30 * 1000) {
+    const s = summaryCached.summary;
+    return {
+      id: `${s.slug}.md`,
+      slug: s.slug,
+      body: '',
+      data: {
+        title: s.title,
+        slug: s.slug,
+        description: s.description,
+        category: s.category,
+        tags: [],
+        reviewStatus: s.reviewStatus,
+        image: s.imageUrl,
+        imageAlt: s.title,
+        gallery: [],
+        author: 'CrockBites',
+        pubDate: new Date(s.pubDate),
+        updatedDate: s.updatedDate ? new Date(s.updatedDate) : undefined,
+        prepMinutes: 0,
+        cookMinutes: 0,
+        cookTimeNote: '',
+        servings: 1,
+        servingsLabel: 'servings',
+        ingredients: [],
+        instructions: [],
+        tips: [],
+        foodSafety: [],
+        equipment: [],
+        servingSuggestions: [],
+        dietaryLabels: [],
+        allergens: [],
+        dietaryVerified: false,
+        allergenReviewed: false,
+        featured: false,
+      } as unknown as FullAdminRecipe['data'],
+    };
   }
 
   return null;
+}
+
+/**
+ * Finds a single recipe summary by slug, prioritizing latest GitHub/cache data.
+ */
+export async function getAdminRecipeBySlug(slug: string): Promise<AdminRecipeSummary | null> {
+  const safeSlug = String(slug || '').trim();
+  if (!safeSlug) return null;
+
+  // Check recent summary cache first
+  const cachedSummary = recentRecipesCache.get(safeSlug);
+  if (cachedSummary && Date.now() - cachedSummary.timestamp < 30 * 1000) {
+    return cachedSummary.summary;
+  }
+
+  const full = await getLatestAdminRecipe(safeSlug);
+  if (!full) return null;
+
+  return formatAdminRecipeSummary({
+    ...full.data,
+    slug: full.slug,
+  });
 }

@@ -1,6 +1,13 @@
 ---
 export const prerender = false;
 
+// Ensure Cloudflare CDN and browsers never cache admin preview pages
+Astro.response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0, s-maxage=0');
+Astro.response.headers.set('CDN-Cache-Control', 'no-store');
+Astro.response.headers.set('Cloudflare-CDN-Cache-Control', 'no-store');
+Astro.response.headers.set('Pragma', 'no-cache');
+Astro.response.headers.set('Expires', '0');
+
 import { getCollection, render } from 'astro:content';
 import { getImage } from 'astro:assets';
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
@@ -11,6 +18,7 @@ import {
   parseAdminSessionCookie,
   verifySessionCookie,
 } from '../../../../lib/admin';
+import { getLatestAdminRecipe } from '../../../../lib/admin-recipes';
 import {
   categoryById,
   recipeUrl,
@@ -28,18 +36,44 @@ if (!secret || !session || !verifySessionCookie(adminCookie, secret)) {
 }
 
 const slug = String(Astro.params.slug ?? '').trim();
+if (!slug) {
+  return Astro.redirect('/admin/recipes/');
+}
+
+// Fetch the absolute latest recipe data from GitHub/cache (bypasses stale build bundle)
+const latestRecipe = await getLatestAdminRecipe(slug, { fresh: true });
+
+if (!latestRecipe) {
+  return Astro.redirect('/admin/recipes/?error=Recipe+not+found');
+}
+
+// Load background static collection for related recipes and optional content rendering
 const allRecipes = await getCollection('recipes');
-const recipe = allRecipes.find(
+const staticRecipe = allRecipes.find(
   (entry) =>
     entry.id.replace(/\.md$/, '') === slug ||
     (entry.data.slug ?? '').toLowerCase() === slug.toLowerCase()
 );
 
-if (!recipe) {
-  return Astro.redirect('/admin/recipes/');
+let Content: any = null;
+if (staticRecipe) {
+  try {
+    const rendered = await render(staticRecipe);
+    Content = rendered.Content;
+  } catch {}
 }
 
-const { Content } = await render(recipe);
+// Construct the recipe object prioritizing the latest saved GitHub data
+const recipe = {
+  id: latestRecipe.id,
+  slug: latestRecipe.slug,
+  body: latestRecipe.body,
+  data: {
+    ...staticRecipe?.data,
+    ...latestRecipe.data,
+  },
+};
+
 const d = recipe.data;
 const cat = categoryById(d.category) ?? { id: d.category, name: d.category };
 const related = relatedRecipes(allRecipes as any, recipe as any, 3);
@@ -106,25 +140,24 @@ const isDraft = d.reviewStatus === 'draft';
 
     <div class="flex items-center gap-2.5">
       <a
-        href={`/admin/recipes/${recipe.id.replace(/\.md$/, '')}/`}
+        href={`/admin/recipes/${recipe.slug}/`}
         class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white/15 text-white hover:bg-white/25 text-xs font-bold transition shadow-xs"
       >
         <FilePenLine size={14} aria-hidden="true" />
         <span>Edit Recipe</span>
       </a>
       <a
-        href="/admin/"
+        href="/admin/recipes/?status=draft"
         class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-terracotta text-white hover:bg-terracotta-deep text-xs font-bold transition shadow-xs"
       >
         <ArrowLeft size={14} aria-hidden="true" />
-        <span>Back to Admin</span>
+        <span>Back to Drafts</span>
       </a>
     </div>
   </aside>
 
   <!-- Recipe Details -->
   <RecipeDetail recipe={recipe as any} related={related as any}>
-    {hasCustomIntro && <Content slot="intro" />}
+    {hasCustomIntro && (Content ? <Content slot="intro" /> : <div slot="intro" class="prose-crock whitespace-pre-line">{rawBody}</div>)}
   </RecipeDetail>
 </BaseLayout>
-

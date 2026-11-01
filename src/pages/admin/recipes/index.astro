@@ -1,6 +1,13 @@
 ---
 export const prerender = false;
 
+// Ensure Cloudflare CDN and browsers never cache admin recipe management pages
+Astro.response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0, s-maxage=0');
+Astro.response.headers.set('CDN-Cache-Control', 'no-store');
+Astro.response.headers.set('Cloudflare-CDN-Cache-Control', 'no-store');
+Astro.response.headers.set('Pragma', 'no-cache');
+Astro.response.headers.set('Expires', '0');
+
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import { getAdminRecipeList } from '../../../lib/admin-recipes';
 import {

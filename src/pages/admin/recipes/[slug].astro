@@ -1,7 +1,13 @@
 ---
 export const prerender = false;
 
-import { getCollection } from 'astro:content';
+// Ensure Cloudflare CDN and browsers never cache admin recipe editor pages
+Astro.response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0, s-maxage=0');
+Astro.response.headers.set('CDN-Cache-Control', 'no-store');
+Astro.response.headers.set('Cloudflare-CDN-Cache-Control', 'no-store');
+Astro.response.headers.set('Pragma', 'no-cache');
+Astro.response.headers.set('Expires', '0');
+
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import {
   ADMIN_COOKIE_NAME,
@@ -11,6 +17,7 @@ import {
   parseAdminSessionCookie,
   verifySessionCookie,
 } from '../../../lib/admin';
+import { getLatestAdminRecipe } from '../../../lib/admin-recipes';
 import { getGithubConfig } from '../../../lib/github';
 import { isCloudinaryConfigured } from '../../../lib/cloudinary';
 import { ArrowLeft, Eye, Trash } from '@lucide/astro';
@@ -28,34 +35,8 @@ if (!slugParam) {
   return Astro.redirect('/admin/recipes/');
 }
 
-const recipes = await getCollection('recipes');
-let recipe = recipes.find(
-  (entry) =>
-    entry.id.replace(/\.md$/, '') === slugParam ||
-    (entry.data.slug ?? '').toLowerCase() === slugParam.toLowerCase()
-);
-
-if (!recipe) {
-  // Fall back to GitHub or local disk for newly created drafts before Astro re-compiles
-  try {
-    const { repoRecipePath, getRepoFile } = await import('../../../lib/github');
-    const YAML = (await import('yaml')).default;
-    const repoFile = await getRepoFile(repoRecipePath(slugParam), 'main');
-    if (repoFile?.content) {
-      const rawContent = Buffer.from(repoFile.content, 'base64').toString('utf8');
-      const match = rawContent.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-      if (match) {
-        const data = YAML.parse(match[1]);
-        const body = rawContent.slice(match[0].length).trim();
-        recipe = {
-          id: `${slugParam}.md`,
-          data,
-          body,
-        } as any;
-      }
-    }
-  } catch {}
-}
+// Fetch the absolute latest recipe data from GitHub/cache (bypasses stale build bundle)
+const recipe = await getLatestAdminRecipe(slugParam, { fresh: true });
 
 if (!recipe) {
   return Astro.redirect('/admin/recipes/?error=Recipe+not+found');
