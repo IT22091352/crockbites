@@ -1,0 +1,112 @@
+---
+title: BBQ Slow Cook Ribs Recipe for the Crock Pot
+slug: bbq-slow-cook-ribs-recipe-for-the-crock-pot
+description: Fall-off-the-bone baby back or St. Louis style ribs rubbed with smoky spices, slow-cooked in barbecue sauce, and broiled for sticky caramelized edges.
+category: beef-pork
+tags:
+  - ribs
+  - pork ribs
+  - bbq
+  - slow cooker
+  - game day
+image: https://res.cloudinary.com/dmxumqqpj/image/upload/v1793473073/crockbites/recipes/i1t4dcp7stwpy5kgon82.jpg
+imageAlt: Sticky glazed slow cooker BBQ ribs sliced on a butcher paper lined board
+gallery:
+  - url: https://res.cloudinary.com/dmxumqqpj/image/upload/v1793473075/crockbites/recipes/duhwx4pv9bhgclvuc7gr.jpg
+    publicId: crockbites/recipes/duhwx4pv9bhgclvuc7gr
+    alt: Ingredients & Preparation
+    width: 2048
+    height: 1365
+    isPrimary: false
+  - url: https://res.cloudinary.com/dmxumqqpj/image/upload/v1793473076/crockbites/recipes/oayfxvvfbhnyy1gd3cj5.jpg
+    publicId: crockbites/recipes/oayfxvvfbhnyy1gd3cj5
+    alt: Cooking Process
+    width: 1664
+    height: 928
+    isPrimary: false
+  - url: https://res.cloudinary.com/dmxumqqpj/image/upload/v1793473078/crockbites/recipes/xncaezgofwjxccethgna.jpg
+    publicId: crockbites/recipes/xncaezgofwjxccethgna
+    alt: Plated BBQ Ribs
+    width: 1456
+    height: 816
+    isPrimary: false
+author: CrockBites
+pubDate: 2026-10-30
+updatedDate: 2026-11-01
+prepMinutes: 15
+cookMinutes: 480
+cookTimeNote: Low 7 to 8 hours (or High 4 to 5 hours)
+servings: 4
+servingsLabel: servings
+ingredients:
+  - quantity: 3.5
+    unit: lb
+    item: Baby back ribs
+    note: Membrane (silver skin) removed from bone side
+    scale: true
+  - quantity: 2
+    unit: tbsp
+    item: Brown sugar
+    scale: true
+  - quantity: 1
+    unit: tbsp
+    item: Smoked paprika
+    scale: true
+  - quantity: 1
+    unit: tsp
+    item: Garlic powder
+    scale: true
+  - quantity: 1
+    unit: tsp
+    item: Onion powder
+    scale: true
+  - quantity: 1
+    unit: tsp
+    item: Chili powder
+    scale: true
+  - quantity: 1.5
+    unit: tsp
+    item: Kosher salt
+    scale: true
+  - quantity: 0.5
+    unit: tsp
+    item: Black pepper
+    scale: true
+  - quantity: 0.25
+    unit: tsp
+    item: Cayenne pepper
+    note: Optional for heat
+    scale: true
+  - quantity: 1.5
+    unit: cups
+    item: Barbecue sauce
+    note: Divided (use your favorite sweet or smoky BBQ sauce)
+    scale: true
+  - quantity: 2
+    unit: tbsp
+    item: Apple cider vinegar
+    scale: true
+instructions:
+  - title: Step 1 – Prep the ribs
+    text: Slide a dull butter knife under the thin membrane (silver skin) on the bone side of the ribs. Grip it with a paper towel and pull it clean off. Cut the rack into 3 to 4 smaller sections to fit your slow cooker.
+  - title: Step 2 – Apply the dry rub
+    text: In a bowl, mix the brown sugar, smoked paprika, garlic powder, onion powder, chili powder, salt, black pepper, and cayenne. Rub the spice mixture thoroughly on all sides of the ribs.
+  - title: Step 3 – Arrange in the crockpot
+    text: Pour apple cider vinegar and 0.5 cup of BBQ sauce into the cooker base. Stand the rib sections upright along the outer edge of the slow cooker with the meat facing the wall, or stack them bone-side down.
+  - title: Step 4 – Slow cook on Low
+    text: Cover and cook on Low for 7 to 8 hours (or High for 4 to 5 hours). The ribs are done when the meat pulls back about 0.5 inch from the bone ends and tenderly bends when lifted with tongs.
+  - title: Step 5 – Broil for sticky crust
+    text: Gently transfer the tender ribs meat-side up onto a foil-lined baking sheet using large tongs. Slather the top generously with the remaining 1 cup of BBQ sauce. Broil in your oven 4 to 5 minutes until the sauce bubbles and lightly chars.
+servingSuggestions:
+  - Slice between bones and serve with creamy coleslaw, baked beans, and buttered cornbread.
+  - Provide wet wipes and extra warm BBQ sauce on the side.
+tips:
+  - "Removing the silver skin is essential: it allows the dry rub and sauce to penetrate the meat, and keeps the ribs from curling while cooking."
+  - Do not skip the oven broil step at the end. The intense top heat caramelizes the sugars in the barbecue sauce, turning soft slow cooker meat into authentic sticky barbecue.
+featured: false
+notifyNewsletter: false
+reviewStatus: tested
+---
+
+### Why This Recipe Works
+Ribs require hours of low, moist heat to break down tough connective tissue between the bones. The slow cooker renders out the fat while locking in steam, making the meat melt-in-your-mouth tender. A final 5-minute blast under the oven broiler caramelizes the sugars in the barbecue sauce for that authentic smoked-rib crust.
