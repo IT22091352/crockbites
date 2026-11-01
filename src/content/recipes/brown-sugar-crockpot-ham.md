@@ -80,11 +80,3 @@ tips:
 
 ### Why This Recipe Works
 Ovens often dry out spiral hams because the cut slices allow moisture to evaporate into the dry baking chamber. In the sealed, moist environment of a slow cooker, the ham gently warms in its own juices while absorbing the spiced brown sugar and pineapple glaze, keeping every single slice luscious and tender.
-
----
-
-### Image Generation Prompt (Midjourney / DALL-E)
-```
-Holiday editorial food photography of a glistening spiral-cut ham on a vintage ceramic serving platter, with rich amber brown sugar glaze dripping between the tender slices. Garnished with grilled pineapple slices, maraschino cherries, and sprigs of fresh rosemary. Shot at a dynamic 45-degree angle with soft warm holiday lighting, shallow depth of field, rustic wooden farmhouse table setting, linen napkin, and silver carving set. Mouth-watering glossy caramelization on the edges. --ar 4:5 --style raw
-```
-

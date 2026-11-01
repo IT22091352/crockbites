@@ -98,11 +98,3 @@ tips:
 
 ### Why This Recipe Works
 Whole turkeys often suffer from overcooked breast meat while waiting for the dark legs to finish. Cooking just the turkey breast in a slow cooker eliminates this mismatch entirely. Elevating the breast over onions allows the gentle steam and herb butter to baste the meat continuously, resulting in remarkably tender slices every time.
-
----
-
-### Image Generation Prompt (Midjourney / DALL-E)
-```
-Professional food photography of sliced, juicy roasted turkey breast arranged fanned out on a white ceramic oval platter, showcasing succulent meat texture with golden-brown herb-crusted skin. Garnished with whole fresh sage leaves, rosemary twigs, and fresh cranberries. Alongside sits a classic ceramic gravy boat pouring hot velvety golden gravy. Soft Thanksgiving-inspired natural afternoon window light, dark textured linen tablecloth, high resolution, 85mm portrait lens, f/3.2. --ar 4:5 --style raw
-```
-

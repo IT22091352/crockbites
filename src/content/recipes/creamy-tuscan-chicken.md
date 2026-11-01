@@ -101,11 +101,3 @@ tips:
 
 ### Why This Recipe Works
 Creamy chicken recipes in a slow cooker often curdle if dairy is cooked from the start. By simmering the chicken and sun-dried tomatoes in seasoned broth first, then stirring in heavy cream, freshly grated Parmesan, and cornstarch in the final half-hour, you get an ultra-silky, rich sauce with chicken that is juicy and fork-tender.
-
----
-
-### Image Generation Prompt (Midjourney / DALL-E)
-```
-Close-up food editorial photograph of tender chicken breast cutlets resting in a velvety, golden-cream Parmesan Tuscan sauce studded with vibrant red sun-dried tomatoes and dark green wilted spinach. Served in a shallow dark grey ceramic pasta bowl over cooked fettuccine noodles, sprinkled with freshly grated parmesan and cracked black pepper. Soft directional kitchen side lighting, warm rustic atmosphere, mouthwatering saucy texture, 50mm f/2.2 lens. --ar 4:5 --style raw
-```
-

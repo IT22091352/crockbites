@@ -96,11 +96,3 @@ tips:
 
 ### Why This Recipe Works
 Boneless skinless chicken breasts have virtually no fat to protect them from high heat, making them prone to dryness in slow cookers. By keeping the cooking time strictly under 3.5 hours on Low, and basting the breasts continuously in real butter and fresh garlic broth, the meat cooks gently and retains its natural juices.
-
----
-
-### Image Generation Prompt (Midjourney / DALL-E)
-```
-Overhead appetizing food photograph of sliced tender chicken breasts arranged on a white ceramic serving platter, generously drizzled with golden, glossy melted garlic herb butter and flecked with red chili flakes and fresh chopped parsley. A small copper sauce pot of garlic butter rests beside with a vintage pouring ladle. Lemon wedges on a dark slate surface, soft warm morning kitchen window light, crisp high-detail texture on the sliced chicken grain, 50mm f/2.5. --ar 4:5 --style raw
-```
-

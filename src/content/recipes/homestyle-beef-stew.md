@@ -129,11 +129,3 @@ tips:
 
 ### Why This Recipe Works
 Chuck roast is loaded with connective collagen. Over 7 to 8 hours on low heat, that tough collagen breaks down into rich, natural gelatin that coats the meat fibers and thickens the broth naturally. Searing the floured beef first locks in roasty Maillard depth that a raw dump-and-cook method simply cannot match.
-
----
-
-### Image Generation Prompt (Midjourney / DALL-E)
-```
-Warm, cozy close-up food photograph of a steaming bowl of homestyle beef stew, showcasing tender caramelized beef cubes, fork-tender baby yellow potatoes, vibrant carrots, and sweet green peas in a glossy mahogany brown gravy. Served in a handmade speckled clay bowl with a rustic antique silver spoon resting inside. A warm loaf of crusty torn sourdough bread on a dark oak wooden table alongside. Atmospheric chiaroscuro lighting, soft steam wisps, shallow depth of field, authentic home kitchen aesthetic. --ar 4:5 --style raw
-```
-

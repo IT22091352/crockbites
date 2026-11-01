@@ -126,11 +126,3 @@ tips:
 
 ### Why This Recipe Works
 Slow simmering allows the sweet aromatics (onions, carrots, celery) to melt into the crushed tomatoes and vegetable broth, developing the rich flavor of an all-day Italian stew without constant stirring. Adding quick-cooking zucchini, spinach, and pasta near the end preserves their fresh texture and vibrant color.
-
----
-
-### Image Generation Prompt (Midjourney / DALL-E)
-```
-Top-down cozy food photography of a hearty rustic bowl of Italian minestrone soup filled with vibrant carrots, tender white cannellini beans, green zucchini, ditalini pasta, and wilted spinach in a rich crimson tomato broth. Topped with freshly grated parmesan cheese curls and fresh basil leaves. Served in a matte terracotta bowl on a distressed white-washed wooden table with a side of toasted garlic sourdough bread and an olive oil cruet. Warm diffused natural light, steam curling upward, 50mm macro, f/3.0. --ar 4:5 --style raw
-```
-
