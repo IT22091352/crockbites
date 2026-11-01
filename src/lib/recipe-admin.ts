@@ -69,6 +69,8 @@ export type FrontmatterRecipe = {
   featured?: boolean;
   popularRank?: number;
   related?: string[];
+  notifyNewsletter?: boolean;
+  sendNewsletter?: boolean;
   reviewStatus?: 'draft' | 'tested';
   body?: string;
 };
@@ -429,6 +431,9 @@ export function normalizeRecipePayload(data: Partial<FrontmatterRecipe>): Frontm
     featured: Boolean(data.featured),
     popularRank,
     related: Array.isArray(data.related) ? data.related.map((item) => sanitizeRecipeString(item)).filter(Boolean) : [],
+    notifyNewsletter: data.notifyNewsletter !== undefined
+      ? Boolean(data.notifyNewsletter)
+      : (data.sendNewsletter !== undefined ? Boolean(data.sendNewsletter) : undefined),
     reviewStatus: data.reviewStatus === 'tested' ? 'tested' : 'draft',
     body: typeof data.body === 'string' ? data.body.trim() : undefined,
   };
@@ -475,6 +480,7 @@ export function serializeRecipeToMarkdown(data: FrontmatterRecipe) {
     ...(normalized.featured !== undefined ? { featured: normalized.featured } : {}),
     ...(normalized.popularRank != null ? { popularRank: normalized.popularRank } : {}),
     ...(normalized.related?.length ? { related: normalized.related } : {}),
+    ...(normalized.notifyNewsletter !== undefined ? { notifyNewsletter: normalized.notifyNewsletter } : {}),
     reviewStatus: normalized.reviewStatus ?? 'draft',
   };
 

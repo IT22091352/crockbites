@@ -37,7 +37,8 @@ export const recipesForCategory = (all: Recipe[], id: string) => all.filter((r) 
 export function relatedRecipes(all: Recipe[], recipe: Recipe, limit = 3): Recipe[] {
   const byId = new Map(all.map((r) => [r.id, r]));
   const chosen: Recipe[] = [];
-  for (const id of recipe.data.related) { const r = byId.get(id); if (r && r.id !== recipe.id) chosen.push(r); }
+  const relatedList = Array.isArray(recipe?.data?.related) ? recipe.data.related : [];
+  for (const id of relatedList) { const r = byId.get(id); if (r && r.id !== recipe.id) chosen.push(r); }
   if (chosen.length < limit) {
     const rest = all.filter((r) => r.id !== recipe.id && !chosen.includes(r))
       .sort((a, b) => Number(b.data.category === recipe.data.category) - Number(a.data.category === recipe.data.category));

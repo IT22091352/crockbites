@@ -64,6 +64,12 @@ if (staticRecipe) {
 }
 
 // Construct the recipe object prioritizing the latest saved GitHub data
+const rawPubDate = latestRecipe.data.pubDate instanceof Date
+  ? latestRecipe.data.pubDate
+  : new Date(latestRecipe.data.pubDate || staticRecipe?.data?.pubDate || Date.now());
+const rawUpdated = latestRecipe.data.updatedDate || staticRecipe?.data?.updatedDate;
+const rawUpdatedDate = rawUpdated ? (rawUpdated instanceof Date ? rawUpdated : new Date(rawUpdated)) : undefined;
+
 const recipe = {
   id: latestRecipe.id,
   slug: latestRecipe.slug,
@@ -71,11 +77,46 @@ const recipe = {
   data: {
     ...staticRecipe?.data,
     ...latestRecipe.data,
+    pubDate: isNaN(rawPubDate.getTime()) ? new Date() : rawPubDate,
+    updatedDate: rawUpdatedDate && !isNaN(rawUpdatedDate.getTime()) ? rawUpdatedDate : undefined,
+    related: Array.isArray(latestRecipe.data.related)
+      ? latestRecipe.data.related
+      : (Array.isArray(staticRecipe?.data?.related) ? staticRecipe.data.related : []),
+    tags: Array.isArray(latestRecipe.data.tags)
+      ? latestRecipe.data.tags
+      : (Array.isArray(staticRecipe?.data?.tags) ? staticRecipe.data.tags : []),
+    gallery: Array.isArray(latestRecipe.data.gallery)
+      ? latestRecipe.data.gallery
+      : (Array.isArray(staticRecipe?.data?.gallery) ? staticRecipe.data.gallery : []),
+    ingredients: Array.isArray(latestRecipe.data.ingredients)
+      ? latestRecipe.data.ingredients
+      : (Array.isArray(staticRecipe?.data?.ingredients) ? staticRecipe.data.ingredients : []),
+    instructions: Array.isArray(latestRecipe.data.instructions)
+      ? latestRecipe.data.instructions
+      : (Array.isArray(staticRecipe?.data?.instructions) ? staticRecipe.data.instructions : []),
+    storage: (latestRecipe.data.storage && typeof latestRecipe.data.storage === 'object')
+      ? latestRecipe.data.storage
+      : ((staticRecipe?.data?.storage && typeof staticRecipe.data.storage === 'object') ? staticRecipe.data.storage : {}),
+    equipment: Array.isArray(latestRecipe.data.equipment)
+      ? latestRecipe.data.equipment
+      : (Array.isArray(staticRecipe?.data?.equipment) ? staticRecipe.data.equipment : []),
+    foodSafety: Array.isArray(latestRecipe.data.foodSafety)
+      ? latestRecipe.data.foodSafety
+      : (Array.isArray(staticRecipe?.data?.foodSafety) ? staticRecipe.data.foodSafety : []),
+    servingSuggestions: Array.isArray(latestRecipe.data.servingSuggestions)
+      ? latestRecipe.data.servingSuggestions
+      : (Array.isArray(staticRecipe?.data?.servingSuggestions) ? staticRecipe.data.servingSuggestions : []),
+    tips: Array.isArray(latestRecipe.data.tips)
+      ? latestRecipe.data.tips
+      : (Array.isArray(staticRecipe?.data?.tips) ? staticRecipe.data.tips : []),
+    substitutions: Array.isArray(latestRecipe.data.substitutions)
+      ? latestRecipe.data.substitutions
+      : (Array.isArray(staticRecipe?.data?.substitutions) ? staticRecipe.data.substitutions : []),
   },
 };
 
 const d = recipe.data;
-const cat = categoryById(d.category) ?? { id: d.category, name: d.category };
+const cat = categoryById(d.category) ?? { id: d.category || 'easy-dinners', name: d.category || 'Recipes', short: 'Recipes', description: '', icon: 'utensils' as const };
 const related = relatedRecipes(allRecipes as any, recipe as any, 3);
 
 const rawBody = (recipe.body ?? '').trim();

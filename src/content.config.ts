@@ -122,6 +122,9 @@ const recipes = defineCollection({
       /** Editorial ordering for the homepage "Popular recipes" row (1 = first). Based on search demand in docs/content-roadmap.md, not on site traffic. */
       popularRank: z.number().int().positive().optional(),
       related: z.array(z.string()).default([]),
+      /** Whether to notify newsletter subscribers when this recipe is published */
+      notifyNewsletter: z.boolean().default(true).optional(),
+      sendNewsletter: z.boolean().default(true).optional(),
       /** `draft` = written but not yet cooked and checked by a person. */
       reviewStatus: z.enum(['draft', 'tested']).default('draft'),
     }),

@@ -340,18 +340,39 @@ const categories = [
         </div>
       </details>
 
-      <!-- Newsletter Notification Option -->
-      <div class="mt-4 p-4 rounded-xl border border-line/70 bg-cream/30 flex items-start gap-3">
-        <input
-          type="checkbox"
-          id="sendNewsletterCheckbox"
-          name="sendNewsletter"
-          checked
-          class="mt-1 h-4 w-4 rounded border-line text-forest focus:ring-forest cursor-pointer"
-        />
-        <label for="sendNewsletterCheckbox" class="text-xs sm:text-sm text-ink-soft cursor-pointer select-none">
-          <strong class="text-forest font-semibold block">Email newsletter subscribers about this recipe</strong>
-          <span>Automatically creates and sends a Brevo email campaign to CrockBites Newsletter Subscribers (List #3) when publishing.</span>
+      <!-- Newsletter Notification Card -->
+      <div class="mt-6 p-4 sm:p-5 rounded-2xl border border-line/80 bg-paper/95 shadow-2xs space-y-3">
+        <div class="flex items-center justify-between gap-2 border-b border-line/50 pb-2.5">
+          <div class="flex items-center gap-2">
+            <svg class="size-4 text-forest shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+            <strong class="font-display font-bold text-sm text-forest">Notify newsletter subscribers</strong>
+          </div>
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-cream text-ink-soft border border-line/60">
+            Brevo Campaign
+          </span>
+        </div>
+
+        <label
+          for="sendNewsletterCheckbox"
+          class="flex items-start gap-3.5 p-3 rounded-xl border border-line/60 bg-cream/20 hover:bg-cream/40 transition-colors cursor-pointer select-none group"
+        >
+          <div class="flex items-center h-5 mt-0.5">
+            <input
+              type="checkbox"
+              id="sendNewsletterCheckbox"
+              name="sendNewsletter"
+              checked
+              class="size-4.5 rounded border-line/80 text-forest focus:ring-2 focus:ring-forest/20 cursor-pointer accent-forest"
+            />
+          </div>
+          <div class="min-w-0 flex-1">
+            <span class="font-semibold text-sm text-forest group-hover:text-terracotta transition-colors block">
+              Send newsletter when this recipe is published
+            </span>
+            <p class="text-xs sm:text-sm text-ink-soft leading-relaxed mt-1">
+              An email announcement will be sent to your CrockBites newsletter subscribers when you publish this recipe. Saving as a draft will never send an email.
+            </p>
+          </div>
         </label>
       </div>
 
@@ -381,6 +402,68 @@ const categories = [
 
       <div id="formStatus" class="status" aria-live="polite"></div>
     </form>
+
+    <!-- Newsletter Publishing Confirmation Dialog -->
+    <div
+      id="publishConfirmModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-xs transition-opacity duration-200 hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirmModalTitle"
+      aria-describedby="confirmModalDesc"
+    >
+      <div class="bg-paper border border-line rounded-2xl shadow-xl max-w-md w-full overflow-hidden p-6 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+        <div class="flex items-start gap-3.5">
+          <div class="size-10 rounded-xl bg-forest/10 text-forest flex items-center justify-center shrink-0 border border-forest/20">
+            <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+          </div>
+          <div class="min-w-0 flex-1">
+            <h3 id="confirmModalTitle" class="font-display font-bold text-lg text-forest leading-snug">
+              Publish recipe and send newsletter?
+            </h3>
+            <p id="confirmModalDesc" class="text-xs sm:text-sm text-ink-soft mt-1 leading-relaxed">
+              This recipe will be published and an email announcement will be sent to your CrockBites newsletter subscribers.
+            </p>
+          </div>
+        </div>
+
+        <div class="bg-cream/40 rounded-xl border border-line/70 p-3.5 space-y-2 text-xs">
+          <div class="flex items-center justify-between">
+            <span class="text-ink-soft">Audience</span>
+            <span class="font-semibold text-forest">CrockBites Newsletter Subscribers</span>
+          </div>
+          <div class="flex items-center justify-between border-t border-line/40 pt-2">
+            <span class="text-ink-soft">Sender</span>
+            <span class="font-semibold text-forest">CrockBites &lt;no-reply@mail.crockbites.site&gt;</span>
+          </div>
+        </div>
+
+        <div class="p-3 rounded-xl bg-amber-50/80 border border-amber-200/80 text-amber-900 text-xs flex items-start gap-2.5">
+          <svg class="size-4 text-amber-600 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span>
+            <strong>Warning:</strong> This will dispatch an email campaign to all confirmed subscribers. This action cannot be undone.
+          </span>
+        </div>
+
+        <div class="flex items-center justify-end gap-2.5 pt-2 border-t border-line/50">
+          <button
+            type="button"
+            id="cancelPublishConfirmBtn"
+            class="btn btn-subtle text-xs sm:text-sm font-semibold"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            id="executePublishConfirmBtn"
+            class="btn btn-primary text-xs sm:text-sm font-bold flex items-center gap-2"
+            style="background: #243A2D;"
+          >
+            <span>Publish &amp; Send Newsletter</span>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Media Library Picker Modal -->
@@ -1166,6 +1249,8 @@ const categories = [
     const coverUrl = primaryUrlEl.value.trim();
     const coverAlt = primaryAltEl.value.trim();
 
+    const isNewsletterChecked = Boolean((document.getElementById('sendNewsletterCheckbox') as HTMLInputElement | null)?.checked);
+
     const payload = {
       title: (form.querySelector('[name="title"]') as HTMLInputElement).value.trim(),
       slug: (form.querySelector('[name="slug"]') as HTMLInputElement).value.trim(),
@@ -1202,7 +1287,8 @@ const categories = [
       allergenReviewed: isAllergenReviewed,
       allergenNotes: allergenNotesVal,
       nutrition: hasNutrition ? nutritionObj : undefined,
-      sendNewsletter: targetStatus === 'tested' ? Boolean((document.getElementById('sendNewsletterCheckbox') as HTMLInputElement | null)?.checked) : false,
+      sendNewsletter: targetStatus === 'tested' ? isNewsletterChecked : false,
+      notifyNewsletter: isNewsletterChecked,
     };
 
     if (!payload.title || !payload.description || ingredients.length === 0 || instructions.length === 0) {
@@ -1210,6 +1296,7 @@ const categories = [
       formStatus.textContent = 'Please provide a title, description, at least one ingredient, and one instruction.';
       saveDraftBtn.disabled = false;
       publishBtn.disabled = false;
+      closeConfirmModal();
       return;
     }
 
@@ -1229,15 +1316,23 @@ const categories = [
         formStatus.textContent = data.error || 'Failed to save recipe.';
         saveDraftBtn.disabled = false;
         publishBtn.disabled = false;
+        closeConfirmModal();
         return;
       }
 
-      let successMsg = `✓ Recipe successfully ${targetStatus === 'tested' ? 'published' : 'saved as draft'} to GitHub!`;
-      if (data.newsletter) {
-        if (data.newsletter.status === 'sent') {
-          successMsg += ` (Brevo newsletter campaign #${data.newsletter.campaignId} sent to subscribers)`;
-        } else if (data.newsletter.status === 'failed') {
-          successMsg += ` [Note: Newsletter could not be sent: ${data.newsletter.error}]`;
+      let successMsg: string;
+      if (targetStatus === 'draft') {
+        successMsg = isNewsletterChecked
+          ? 'Draft saved successfully. No newsletter email was sent.'
+          : 'Draft saved successfully.';
+      } else {
+        successMsg = 'Recipe published successfully.';
+        if (data.newsletter) {
+          if (data.newsletter.status === 'sent') {
+            successMsg += ` (Brevo newsletter campaign #${data.newsletter.campaignId} sent to subscribers)`;
+          } else if (data.newsletter.status === 'failed') {
+            successMsg += ` [Note: Newsletter could not be sent: ${data.newsletter.error}]`;
+          }
         }
       }
 
@@ -1255,15 +1350,85 @@ const categories = [
 
       formStatus.className = data.newsletter?.status === 'failed' ? 'status warning' : 'status success';
       formStatus.textContent = `${successMsg} Redirecting to recipe list...`;
+      closeConfirmModal();
       window.location.href = targetStatus === 'tested' ? '/admin/recipes/' : '/admin/recipes/?status=draft';
     } catch (err) {
       formStatus.className = 'status error';
       formStatus.textContent = 'Network error: ' + (err instanceof Error ? err.message : String(err));
       saveDraftBtn.disabled = false;
       publishBtn.disabled = false;
+      closeConfirmModal();
     }
   }
 
+  // Confirmation modal controls
+  const confirmModal = document.getElementById('publishConfirmModal');
+  const cancelConfirmBtn = document.getElementById('cancelPublishConfirmBtn');
+  const executeConfirmBtn = document.getElementById('executePublishConfirmBtn');
+
+  function resetConfirmModalState() {
+    if (executeConfirmBtn) {
+      (executeConfirmBtn as HTMLButtonElement).disabled = false;
+      executeConfirmBtn.textContent = 'Publish & Send Newsletter';
+    }
+    if (cancelConfirmBtn) {
+      (cancelConfirmBtn as HTMLButtonElement).disabled = false;
+    }
+  }
+
+  function openConfirmModal() {
+    if (!confirmModal) return;
+    resetConfirmModalState();
+    confirmModal.classList.remove('hidden');
+    (executeConfirmBtn as HTMLButtonElement | null)?.focus();
+    document.addEventListener('keydown', handleModalKeydown);
+  }
+
+  function closeConfirmModal() {
+    if (!confirmModal) return;
+    confirmModal.classList.add('hidden');
+    resetConfirmModalState();
+    document.removeEventListener('keydown', handleModalKeydown);
+    publishBtn?.focus();
+  }
+
+  function handleModalKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeConfirmModal();
+    }
+  }
+
+  cancelConfirmBtn?.addEventListener('click', closeConfirmModal);
+  confirmModal?.addEventListener('click', (e) => {
+    if (e.target === confirmModal) {
+      closeConfirmModal();
+    }
+  });
+
+  executeConfirmBtn?.addEventListener('click', () => {
+    if (executeConfirmBtn) (executeConfirmBtn as HTMLButtonElement).disabled = true;
+    if (cancelConfirmBtn) (cancelConfirmBtn as HTMLButtonElement).disabled = true;
+    executeConfirmBtn.textContent = 'Publishing & Sending...';
+    submitRecipe('tested');
+  });
+
   saveDraftBtn.addEventListener('click', () => submitRecipe('draft'));
-  publishBtn.addEventListener('click', () => submitRecipe('tested'));
+
+  publishBtn.addEventListener('click', () => {
+    const titleVal = (form.querySelector('[name="title"]') as HTMLInputElement)?.value.trim();
+    const descVal = (form.querySelector('[name="description"]') as HTMLTextAreaElement)?.value.trim();
+    if (!titleVal || !descVal) {
+      formStatus.className = 'status error';
+      formStatus.textContent = 'Please provide a title, description, at least one ingredient, and one instruction.';
+      return;
+    }
+
+    const isNewsletterChecked = Boolean((document.getElementById('sendNewsletterCheckbox') as HTMLInputElement | null)?.checked);
+    if (isNewsletterChecked) {
+      openConfirmModal();
+    } else {
+      submitRecipe('tested');
+    }
+  });
 </script>

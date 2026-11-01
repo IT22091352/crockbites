@@ -196,9 +196,14 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     });
   }
 
+  const isNewsletterOptedIn = data.notifyNewsletter !== undefined
+    ? Boolean(data.notifyNewsletter)
+    : (data.sendNewsletter !== false && data.sendNewsletter !== 'false' && data.sendNewsletter !== 0);
+
   const markdown = serializeRecipeToMarkdown({
     ...payload,
     slug: finalSlug,
+    notifyNewsletter: isNewsletterOptedIn,
     reviewStatus: payload.reviewStatus === 'tested' ? 'tested' : 'draft',
     ingredients: payload.ingredients.length ? payload.ingredients : [{ item: 'Example ingredient' }],
     instructions: payload.instructions.length ? payload.instructions : [{ text: 'Add instructions for this recipe.' }],
@@ -241,7 +246,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
 
     // Trigger newsletter campaign if published and opted in
     let newsletterResult: any = undefined;
-    const sendNewsletter = data.sendNewsletter !== false && data.sendNewsletter !== 'false' && data.sendNewsletter !== 0;
+    const sendNewsletter = isNewsletterOptedIn;
 
     if (payload.reviewStatus === 'tested') {
       if (sendNewsletter) {

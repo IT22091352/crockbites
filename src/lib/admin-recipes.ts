@@ -242,15 +242,19 @@ export function parseRecipeMarkdownToFull(slug: string, markdown: string): FullA
         equipment: Array.isArray(data.equipment) ? data.equipment : [],
         servingSuggestions: Array.isArray(data.servingSuggestions) ? data.servingSuggestions : [],
         substitutions: Array.isArray(data.substitutions) ? data.substitutions : [],
-        storage: data.storage,
+        storage: data.storage && typeof data.storage === 'object' ? data.storage : {},
         dietaryLabels: Array.isArray(data.dietaryLabels) ? data.dietaryLabels : [],
         dietaryVerified: Boolean(data.dietaryVerified),
         allergens: Array.isArray(data.allergens) ? data.allergens : [],
         allergenReviewed: Boolean(data.allergenReviewed),
         allergenNotes: data.allergenNotes ? String(data.allergenNotes) : undefined,
         nutrition: data.nutrition,
+        notifyNewsletter: data.notifyNewsletter !== undefined
+          ? Boolean(data.notifyNewsletter)
+          : (data.sendNewsletter !== undefined ? Boolean(data.sendNewsletter) : true),
         reviewStatus: data.reviewStatus === 'tested' ? 'tested' : 'draft',
         featured: Boolean(data.featured),
+        related: Array.isArray(data.related) ? data.related : [],
       },
     };
   } catch {

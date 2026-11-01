@@ -50,6 +50,11 @@ export function breadcrumbSchema(items: { name: string; url: string }[]) {
 
 export function recipeSchema(recipe: Recipe, imageUrl: string, categoryName: string) {
   const d = recipe.data;
+  const pubDate = d.pubDate instanceof Date ? d.pubDate : new Date(d.pubDate || Date.now());
+  const updatedDate = d.updatedDate ? (d.updatedDate instanceof Date ? d.updatedDate : new Date(d.updatedDate)) : undefined;
+  const safePubDate = isNaN(pubDate.getTime()) ? new Date() : pubDate;
+  const safeUpdatedDate = updatedDate && !isNaN(updatedDate.getTime()) ? updatedDate : undefined;
+
   const n = d.nutrition;
   const nutrition = n && (n.calories || n.proteinGrams || n.carbsGrams || n.fatGrams)
     ? {
@@ -77,21 +82,21 @@ export function recipeSchema(recipe: Recipe, imageUrl: string, categoryName: str
     description: d.description,
     image: [imageUrl],
     author: { '@type': 'Organization', name: d.author, url: site.url },
-    datePublished: d.pubDate.toISOString().slice(0, 10),
-    ...(d.updatedDate ? { dateModified: d.updatedDate.toISOString().slice(0, 10) } : {}),
+    datePublished: safePubDate.toISOString().slice(0, 10),
+    ...(safeUpdatedDate ? { dateModified: safeUpdatedDate.toISOString().slice(0, 10) } : {}),
     prepTime: isoDuration(d.prepMinutes),
     cookTime: isoDuration(d.cookMinutes),
     totalTime: isoDuration(totalMinutes(recipe)),
     recipeYield: [String(d.servings), `${d.servings} ${d.servingsLabel}`],
     recipeCategory: categoryName,
-    keywords: d.tags.join(', '),
-    recipeIngredient: d.ingredients.map(ingredientToString),
-    recipeInstructions: d.instructions.map((s, i) => ({
+    keywords: Array.isArray(d.tags) ? d.tags.join(', ') : '',
+    recipeIngredient: Array.isArray(d.ingredients) ? d.ingredients.map(ingredientToString) : [],
+    recipeInstructions: Array.isArray(d.instructions) ? d.instructions.map((s, i) => ({
       '@type': 'HowToStep',
       ...(s.title ? { name: s.title } : {}),
       text: s.text,
       url: `${absoluteUrl(recipeUrl(recipe))}#step-${i + 1}`,
-    })),
+    })) : [],
     ...nutrition,
     // Intentionally no aggregateRating or review: CrockBites has no genuine ratings.
   };

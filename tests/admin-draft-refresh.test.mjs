@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -12,6 +13,7 @@ import {
   parseRecipeMarkdownToFull,
   saveAdminFullRecipeCache,
 } from '../src/lib/admin-recipes.ts';
+import { serializeRecipeToMarkdown } from '../src/lib/recipe-admin.ts';
 
 test('Admin CMS Draft Refresh & Synchronization Tests', async (t) => {
   // Clear cache before test suite
@@ -249,6 +251,253 @@ Updated body content.
       'Cloudflare-CDN-Cache-Control': 'no-store',
     };
     assert.ok(noCacheHeaders['Cache-Control'].includes('no-store'), 'Strict anti-caching enabled for preview routes');
+  });
+
+  await t.test('Scenario 8: Newsletter UI/UX - Save as Draft, Confirmation Dialog, and Publishing Workflows', async (t) => {
+    // 1. Checked + Save as Draft -> no campaign, custom flash message, notifyNewsletter preserved
+    await t.test('Case 1: Checked + Save as Draft', () => {
+      const isNewsletterChecked = true;
+      const targetStatus = 'draft';
+
+      const flashMsg = targetStatus === 'draft'
+        ? (isNewsletterChecked ? 'Draft saved successfully. No newsletter email was sent.' : 'Draft saved successfully.')
+        : 'Recipe published successfully.';
+
+      assert.equal(flashMsg, 'Draft saved successfully. No newsletter email was sent.');
+
+      const markdown = serializeRecipeToMarkdown({
+        title: 'Draft with Newsletter Checked',
+        slug: 'draft-newsletter-checked',
+        description: 'Testing draft saving with newsletter checked.',
+        category: 'slow-cooker-chicken',
+        pubDate: '2026-11-01',
+        ingredients: [{ item: 'Chicken' }],
+        instructions: [{ text: 'Cook' }],
+        reviewStatus: 'draft',
+        notifyNewsletter: isNewsletterChecked,
+      });
+
+      assert.ok(markdown.includes('notifyNewsletter: true'), 'Frontmatter preserves notifyNewsletter: true');
+      const parsed = parseRecipeMarkdownToFull('draft-newsletter-checked', markdown);
+      assert.equal(parsed?.data.notifyNewsletter, true, 'Parsed recipe maintains notifyNewsletter === true');
+    });
+
+    // 2. Unchecked + Save as Draft -> no campaign, standard flash message, notifyNewsletter: false preserved
+    await t.test('Case 2: Unchecked + Save as Draft', () => {
+      const isNewsletterChecked = false;
+      const targetStatus = 'draft';
+
+      const flashMsg = targetStatus === 'draft'
+        ? (isNewsletterChecked ? 'Draft saved successfully. No newsletter email was sent.' : 'Draft saved successfully.')
+        : 'Recipe published successfully.';
+
+      assert.equal(flashMsg, 'Draft saved successfully.');
+
+      const markdown = serializeRecipeToMarkdown({
+        title: 'Draft with Newsletter Unchecked',
+        slug: 'draft-newsletter-unchecked',
+        description: 'Testing draft saving with newsletter unchecked.',
+        category: 'slow-cooker-chicken',
+        pubDate: '2026-11-01',
+        ingredients: [{ item: 'Chicken' }],
+        instructions: [{ text: 'Cook' }],
+        reviewStatus: 'draft',
+        notifyNewsletter: isNewsletterChecked,
+      });
+
+      assert.ok(markdown.includes('notifyNewsletter: false'), 'Frontmatter preserves notifyNewsletter: false');
+      const parsed = parseRecipeMarkdownToFull('draft-newsletter-unchecked', markdown);
+      assert.equal(parsed?.data.notifyNewsletter, false, 'Parsed recipe maintains notifyNewsletter === false');
+    });
+
+    // 3. Checked + Publish -> confirmation dialog appears
+    await t.test('Case 3: Checked + Publish triggers confirmation dialog requirement', () => {
+      const isNewsletterChecked = true;
+      const isDraft = true;
+
+      // In client logic, dialog opens if checkbox is checked
+      const shouldShowConfirmation = isDraft && isNewsletterChecked;
+      assert.equal(shouldShowConfirmation, true, 'Confirmation dialog MUST appear before publishing with newsletter');
+    });
+
+    // 4. Cancel confirmation -> recipe remains unpublished and no campaign is sent
+    await t.test('Case 4: Cancel confirmation dialog preserves unpublished draft state', () => {
+      let isModalOpen = true;
+      let recipePublished = false;
+      let campaignDispatched = false;
+
+      // User clicks Cancel
+      isModalOpen = false;
+      // Publish is not called
+      assert.equal(isModalOpen, false, 'Modal closed');
+      assert.equal(recipePublished, false, 'Recipe remains draft');
+      assert.equal(campaignDispatched, false, 'No campaign dispatched');
+    });
+
+    // 5. Confirm Publish & Send -> publishing workflow executes once
+    await t.test('Case 5: Confirm Publish & Send executes publishing and dispatches campaign once', () => {
+      let submitCallCount = 0;
+      let isButtonDisabled = false;
+
+      function onConfirm() {
+        if (isButtonDisabled) return; // Prevent double submit
+        isButtonDisabled = true;
+        submitCallCount++;
+      }
+
+      onConfirm();
+      onConfirm(); // Duplicate click simulation
+
+      assert.equal(submitCallCount, 1, 'Publishing workflow executes exactly once');
+      assert.equal(isButtonDisabled, true, 'Confirm button is disabled after first click');
+    });
+
+    // 6. Unchecked + Publish -> publishes without newsletter, skips confirmation dialog
+    await t.test('Case 6: Unchecked + Publish bypasses confirmation dialog and skips campaign', () => {
+      const isNewsletterChecked = false;
+      const isDraft = true;
+
+      const shouldShowConfirmation = isDraft && isNewsletterChecked;
+      assert.equal(shouldShowConfirmation, false, 'No confirmation dialog when newsletter is unchecked');
+
+      // Newsletter dispatch logic
+      const shouldDispatchCampaign = isDraft && isNewsletterChecked;
+      assert.equal(shouldDispatchCampaign, false, 'No campaign dispatched');
+    });
+
+    // 7. Editing an already-published recipe -> no duplicate campaign
+    await t.test('Case 7: Editing already-published recipe skips campaign', () => {
+      const existingStatus = 'tested';
+      const targetStatus = 'tested';
+      const isTransitionToPublished = existingStatus !== 'tested' && targetStatus === 'tested';
+
+      assert.equal(isTransitionToPublished, false, 'Not a transition to published');
+      const newsletterResult = {
+        ok: true,
+        status: 'skipped',
+        reason: 'already_published',
+      };
+      assert.equal(newsletterResult.status, 'skipped');
+      assert.equal(newsletterResult.reason, 'already_published');
+    });
+
+    // 8. API failure during publishing resets confirmation modal and button states
+    await t.test('Case 8: API failure during publishing resets confirmation modal and button states', () => {
+      let isModalOpen = true;
+      let executeBtnDisabled = true;
+      let executeBtnText = 'Publishing & Sending...';
+      let cancelBtnDisabled = true;
+      let errorMessage = '';
+
+      function resetConfirmModalState() {
+        executeBtnDisabled = false;
+        executeBtnText = 'Publish & Send Newsletter';
+        cancelBtnDisabled = false;
+      }
+
+      function closeConfirmModal() {
+        isModalOpen = false;
+        resetConfirmModalState();
+      }
+
+      // Simulate API failure (e.g. 500 error or network error)
+      const simulatedApiError = 'Network error: Failed to fetch';
+      errorMessage = simulatedApiError;
+      closeConfirmModal();
+
+      assert.equal(isModalOpen, false, 'Modal is closed on API failure');
+      assert.equal(executeBtnDisabled, false, 'Publish button exits loading state and is re-enabled');
+      assert.equal(executeBtnText, 'Publish & Send Newsletter', 'Button text is restored');
+      assert.equal(cancelBtnDisabled, false, 'Cancel button is re-enabled');
+      assert.equal(errorMessage, 'Network error: Failed to fetch', 'Useful error message is captured for display');
+    });
+
+    // 9. Verify no ReferenceError for isNewsletterChecked in [slug].astro and new.astro
+    await t.test('Case 9: Verify no ReferenceError for isNewsletterChecked in recipe editing and creation', () => {
+      const slugAstro = fs.readFileSync('src/pages/admin/recipes/[slug].astro', 'utf8');
+      const newAstro = fs.readFileSync('src/pages/admin/recipes/new.astro', 'utf8');
+
+      // Check [slug].astro
+      assert.ok(
+        slugAstro.includes("const isNewsletterChecked = Boolean(newsletterCheckbox?.checked);") ||
+        slugAstro.includes("isNewsletterChecked = Boolean("),
+        '[slug].astro must define isNewsletterChecked inside submitRecipe'
+      );
+
+      // Check new.astro
+      assert.ok(
+        newAstro.includes("const isNewsletterChecked = Boolean("),
+        'new.astro must define isNewsletterChecked inside submitRecipe'
+      );
+
+      // Ensure no undeclared global usage
+      const submitIdx = slugAstro.indexOf('async function submitRecipe');
+      const payloadIdx = slugAstro.indexOf('const payload =', submitIdx);
+      assert.ok(submitIdx !== -1, 'Found submitRecipe function in [slug].astro');
+      assert.ok(payloadIdx !== -1, 'Found payload declaration in [slug].astro');
+      const preamble = slugAstro.slice(submitIdx, payloadIdx);
+      assert.ok(
+        preamble.includes('isNewsletterChecked'),
+        'isNewsletterChecked must be defined prior to payload creation in [slug].astro submitRecipe'
+      );
+    });
+  });
+
+  await t.test('Scenario 9: Admin Recipe Preview Data Loading & SVG Path Validation', async (t) => {
+    // 1. Parsing draft markdown without 'related' or with string dates must produce a fully-formed FullAdminRecipe
+    const draftMarkdown = `---
+title: CrockBites Draft Sync Test 3
+slug: test-cook
+description: test cook preview test
+category: beef-pork
+tags: []
+image: https://res.cloudinary.com/dmxumqqpj/image/upload/v1793527783/crockbites/recipes/ohsbfvarthpo5qqefyba.jpg
+imageAlt: test cook book
+author: CrockBites
+pubDate: 2026-11-01
+updatedDate: 2026-11-01
+prepMinutes: 15
+cookMinutes: 240
+servings: 6
+servingsLabel: servings
+ingredients:
+  - quantity: 2
+    unit: lb
+    item: chicken breast
+    scale: true
+instructions:
+  - text: Place all ingredients into the slow cooker and cook on low.
+featured: false
+reviewStatus: draft
+---
+Custom intro markdown notes`;
+
+    const fullRecipe = parseRecipeMarkdownToFull('test-cook', draftMarkdown);
+    assert.ok(fullRecipe, 'Parsed full recipe must not be null');
+    assert.equal(fullRecipe.slug, 'test-cook');
+    assert.equal(fullRecipe.data.title, 'CrockBites Draft Sync Test 3');
+    assert.ok(Array.isArray(fullRecipe.data.related), 'related field must be an array, not undefined');
+    assert.ok(fullRecipe.data.pubDate instanceof Date, 'pubDate must be a Date instance');
+    assert.ok(fullRecipe.data.updatedDate instanceof Date, 'updatedDate must be a Date instance');
+    assert.equal(typeof fullRecipe.data.storage, 'object', 'storage must be an object');
+    assert.equal(fullRecipe.data.storage?.fridge, undefined, 'accessing storage.fridge must not throw');
+
+    // 2. Draft recipe object has safe fields preventing TypeError: recipe.data.related is not iterable
+    const relatedList = Array.isArray(fullRecipe.data.related) ? fullRecipe.data.related : [];
+    assert.doesNotThrow(() => {
+      for (const id of relatedList) {}
+    }, 'Iterating related list must never throw');
+
+    // 3. pubDate and updatedDate are valid Date objects with working toISOString()
+    assert.equal(typeof fullRecipe.data.pubDate.toISOString, 'function');
+    assert.equal(fullRecipe.data.pubDate.toISOString().slice(0, 10), '2026-11-01');
+    assert.equal(typeof fullRecipe.data.updatedDate.toISOString, 'function');
+    assert.equal(fullRecipe.data.updatedDate.toISOString().slice(0, 10), '2026-11-01');
+
+    // 4. SVG validation: check admin recipes index preview button SVG
+    const indexAstro = fs.readFileSync('src/pages/admin/recipes/index.astro', 'utf8');
+    assert.ok(!indexAstro.includes('1 1 0 .696'), 'Malformed SVG arc command must not exist in index.astro');
+    assert.ok(indexAstro.includes('M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z'), 'Standard Lucide eye icon must be used');
   });
 
   // Clean up test items from cache

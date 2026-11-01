@@ -38,7 +38,11 @@ const { recipe, related } = Astro.props;
 const d = recipe.data;
 const slug = recipeSlug(recipe);
 const isDraft = d.reviewStatus === 'draft';
-const cat = categoryById(d.category);
+const rawPubDate = d.pubDate instanceof Date ? d.pubDate : new Date(d.pubDate || Date.now());
+const pubDate = isNaN(rawPubDate.getTime()) ? new Date() : rawPubDate;
+const rawUpdatedDate = d.updatedDate ? (d.updatedDate instanceof Date ? d.updatedDate : new Date(d.updatedDate)) : undefined;
+const updatedDate = rawUpdatedDate && !isNaN(rawUpdatedDate.getTime()) ? rawUpdatedDate : undefined;
+const cat = categoryById(d.category) ?? { id: d.category || 'easy-dinners', name: d.category || 'Recipes', short: 'Recipes', description: '', icon: 'utensils' as const };
 const total = totalMinutes(recipe);
 const fmtDate = (dt: Date) => dt.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
 const isRemote = isRemoteImage(d.image);
@@ -50,6 +54,12 @@ const allPhotos: Array<{ url: string; alt: string; width?: number; height?: numb
   ...(gallery || []),
 ];
 const hasGallery = Boolean(gallery && gallery.length > 0);
+const equipment = Array.isArray(d.equipment) ? d.equipment : [];
+const foodSafety = Array.isArray(d.foodSafety) ? d.foodSafety : [];
+const servingSuggestions = Array.isArray(d.servingSuggestions) ? d.servingSuggestions : [];
+const tips = Array.isArray(d.tips) ? d.tips : [];
+const substitutions = Array.isArray(d.substitutions) ? d.substitutions : [];
+const storage = (d.storage && typeof d.storage === 'object') ? d.storage : {};
 
 // Attach stable zero-based indices and group ingredients under optional headings
 type IndexedIngredient = (typeof d.ingredients)[number] & { __idx: number };
@@ -105,11 +115,11 @@ const allergenNames: Record<string, string> = {
 ---
 <article>
   <div class="container-page pb-6 pt-6" data-noprint>
-    <Breadcrumbs items={[{ name: 'Home', href: '/' }, { name: 'Recipes', href: '/recipes/' }, { name: cat!.name, href: `/category/${cat!.id}/` }, { name: d.title }]} />
+    <Breadcrumbs items={[{ name: 'Home', href: '/' }, { name: 'Recipes', href: '/recipes/' }, { name: cat.name, href: `/category/${cat.id}/` }, { name: d.title }]} />
     <div class="mt-6 grid gap-8 lg:grid-cols-[1fr_1.05fr] lg:items-center lg:gap-12">
       <div>
         <div class="flex flex-wrap items-center gap-2">
-          <a class="chip font-medium text-forest hover:border-forest" href={`/category/${cat!.id}/`}>{cat!.name}</a>
+          <a class="chip font-medium text-forest hover:border-forest" href={`/category/${cat.id}/`}>{cat.name}</a>
           {d.dietaryVerified && d.dietaryLabels && d.dietaryLabels.length > 0 && (
             <div class="flex flex-wrap items-center gap-1.5" aria-label="Verified dietary suitability" data-dietary-badges>
               {d.dietaryLabels.map((lbl: string) => (
@@ -136,8 +146,8 @@ const allergenNames: Record<string, string> = {
         )}
         <p class="mt-4 max-w-xl text-lg text-ink-soft leading-relaxed">{d.description}</p>
         <p class="mt-4 text-sm text-ink-soft">
-          By <strong class="text-forest font-medium">{d.author}</strong> · Published <time datetime={d.pubDate.toISOString().slice(0, 10)}>{fmtDate(d.pubDate)}</time>
-          {d.updatedDate && <> · Updated <time datetime={d.updatedDate.toISOString().slice(0, 10)}>{fmtDate(d.updatedDate)}</time></>}
+          By <strong class="text-forest font-medium">{d.author}</strong> · Published <time datetime={pubDate.toISOString().slice(0, 10)}>{fmtDate(pubDate)}</time>
+          {updatedDate && <> · Updated <time datetime={updatedDate.toISOString().slice(0, 10)}>{fmtDate(updatedDate)}</time></>}
         </p>
         <div class="mt-6 flex flex-wrap items-center gap-2.5 sm:gap-3">
           <a class="btn btn-primary" href="#recipe-card"><ArrowDown size={18} aria-hidden="true" />Jump to recipe</a>
@@ -368,10 +378,10 @@ const allergenNames: Record<string, string> = {
               </ul>
             </div>
           ))}
-          {d.equipment.length > 0 && (
+          {equipment.length > 0 && (
             <div class="mt-8 rounded-xl border border-line bg-cream/40 p-4">
               <h4 class="font-display text-base font-bold text-forest">Equipment</h4>
-              <ul class="mt-2 list-disc space-y-1 pl-5 text-sm marker:text-terracotta-deep">{d.equipment.map((e) => <li>{e}</li>)}</ul>
+              <ul class="mt-2 list-disc space-y-1 pl-5 text-sm marker:text-terracotta-deep">{equipment.map((e) => <li>{e}</li>)}</ul>
             </div>
           )}
         </div>
@@ -430,10 +440,10 @@ const allergenNames: Record<string, string> = {
         </div>
       </div>
 
-      {d.foodSafety.length > 0 && (
+      {foodSafety.length > 0 && (
         <div class="notice mt-10" role="note">
           <p class="flex items-center gap-2 font-display text-lg font-semibold text-forest"><Thermometer size={20} class="text-terracotta-deep" aria-hidden="true" />Food safety</p>
-          <ul class="mt-2 list-disc space-y-1.5 pl-5 marker:text-terracotta-deep">{d.foodSafety.map((f) => <li>{f}</li>)}</ul>
+          <ul class="mt-2 list-disc space-y-1.5 pl-5 marker:text-terracotta-deep">{foodSafety.map((f) => <li>{f}</li>)}</ul>
         </div>
       )}
       {hasNutrition && (
@@ -589,33 +599,33 @@ const allergenNames: Record<string, string> = {
   <div class="container-page pb-24 md:pb-0" data-noprint>
     <AdSlot slot="recipeAfterCard" />
     <div class="mt-14 grid gap-12 lg:grid-cols-2">
-      {d.servingSuggestions.length > 0 && (
+      {servingSuggestions.length > 0 && (
         <section aria-labelledby="serving-heading">
           <h2 id="serving-heading" class="text-[1.6rem]">Serving suggestions</h2>
-          <ul class="prose-crock mt-4 list-disc space-y-2 pl-5 text-[1.05rem]">{d.servingSuggestions.map((s) => <li>{s}</li>)}</ul>
+          <ul class="prose-crock mt-4 list-disc space-y-2 pl-5 text-[1.05rem]">{servingSuggestions.map((s) => <li>{s}</li>)}</ul>
         </section>
       )}
-      {d.tips.length > 0 && (
+      {tips.length > 0 && (
         <section aria-labelledby="tips-heading">
           <h2 id="tips-heading" class="text-[1.6rem]">Tips for success</h2>
-          <ul class="prose-crock mt-4 list-disc space-y-2 pl-5 text-[1.05rem]">{d.tips.map((s) => <li>{s}</li>)}</ul>
+          <ul class="prose-crock mt-4 list-disc space-y-2 pl-5 text-[1.05rem]">{tips.map((s) => <li>{s}</li>)}</ul>
         </section>
       )}
-      {d.substitutions.length > 0 && (
+      {substitutions.length > 0 && (
         <section aria-labelledby="subs-heading">
           <h2 id="subs-heading" class="text-[1.6rem]">Substitutions</h2>
-          <dl class="mt-4 space-y-4">{d.substitutions.map((s) => (
+          <dl class="mt-4 space-y-4">{substitutions.map((s) => (
             <div><dt class="font-semibold text-forest">{s.ingredient}</dt><dd class="text-ink-soft">{s.swap}</dd></div>
           ))}</dl>
         </section>
       )}
-      {(d.storage.fridge || d.storage.freezer || d.storage.reheating) && (
+      {(storage.fridge || storage.freezer || storage.reheating) && (
         <section aria-labelledby="storage-heading">
           <h2 id="storage-heading" class="text-[1.6rem]">Storage and reheating</h2>
           <dl class="mt-4 space-y-4">
-            {d.storage.fridge && <div><dt class="font-semibold text-forest">Refrigerator</dt><dd class="text-ink-soft">{d.storage.fridge}</dd></div>}
-            {d.storage.freezer && <div><dt class="font-semibold text-forest">Freezer</dt><dd class="text-ink-soft">{d.storage.freezer}</dd></div>}
-            {d.storage.reheating && <div><dt class="font-semibold text-forest">Reheating</dt><dd class="text-ink-soft">{d.storage.reheating}</dd></div>}
+            {storage.fridge && <div><dt class="font-semibold text-forest">Refrigerator</dt><dd class="text-ink-soft">{storage.fridge}</dd></div>}
+            {storage.freezer && <div><dt class="font-semibold text-forest">Freezer</dt><dd class="text-ink-soft">{storage.freezer}</dd></div>}
+            {storage.reheating && <div><dt class="font-semibold text-forest">Reheating</dt><dd class="text-ink-soft">{storage.reheating}</dd></div>}
           </dl>
         </section>
       )}

@@ -26,7 +26,7 @@
     "test:email": "node --experimental-strip-types tests/email-delivery.test.mjs",
     "test:campaign": "node --experimental-strip-types tests/brevo-campaign.test.mjs",
     "test:workflow": "node --experimental-strip-types tests/admin-workflow.test.mjs",
-    "test:drafts": "node --experimental-strip-types tests/admin-draft-refresh.test.mjs",
+    "test:drafts": "node --experimental-strip-types tests/admin-draft-refresh.test.mjs && node --experimental-strip-types tests/admin-publish-scenarios.test.mjs",
     "test": "npm run test:auth && npm run test:recipe && npm run test:units && npm run test:dietary && npm run test:community && npm run test:email && npm run test:campaign && npm run test:workflow && npm run test:drafts && npm run test:dom"
   },
   "dependencies": {

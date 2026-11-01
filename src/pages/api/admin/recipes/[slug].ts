@@ -261,9 +261,14 @@ export const PUT: APIRoute = async ({ params, request, cookies, locals }) => {
       return new Response(JSON.stringify({ error: validation.issues.join(' ') }), { status: 400, headers: { 'content-type': 'application/json' } });
     }
 
+    const isNewsletterOptedIn = data.notifyNewsletter !== undefined
+      ? Boolean(data.notifyNewsletter)
+      : (data.sendNewsletter !== false && data.sendNewsletter !== 'false' && data.sendNewsletter !== 0);
+
     const markdown = serializeRecipeToMarkdown({
       ...mergedRecipe,
       slug,
+      notifyNewsletter: isNewsletterOptedIn,
       ingredients: mergedRecipe.ingredients.length ? mergedRecipe.ingredients : [{ item: 'Example ingredient' }],
       instructions: mergedRecipe.instructions.length ? mergedRecipe.instructions : [{ text: 'Add instructions for this recipe.' }],
       reviewStatus: mergedRecipe.reviewStatus === 'tested' ? 'tested' : 'draft',
@@ -327,7 +332,7 @@ export const PUT: APIRoute = async ({ params, request, cookies, locals }) => {
 
     // Trigger newsletter campaign if transitioning from draft to published
     let newsletterResult: any = undefined;
-    const sendNewsletter = data.sendNewsletter !== false && data.sendNewsletter !== 'false' && data.sendNewsletter !== 0;
+    const sendNewsletter = isNewsletterOptedIn;
 
     if (isTransitionToPublished) {
       if (sendNewsletter) {
