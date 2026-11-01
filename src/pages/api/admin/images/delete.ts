@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { getCollection } from 'astro:content';
+import { getAllRecipes } from '../../../../utils/recipes';
 import {
   ADMIN_COOKIE_NAME,
   CSRF_COOKIE_NAME,
@@ -65,7 +65,7 @@ export const DELETE: APIRoute = async ({ request, cookies }) => {
     }
 
     // Safety check: verify no existing recipe currently uses this asset
-    const allRecipes = await getCollection('recipes');
+    const allRecipes = await getAllRecipes(true);
     for (const recipe of allRecipes) {
       const rawImage = recipe.data.image;
       const imageUrl = typeof rawImage === 'string' ? rawImage : (rawImage as any)?.src;

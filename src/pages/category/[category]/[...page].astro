@@ -1,5 +1,6 @@
 ---
-import type { GetStaticPaths } from 'astro';
+export const prerender = false;
+
 import { ChefHat, Compass, Sparkles, SlidersHorizontal, ArrowRight } from '@lucide/astro';
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import RecipeCard from '../../../components/RecipeCard.astro';
@@ -11,27 +12,52 @@ import { categories } from '../../../data/categories';
 import { site } from '../../../config/site';
 import { breadcrumbSchema } from '../../../utils/jsonld';
 
-export const getStaticPaths = (async ({ paginate }) => {
-  const all = await getAllRecipes();
-  return listingPages(all).flatMap((l) =>
-    paginate(l.recipes, {
-      params: { category: l.slug },
-      props: {
-        listing: {
-          slug: l.slug,
-          name: l.name,
-          description: l.description,
-          kind: l.kind,
-          totalRecipes: l.recipes.length,
-        },
-      },
-      pageSize: site.recipesPerPage,
-    }),
-  );
-}) satisfies GetStaticPaths;
+// Cache public pagination for 1 minute in browser, 5 minutes in Cloudflare CDN with background revalidation
+Astro.response.headers.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=86400');
 
-const { page, listing } = Astro.props;
+const categorySlug = String(Astro.params.category || '').trim().toLowerCase();
+const rawPage = Astro.params.page;
+const pageNum = rawPage ? parseInt(rawPage.replace(/\/+$/, ''), 10) : 1;
+
+if (isNaN(pageNum) || pageNum < 1) {
+  return new Response(null, { status: 404, statusText: 'Not Found' });
+}
+
+const all = await getAllRecipes();
+const allListings = listingPages(all);
+const listing = allListings.find((l) => l.slug.toLowerCase() === categorySlug);
+
+if (!listing) {
+  return new Response(null, { status: 404, statusText: 'Not Found' });
+}
+
 const base = `/category/${listing.slug}/`;
+const pageSize = site.recipesPerPage;
+const total = listing.recipes.length;
+const lastPage = Math.max(1, Math.ceil(total / pageSize));
+
+if (total > 0 && pageNum > lastPage) {
+  return new Response(null, { status: 404, statusText: 'Not Found' });
+}
+
+const start = (pageNum - 1) * pageSize;
+const pagedRecipes = listing.recipes.slice(start, start + pageSize);
+
+const page = {
+  data: pagedRecipes,
+  start,
+  end: Math.min(start + pageSize - 1, total - 1),
+  size: pageSize,
+  total,
+  currentPage: pageNum,
+  lastPage,
+  url: {
+    current: pageNum === 1 ? base : `${base}${pageNum}/`,
+    prev: pageNum > 1 ? (pageNum === 2 ? base : `${base}${pageNum - 1}/`) : undefined,
+    next: pageNum < lastPage ? `${base}${pageNum + 1}/` : undefined,
+  },
+};
+
 const path = page.currentPage === 1 ? base : `${base}${page.currentPage}/`;
 const empty = page.total === 0;
 const title = page.currentPage === 1 ? `${listing.name} Recipes` : `${listing.name} Recipes, page ${page.currentPage}`;

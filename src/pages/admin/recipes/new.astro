@@ -10,7 +10,7 @@ import {
   parseAdminSessionCookie,
   verifySessionCookie,
 } from '../../../lib/admin';
-import { getGithubConfig } from '../../../lib/github';
+import { getD1BindingStatus } from '../../../lib/db';
 import { isCloudinaryConfigured } from '../../../lib/cloudinary';
 import { ArrowLeft } from '@lucide/astro';
 
@@ -32,7 +32,8 @@ Astro.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
   maxAge: 60 * 60 * 12,
 });
 
-const ghActive = Boolean(getGithubConfig().token);
+const d1Status = getD1BindingStatus(Astro.locals);
+const d1Active = d1Status.isD1Bound || d1Status.mode === 'local-sqlite';
 const cloudinaryActive = isCloudinaryConfigured();
 
 const categories = [
@@ -66,9 +67,9 @@ const categories = [
   </div>
 
   <div class="space-y-6 max-w-4xl">
-    {!ghActive && (
+    {!d1Active && (
       <div class="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-sm">
-        ⚠️ <strong>GitHub publishing is not configured.</strong> Recipes cannot be committed until repository credentials are set in <a href="/admin/settings/" class="underline font-bold">Settings</a>.
+        ⚠️ <strong>Cloudflare D1 is not configured.</strong> Recipes cannot be saved until the D1 database binding "DB" is configured in <a href="/admin/settings/" class="underline font-bold">Settings</a>.
       </div>
     )}
 

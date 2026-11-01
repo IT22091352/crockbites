@@ -1,4 +1,7 @@
 import type { APIRoute } from 'astro';
+
+export const prerender = false;
+
 import { site } from '../config/site';
 import { getAllRecipes, isIndexable, listingPages, recipeUrl } from '../utils/recipes';
 
@@ -25,5 +28,10 @@ export const GET: APIRoute = async () => {
 
   const body = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
     urls.map((u) => `  <url><loc>${esc(u.loc)}</loc>${u.lastmod ? `<lastmod>${u.lastmod}</lastmod>` : ''}</url>`).join('\n') + '\n</urlset>\n';
-  return new Response(body, { headers: { 'Content-Type': 'application/xml; charset=utf-8' } });
+  return new Response(body, {
+    headers: {
+      'Content-Type': 'application/xml; charset=utf-8',
+      'Cache-Control': 'public, max-age=3600, s-maxage=3600',
+    },
+  });
 };

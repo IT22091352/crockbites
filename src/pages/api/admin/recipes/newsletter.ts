@@ -6,21 +6,15 @@ import {
   getAdminSessionSecret,
   parseAdminSessionCookie,
   verifySessionCookie,
+  verifyAdminSession,
 } from '../../../../lib/admin';
 import { getDb } from '../../../../lib/db';
 import { getRecipeNewsletterRecord, isBrevoCampaignConfigured } from '../../../../lib/brevo-campaign';
 
-const isAuthorized = async (cookies: any) => {
-  const secret = getAdminSessionSecret();
-  const sessionCookie = cookies.get(ADMIN_COOKIE_NAME)?.value ?? '';
-  if (!secret || !sessionCookie || !verifySessionCookie(sessionCookie, secret)) {
-    return null;
-  }
-  return parseAdminSessionCookie(sessionCookie);
-};
+const isAuthorized = (req: Request, c: any) => verifyAdminSession(req, c);
 
 export const GET: APIRoute = async ({ request, cookies, locals }) => {
-  const session = await isAuthorized(cookies);
+  const session = await isAuthorized(request, cookies);
   if (!session) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,

@@ -1,7 +1,6 @@
 import type { APIRoute } from 'astro';
 
 export const prerender = false;
-import { getCollection } from 'astro:content';
 import {
   ADMIN_COOKIE_NAME,
   CSRF_COOKIE_NAME,
@@ -10,32 +9,27 @@ import {
   slugify,
   verifySessionCookie,
   ensureCsrfToken,
+  verifyAdminSession,
 } from '../../../lib/admin';
-import { inferRecipeDraft, normalizeDietaryLabels, normalizeAllergens, serializeRecipeToMarkdown } from '../../../lib/recipe-admin';
-import { getRepoFile, repoRecipePath, writeRepoFile } from '../../../lib/github';
+import { inferRecipeDraft, normalizeDietaryLabels, normalizeAllergens } from '../../../lib/recipe-admin';
 import { getDb } from '../../../lib/db';
 import { triggerRecipeNewsletterCampaign } from '../../../lib/brevo-campaign';
-import { formatAdminRecipeSummary, getAdminRecipeList, saveAdminRecipeCache, saveAdminFullRecipeCache, parseRecipeMarkdownToFull } from '../../../lib/admin-recipes';
+import {
+  getAdminRecipeList,
+  saveAdminRecipeCache,
+  saveAdminFullRecipeCache,
+} from '../../../lib/admin-recipes';
+import {
+  createRecipeInDb,
+  getRecipeBySlugFromDb,
+  formatRecipeSummary,
+  invalidateRecipeMemoryCache,
+} from '../../../lib/recipes-db';
 
 const isAuthorized = async (request: Request, cookies: any) => {
-  const secret = getAdminSessionSecret();
-  const sessionCookie = cookies.get(ADMIN_COOKIE_NAME)?.value ?? '';
-  if (!secret || !sessionCookie || !verifySessionCookie(sessionCookie, secret)) {
-    return null;
-  }
-
-  const session = parseAdminSessionCookie(sessionCookie);
-  if (!session) return null;
-
   // Safe HTTP methods (RFC 9110) do not mutate state and do not require CSRF token
-  if (request.method !== 'GET' && request.method !== 'HEAD' && request.method !== 'OPTIONS') {
-    const csrfCookie = cookies.get(CSRF_COOKIE_NAME)?.value ?? '';
-    if (!(await ensureCsrfToken(request, csrfCookie, secret, session.id))) {
-      return null;
-    }
-  }
-
-  return session;
+  const requireCsrf = request.method !== 'GET' && request.method !== 'HEAD' && request.method !== 'OPTIONS';
+  return verifyAdminSession(request, cookies, { requireCsrf });
 };
 
 function normalizeTags(value: unknown): string[] {
@@ -191,128 +185,77 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     });
   }
 
-  const recipes = await getCollection('recipes');
-  if (recipes.some((recipe) => recipe.id.replace(/\.md$/, '') === finalSlug || recipe.data.title === payload.title)) {
-    return new Response(JSON.stringify({ error: `Duplicate slug: ${finalSlug}` }), {
+  const db = await getDb(locals);
+  if (!db) {
+    return new Response(JSON.stringify({ error: 'Database is not available.' }), {
+      status: 503,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
+
+  // Duplicate slug check in Cloudflare D1
+  const existing = await getRecipeBySlugFromDb(db, finalSlug);
+  if (existing) {
+    return new Response(JSON.stringify({ error: `Duplicate slug: ${finalSlug} already exists.` }), {
       status: 409,
       headers: { 'content-type': 'application/json' },
     });
   }
 
-  try {
-    const existingFile = await getRepoFile(repoRecipePath(finalSlug), 'main');
-    if (existingFile && existingFile.sha) {
-      return new Response(JSON.stringify({ error: `Duplicate slug: ${finalSlug} already exists.` }), {
-        status: 409,
-        headers: { 'content-type': 'application/json' },
-      });
-    }
-  } catch {}
-
   const isNewsletterOptedIn = data.notifyNewsletter !== undefined
     ? Boolean(data.notifyNewsletter)
     : (data.sendNewsletter !== false && data.sendNewsletter !== 'false' && data.sendNewsletter !== 0);
 
-  const markdown = serializeRecipeToMarkdown({
-    ...payload,
-    slug: finalSlug,
-    notifyNewsletter: isNewsletterOptedIn,
-    reviewStatus: payload.reviewStatus === 'tested' ? 'tested' : 'draft',
-    ingredients: payload.ingredients.length ? payload.ingredients : [{ item: 'Example ingredient' }],
-    instructions: payload.instructions.length ? payload.instructions : [{ text: 'Add instructions for this recipe.' }],
-  });
-
   try {
-    const repoPath = repoRecipePath(finalSlug);
-    await writeRepoFile(repoPath, markdown, `Add recipe: ${payload.title}`);
-
-    // If running in local node environment with accessible filesystem, write file locally as well
-    try {
-      const fs = await import('node:fs');
-      const path = await import('node:path');
-      const localDir = path.resolve(process.cwd(), 'src/content/recipes');
-      if (fs.existsSync(localDir)) {
-        fs.writeFileSync(path.join(localDir, `${finalSlug}.md`), markdown, 'utf8');
-      }
-    } catch {
-      // Worker environment or read-only filesystem
-    }
-
-    // Format rich recipe summary and cache for immediate retrieval
-    const recipeSummary = formatAdminRecipeSummary({
+    // Save directly to Cloudflare D1
+    const createdRecipe = await createRecipeInDb(db, {
+      ...payload,
+      pubDate: new Date(payload.pubDate),
       slug: finalSlug,
-      title: payload.title,
-      description: payload.description,
-      category: payload.category,
-      reviewStatus: payload.reviewStatus,
-      image: payload.image,
-      pubDate: payload.pubDate,
-      updatedDate: new Date().toISOString(),
-      ingredients: payload.ingredients,
-      instructions: payload.instructions,
+      ingredients: payload.ingredients.length ? payload.ingredients : [{ item: 'Example ingredient' }],
+      instructions: payload.instructions.length ? payload.instructions : [{ text: 'Add instructions for this recipe.' }],
+      reviewStatus: payload.reviewStatus === 'tested' ? 'tested' : 'draft',
+      notifyNewsletter: isNewsletterOptedIn,
     });
-    saveAdminRecipeCache(recipeSummary);
-    const parsedFull = parseRecipeMarkdownToFull(finalSlug, markdown);
-    if (parsedFull) {
-      saveAdminFullRecipeCache(finalSlug, parsedFull);
-    }
+
+    const summary = formatRecipeSummary(createdRecipe);
+    saveAdminRecipeCache(summary);
+    saveAdminFullRecipeCache(finalSlug, createdRecipe as any);
+    invalidateRecipeMemoryCache();
 
     // Trigger newsletter campaign if published and opted in
     let newsletterResult: any = undefined;
-    const sendNewsletter = isNewsletterOptedIn;
-
-    if (payload.reviewStatus === 'tested') {
-      if (sendNewsletter) {
-        try {
-          const db = await getDb(locals);
-          newsletterResult = await triggerRecipeNewsletterCampaign(db, {
-            slug: finalSlug,
-            title: payload.title,
-            description: payload.description,
-            image: payload.image,
-            imageAlt: payload.imageAlt,
-            prepMinutes: payload.prepMinutes,
-            cookMinutes: payload.cookMinutes,
-            servings: payload.servings,
-            category: payload.category,
-          });
-        } catch (err) {
-          console.error('[Admin Recipe POST] Newsletter campaign trigger error:', err);
-          newsletterResult = {
-            ok: false,
-            status: 'failed',
-            error: err instanceof Error ? err.message : String(err),
-          };
-        }
-      } else {
-        newsletterResult = {
-          ok: true,
-          status: 'skipped',
-          reason: 'disabled_by_user',
-        };
+    if (payload.reviewStatus === 'tested' && isNewsletterOptedIn) {
+      try {
+        newsletterResult = await triggerRecipeNewsletterCampaign(db, {
+          slug: finalSlug,
+          title: payload.title,
+          description: payload.description,
+          image: payload.image,
+          imageAlt: payload.imageAlt,
+          prepMinutes: payload.prepMinutes,
+          cookMinutes: payload.cookMinutes,
+          servings: payload.servings,
+          category: payload.category,
+        });
+      } catch (err) {
+        console.error('[Admin Recipe POST] Newsletter campaign trigger error:', err);
       }
-    } else {
-      newsletterResult = {
-        ok: true,
-        status: 'skipped',
-        reason: 'draft',
-      };
     }
 
-    return new Response(JSON.stringify({
-      message: 'Recipe created',
-      slug: finalSlug,
-      path: repoPath,
-      recipe: recipeSummary,
-      newsletter: newsletterResult,
-    }), {
-      status: 201,
-      headers: { 'content-type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        slug: finalSlug,
+        recipe: summary,
+        newsletter: newsletterResult,
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } }
+    );
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'GitHub publishing failed';
+    const message = error instanceof Error ? error.message : 'Failed to create recipe in D1';
     return new Response(JSON.stringify({ error: message }), {
-      status: 502,
+      status: 500,
       headers: { 'content-type': 'application/json' },
     });
   }

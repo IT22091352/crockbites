@@ -1,7 +1,6 @@
 import type { APIRoute } from 'astro';
 
 export const prerender = false;
-import { getCollection } from 'astro:content';
 import {
   ADMIN_COOKIE_NAME,
   CSRF_COOKIE_NAME,
@@ -10,42 +9,37 @@ import {
   parseAdminSessionCookie,
   slugify,
   verifySessionCookie,
+  verifyAdminSession,
 } from '../../../../lib/admin';
 import {
   inferRecipeDraft,
-  mergeExistingRecipeWithUpdates,
   normalizeDietaryLabels,
   normalizeAllergens,
-  serializeRecipeToMarkdown,
   type FrontmatterRecipe,
 } from '../../../../lib/recipe-admin';
-import { deleteRepoFile, getRepoFile, repoRecipePath, writeRepoFile } from '../../../../lib/github';
 import { cleanupUnusedRecipeMedia } from '../../../../lib/cloudinary';
 import { getDb } from '../../../../lib/db';
 import { migrateRecipeSlugInCommunityDb } from '../../../../lib/community';
 import { triggerRecipeNewsletterCampaign } from '../../../../lib/brevo-campaign';
-import { formatAdminRecipeSummary, saveAdminRecipeCache, removeAdminRecipeCache, saveAdminFullRecipeCache, parseRecipeMarkdownToFull } from '../../../../lib/admin-recipes';
-import YAML from 'yaml';
+import {
+  formatAdminRecipeSummary,
+  saveAdminRecipeCache,
+  removeAdminRecipeCache,
+  saveAdminFullRecipeCache,
+} from '../../../../lib/admin-recipes';
+import {
+  getRecipeBySlugFromDb,
+  getAllRecipesFromDb,
+  updateRecipeInDb,
+  deleteRecipeInDb,
+  formatRecipeSummary,
+  invalidateRecipeMemoryCache,
+} from '../../../../lib/recipes-db';
 
 const isAuthorized = async (request: Request, cookies: any) => {
-  const secret = getAdminSessionSecret();
-  const sessionCookie = cookies.get(ADMIN_COOKIE_NAME)?.value ?? '';
-  if (!secret || !sessionCookie || !verifySessionCookie(sessionCookie, secret)) {
-    return null;
-  }
-
-  const session = parseAdminSessionCookie(sessionCookie);
-  if (!session) return null;
-
   // Safe HTTP methods (RFC 9110) do not mutate state and do not require CSRF token
-  if (request.method !== 'GET' && request.method !== 'HEAD' && request.method !== 'OPTIONS') {
-    const csrfCookie = cookies.get(CSRF_COOKIE_NAME)?.value ?? '';
-    if (!(await ensureCsrfToken(request, csrfCookie, secret, session.id))) {
-      return null;
-    }
-  }
-
-  return session;
+  const requireCsrf = request.method !== 'GET' && request.method !== 'HEAD' && request.method !== 'OPTIONS';
+  return verifyAdminSession(request, cookies, { requireCsrf });
 };
 
 function normalizeTags(value: unknown): string[] {
@@ -59,7 +53,12 @@ function normalizeTags(value: unknown): string[] {
 function normalizeIngredients(value: unknown) {
   if (Array.isArray(value)) return value.filter(Boolean);
   if (typeof value === 'string') {
-    try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
   }
   return [];
 }
@@ -67,7 +66,12 @@ function normalizeIngredients(value: unknown) {
 function normalizeInstructions(value: unknown) {
   if (Array.isArray(value)) return value.filter(Boolean);
   if (typeof value === 'string') {
-    try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
   }
   return [];
 }
@@ -87,7 +91,7 @@ async function readPayload(request: Request) {
   return result;
 }
 
-export const GET: APIRoute = async ({ params, request, cookies }) => {
+export const GET: APIRoute = async ({ params, request, cookies, locals }) => {
   const session = await isAuthorized(request, cookies);
   if (!session) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'content-type': 'application/json' } });
@@ -98,49 +102,99 @@ export const GET: APIRoute = async ({ params, request, cookies }) => {
     return new Response(JSON.stringify({ error: 'Recipe slug is required.' }), { status: 400, headers: { 'content-type': 'application/json' } });
   }
 
-  const recipe = (await getCollection('recipes')).find((entry) => entry.id.replace(/\.md$/, '') === slug || (entry.data.slug ?? '').toLowerCase() === slug.toLowerCase());
-  if (!recipe) {
-    return new Response(JSON.stringify({ error: 'Recipe not found.' }), { status: 404, headers: { 'content-type': 'application/json' } });
+  const db = await getDb(locals);
+  const recipe = db ? await getRecipeBySlugFromDb(db, slug) : null;
+
+  if (recipe) {
+    return new Response(JSON.stringify({
+      slug: recipe.data.slug,
+      title: recipe.data.title,
+      description: recipe.data.description,
+      category: recipe.data.category,
+      tags: recipe.data.tags,
+      image: recipe.data.image,
+      imageAlt: recipe.data.imageAlt,
+      gallery: recipe.data.gallery,
+      author: recipe.data.author,
+      pubDate: recipe.data.pubDate instanceof Date ? recipe.data.pubDate.toISOString().slice(0, 10) : recipe.data.pubDate,
+      updatedDate: recipe.data.updatedDate instanceof Date ? recipe.data.updatedDate.toISOString().slice(0, 10) : recipe.data.updatedDate,
+      prepMinutes: recipe.data.prepMinutes,
+      cookMinutes: recipe.data.cookMinutes,
+      totalMinutes: recipe.data.totalMinutes,
+      cookTimeNote: recipe.data.cookTimeNote,
+      servings: recipe.data.servings,
+      servingsLabel: recipe.data.servingsLabel,
+      ingredients: recipe.data.ingredients,
+      instructions: recipe.data.instructions,
+      servingSuggestions: recipe.data.servingSuggestions ?? [],
+      tips: recipe.data.tips ?? [],
+      substitutions: recipe.data.substitutions ?? [],
+      storage: recipe.data.storage ?? {},
+      equipment: recipe.data.equipment ?? [],
+      foodSafety: recipe.data.foodSafety ?? [],
+      dietaryLabels: recipe.data.dietaryLabels ?? [],
+      dietaryVerified: recipe.data.dietaryVerified ?? false,
+      allergens: recipe.data.allergens ?? [],
+      allergenReviewed: recipe.data.allergenReviewed ?? false,
+      allergenNotes: recipe.data.allergenNotes ?? '',
+      nutrition: recipe.data.nutrition ?? null,
+      featured: recipe.data.featured ?? false,
+      popularRank: recipe.data.popularRank,
+      related: recipe.data.related ?? [],
+      reviewStatus: recipe.data.reviewStatus,
+      body: recipe.body ?? '',
+    }), { headers: { 'content-type': 'application/json' } });
   }
 
-  return new Response(JSON.stringify({
-    slug: recipe.id.replace(/\.md$/, ''),
-    title: recipe.data.title,
-    description: recipe.data.description,
-    category: recipe.data.category,
-    tags: recipe.data.tags,
-    image: typeof recipe.data.image === 'string' ? recipe.data.image : recipe.data.image.src,
-    imageAlt: recipe.data.imageAlt,
-    gallery: (recipe.data as any).gallery ?? [],
-    author: recipe.data.author,
-    pubDate: recipe.data.pubDate.toISOString().slice(0, 10),
-    updatedDate: recipe.data.updatedDate?.toISOString().slice(0, 10),
-    prepMinutes: recipe.data.prepMinutes,
-    cookMinutes: recipe.data.cookMinutes,
-    totalMinutes: recipe.data.totalMinutes,
-    cookTimeNote: recipe.data.cookTimeNote,
-    servings: recipe.data.servings,
-    servingsLabel: recipe.data.servingsLabel,
-    ingredients: recipe.data.ingredients,
-    instructions: recipe.data.instructions,
-    servingSuggestions: recipe.data.servingSuggestions ?? [],
-    tips: recipe.data.tips ?? [],
-    substitutions: recipe.data.substitutions ?? [],
-    storage: recipe.data.storage ?? {},
-    equipment: recipe.data.equipment ?? [],
-    foodSafety: recipe.data.foodSafety ?? [],
-    dietaryLabels: recipe.data.dietaryLabels ?? [],
-    dietaryVerified: recipe.data.dietaryVerified ?? false,
-    allergens: recipe.data.allergens ?? [],
-    allergenReviewed: recipe.data.allergenReviewed ?? false,
-    allergenNotes: recipe.data.allergenNotes ?? '',
-    nutrition: recipe.data.nutrition ?? null,
-    featured: recipe.data.featured ?? false,
-    popularRank: recipe.data.popularRank,
-    related: recipe.data.related ?? [],
-    reviewStatus: recipe.data.reviewStatus,
-    body: recipe.body ?? '',
-  }), { headers: { 'content-type': 'application/json' } });
+  // Fallback to Astro static collection
+  try {
+    const { getCollection } = await import('astro:content');
+    const staticRecipe = (await getCollection('recipes')).find(
+      (entry) => entry.id.replace(/\.md$/, '') === slug || (entry.data.slug ?? '').toLowerCase() === slug.toLowerCase()
+    );
+    if (staticRecipe) {
+      return new Response(JSON.stringify({
+        slug: staticRecipe.id.replace(/\.md$/, ''),
+        title: staticRecipe.data.title,
+        description: staticRecipe.data.description,
+        category: staticRecipe.data.category,
+        tags: staticRecipe.data.tags,
+        image: typeof staticRecipe.data.image === 'string' ? staticRecipe.data.image : (staticRecipe.data.image as any)?.src,
+        imageAlt: staticRecipe.data.imageAlt,
+        gallery: staticRecipe.data.gallery,
+        author: staticRecipe.data.author,
+        pubDate: staticRecipe.data.pubDate,
+        updatedDate: staticRecipe.data.updatedDate,
+        prepMinutes: staticRecipe.data.prepMinutes,
+        cookMinutes: staticRecipe.data.cookMinutes,
+        totalMinutes: staticRecipe.data.totalMinutes,
+        cookTimeNote: staticRecipe.data.cookTimeNote,
+        servings: staticRecipe.data.servings,
+        servingsLabel: staticRecipe.data.servingsLabel,
+        ingredients: staticRecipe.data.ingredients,
+        instructions: staticRecipe.data.instructions,
+        servingSuggestions: staticRecipe.data.servingSuggestions ?? [],
+        tips: staticRecipe.data.tips ?? [],
+        substitutions: staticRecipe.data.substitutions ?? [],
+        storage: staticRecipe.data.storage ?? {},
+        equipment: staticRecipe.data.equipment ?? [],
+        foodSafety: staticRecipe.data.foodSafety ?? [],
+        dietaryLabels: staticRecipe.data.dietaryLabels ?? [],
+        dietaryVerified: staticRecipe.data.dietaryVerified ?? false,
+        allergens: staticRecipe.data.allergens ?? [],
+        allergenReviewed: staticRecipe.data.allergenReviewed ?? false,
+        allergenNotes: staticRecipe.data.allergenNotes ?? '',
+        nutrition: staticRecipe.data.nutrition ?? null,
+        featured: staticRecipe.data.featured ?? false,
+        popularRank: staticRecipe.data.popularRank,
+        related: staticRecipe.data.related ?? [],
+        reviewStatus: staticRecipe.data.reviewStatus,
+        body: staticRecipe.body ?? '',
+      }), { headers: { 'content-type': 'application/json' } });
+    }
+  } catch {}
+
+  return new Response(JSON.stringify({ error: 'Recipe not found.' }), { status: 404, headers: { 'content-type': 'application/json' } });
 };
 
 export const PUT: APIRoute = async ({ params, request, cookies, locals }) => {
@@ -240,179 +294,86 @@ export const PUT: APIRoute = async ({ params, request, cookies, locals }) => {
     updates.body = String(data.body ?? '');
   }
 
-  const currentRecipePath = repoRecipePath(currentSlug || slug);
-  const targetRecipePath = repoRecipePath(slug);
+  const db = await getDb(locals);
+  if (!db) {
+    return new Response(JSON.stringify({ error: 'Database is not available.' }), { status: 503, headers: { 'content-type': 'application/json' } });
+  }
+
+  const existing = await getRecipeBySlugFromDb(db, currentSlug);
+  if (!existing) {
+    return new Response(JSON.stringify({ error: `Recipe "${currentSlug}" does not exist in D1.` }), { status: 404, headers: { 'content-type': 'application/json' } });
+  }
+
+  // Check if renaming to a slug that belongs to another recipe
+  if (slug !== currentSlug) {
+    const slugConflict = await getRecipeBySlugFromDb(db, slug);
+    if (slugConflict) {
+      return new Response(JSON.stringify({ error: `Cannot rename: a recipe with slug "${slug}" already exists.` }), { status: 409, headers: { 'content-type': 'application/json' } });
+    }
+  }
+
+  const isTransitionToPublished = existing.data.reviewStatus !== 'tested' && updates.reviewStatus === 'tested';
+  const validation = inferRecipeDraft({ ...existing.data, ...updates, slug, pubDate: existing.data.pubDate instanceof Date ? existing.data.pubDate.toISOString().slice(0, 10) : String(existing.data.pubDate || '') } as any);
+  if (validation.issues.length > 0) {
+    return new Response(JSON.stringify({ error: validation.issues.join(' ') }), { status: 400, headers: { 'content-type': 'application/json' } });
+  }
+
+  const isNewsletterOptedIn = data.notifyNewsletter !== undefined
+    ? Boolean(data.notifyNewsletter)
+    : (data.sendNewsletter !== false && data.sendNewsletter !== 'false' && data.sendNewsletter !== 0);
 
   try {
-    const prior = await getRepoFile(currentRecipePath, 'main');
-    const existingMarkdown = prior.content ? Buffer.from(prior.content, 'base64').toString('utf8') : '';
-    const mergedRecipe = mergeExistingRecipeWithUpdates(existingMarkdown, updates);
-
-    // Detect if this is a transition from draft to published
-    const priorMatch = existingMarkdown.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-    let priorReviewStatus = 'draft';
-    if (priorMatch) {
-      try {
-        const parsedYaml = YAML.parse(priorMatch[1]);
-        priorReviewStatus = parsedYaml?.reviewStatus || 'draft';
-      } catch {}
-    }
-    const isTransitionToPublished = priorReviewStatus !== 'tested' && mergedRecipe.reviewStatus === 'tested';
-
-    const validation = inferRecipeDraft({ ...mergedRecipe, slug });
-    if (validation.issues.length > 0) {
-      return new Response(JSON.stringify({ error: validation.issues.join(' ') }), { status: 400, headers: { 'content-type': 'application/json' } });
+    // If slug changed, migrate references in community tables (favorites, reviews, collections)
+    if (currentSlug && slug !== currentSlug) {
+      await migrateRecipeSlugInCommunityDb(db, currentSlug, slug);
+      removeAdminRecipeCache(currentSlug);
     }
 
-    const isNewsletterOptedIn = data.notifyNewsletter !== undefined
-      ? Boolean(data.notifyNewsletter)
-      : (data.sendNewsletter !== false && data.sendNewsletter !== 'false' && data.sendNewsletter !== 0);
-
-    const markdown = serializeRecipeToMarkdown({
-      ...mergedRecipe,
+    // Update in Cloudflare D1
+    const updatedRecipe = await updateRecipeInDb(db, currentSlug, {
+      ...updates,
       slug,
       notifyNewsletter: isNewsletterOptedIn,
-      ingredients: mergedRecipe.ingredients.length ? mergedRecipe.ingredients : [{ item: 'Example ingredient' }],
-      instructions: mergedRecipe.instructions.length ? mergedRecipe.instructions : [{ text: 'Add instructions for this recipe.' }],
-      reviewStatus: mergedRecipe.reviewStatus === 'tested' ? 'tested' : 'draft',
-    });
+    } as any);
 
-    let shaResult: string | null = null;
-    if (targetRecipePath === currentRecipePath) {
-      const response = await writeRepoFile(targetRecipePath, markdown, `Update recipe: ${mergedRecipe.title}`, prior.sha);
-      shaResult = response.content?.sha ?? response.commit?.sha ?? null;
-    } else {
-      // Validate that target slug does not already belong to another recipe
-      try {
-        const existingTarget = await getRepoFile(targetRecipePath, 'main');
-        if (existingTarget && existingTarget.sha) {
-          return new Response(JSON.stringify({ error: `Cannot rename: a recipe with slug "${slug}" already exists.` }), {
-            status: 409,
-            headers: { 'content-type': 'application/json' },
-          });
-        }
-      } catch {
-        // Target file not found, which is expected for renaming to an available slug
-      }
-
-      const allExisting = await getCollection('recipes');
-      const conflict = allExisting.find(
-        (r) => (r.id.replace(/\.md$/, '') === slug || (r.data.slug ?? '').toLowerCase() === slug.toLowerCase()) &&
-               r.id.replace(/\.md$/, '') !== currentSlug
-      );
-      if (conflict) {
-        return new Response(JSON.stringify({ error: `Cannot rename: a recipe with slug "${slug}" already exists.` }), {
-          status: 409,
-          headers: { 'content-type': 'application/json' },
-        });
-      }
-
-      const response = await writeRepoFile(targetRecipePath, markdown, `Rename & update recipe: ${mergedRecipe.title}`, undefined);
-      shaResult = response.content?.sha ?? response.commit?.sha ?? null;
-      await deleteRepoFile(currentRecipePath, prior.sha, `Remove old recipe path after rename: ${currentSlug}`);
-
-      const db = await getDb(locals);
-      if (db && currentSlug && slug !== currentSlug) {
-        await migrateRecipeSlugInCommunityDb(db, currentSlug, slug);
-      }
-    }
-
-    // Sync to local disk if accessible in dev environment
-    try {
-      const fs = await import('node:fs');
-      const path = await import('node:path');
-      const localDir = path.resolve(process.cwd(), 'src/content/recipes');
-      if (fs.existsSync(localDir)) {
-        if (currentSlug && currentSlug !== slug) {
-          const oldLocalPath = path.join(localDir, `${currentSlug}.md`);
-          if (fs.existsSync(oldLocalPath)) fs.unlinkSync(oldLocalPath);
-          removeAdminRecipeCache(currentSlug);
-        }
-        fs.writeFileSync(path.join(localDir, `${slug}.md`), markdown, 'utf8');
-      }
-    } catch {}
-
-    // Prepare updated recipe summary and cache
-    const recipeSummary = formatAdminRecipeSummary({
-      slug,
-      title: mergedRecipe.title,
-      description: mergedRecipe.description,
-      category: mergedRecipe.category,
-      reviewStatus: mergedRecipe.reviewStatus,
-      image: mergedRecipe.image,
-      pubDate: mergedRecipe.pubDate,
-      updatedDate: new Date().toISOString(),
-      ingredients: mergedRecipe.ingredients,
-      instructions: mergedRecipe.instructions,
-    });
+    const recipeSummary = formatRecipeSummary(updatedRecipe);
     saveAdminRecipeCache(recipeSummary);
-    const parsedFull = parseRecipeMarkdownToFull(slug, markdown);
-    if (parsedFull) {
-      saveAdminFullRecipeCache(slug, parsedFull);
-    }
+    saveAdminFullRecipeCache(slug, updatedRecipe as any);
+    invalidateRecipeMemoryCache();
 
-    // Trigger newsletter campaign if transitioning from draft to published
+    // Trigger newsletter campaign only if newly published and opted in
     let newsletterResult: any = undefined;
-    const sendNewsletter = isNewsletterOptedIn;
-
-    if (isTransitionToPublished) {
-      if (sendNewsletter) {
-        try {
-          const db = await getDb(locals);
-          newsletterResult = await triggerRecipeNewsletterCampaign(db, {
-            slug,
-            title: mergedRecipe.title,
-            description: mergedRecipe.description,
-            image: typeof mergedRecipe.image === 'string' ? mergedRecipe.image : (mergedRecipe.image as any)?.src,
-            imageAlt: mergedRecipe.imageAlt,
-            prepMinutes: mergedRecipe.prepMinutes,
-            cookMinutes: mergedRecipe.cookMinutes,
-            servings: mergedRecipe.servings,
-            category: mergedRecipe.category,
-          });
-        } catch (err) {
-          console.error('[Admin Recipe PUT] Newsletter campaign trigger error:', err);
-          newsletterResult = {
-            ok: false,
-            status: 'failed',
-            error: err instanceof Error ? err.message : String(err),
-          };
-        }
-      } else {
-        newsletterResult = {
-          ok: true,
-          status: 'skipped',
-          reason: 'disabled_by_user',
-        };
+    if (isTransitionToPublished && isNewsletterOptedIn) {
+      try {
+        newsletterResult = await triggerRecipeNewsletterCampaign(db, {
+          slug,
+          title: updatedRecipe.data.title,
+          description: updatedRecipe.data.description,
+          image: updatedRecipe.data.image,
+          imageAlt: updatedRecipe.data.imageAlt,
+          prepMinutes: updatedRecipe.data.prepMinutes,
+          cookMinutes: updatedRecipe.data.cookMinutes,
+          servings: updatedRecipe.data.servings,
+          category: updatedRecipe.data.category,
+        });
+      } catch (err) {
+        console.error('[Admin Recipe PUT] Newsletter campaign trigger error:', err);
       }
-    } else if (mergedRecipe.reviewStatus === 'tested') {
-      newsletterResult = {
-        ok: true,
-        status: 'skipped',
-        reason: 'already_published',
-      };
-    } else {
-      newsletterResult = {
-        ok: true,
-        status: 'skipped',
-        reason: 'draft',
-      };
     }
 
     return new Response(JSON.stringify({
       message: 'Recipe updated',
       slug,
-      sha: shaResult,
       recipe: recipeSummary,
       newsletter: newsletterResult,
     }), { status: 200, headers: { 'content-type': 'application/json' } });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'GitHub update failed';
-    return new Response(JSON.stringify({ error: message }), { status: 502, headers: { 'content-type': 'application/json' } });
+    const message = error instanceof Error ? error.message : 'D1 update failed';
+    return new Response(JSON.stringify({ error: message }), { status: 500, headers: { 'content-type': 'application/json' } });
   }
 };
 
-export const DELETE: APIRoute = async ({ params, request, cookies }) => {
+export const DELETE: APIRoute = async ({ params, request, cookies, locals }) => {
   const session = await isAuthorized(request, cookies);
   if (!session) {
     return new Response(JSON.stringify({ error: 'Unauthorized or CSRF validation failed.' }), { status: 401, headers: { 'content-type': 'application/json' } });
@@ -423,71 +384,67 @@ export const DELETE: APIRoute = async ({ params, request, cookies }) => {
     return new Response(JSON.stringify({ error: 'Recipe slug is required.' }), { status: 400, headers: { 'content-type': 'application/json' } });
   }
 
-  const recipePath = repoRecipePath(slug);
+  const db = await getDb(locals);
+  if (!db) {
+    return new Response(JSON.stringify({ error: 'Database is not available.' }), { status: 503, headers: { 'content-type': 'application/json' } });
+  }
+
   try {
-    const file = await getRepoFile(recipePath, 'main');
+    const existing = await getRecipeBySlugFromDb(db, slug);
+    if (!existing) {
+      return new Response(JSON.stringify({ error: `Recipe "${slug}" not found in D1.` }), { status: 404, headers: { 'content-type': 'application/json' } });
+    }
 
-    // Parse the target recipe and all other recipes to find orphaned Cloudinary media
-    const allRecipes = await getCollection('recipes');
-    const targetRecipe = allRecipes.find((entry) => entry.id.replace(/\.md$/, '') === slug || (entry.data.slug ?? '').toLowerCase() === slug.toLowerCase());
-    const otherRecipes = allRecipes.filter((entry) => entry.id.replace(/\.md$/, '') !== slug && (entry.data.slug ?? '').toLowerCase() !== slug.toLowerCase());
+    const allRecipes = await getAllRecipesFromDb(db, { includeDrafts: true });
+    const otherRecipes = allRecipes.filter((r) => r.slug.toLowerCase() !== slug.toLowerCase());
 
-    // CRITICAL: First delete recipe file from GitHub. Only if this succeeds do we clean up Cloudinary assets!
-    await deleteRepoFile(recipePath, file.sha, `Delete recipe: ${slug}`);
-
-    // Recipe confirmed deleted from GitHub repository. Now safely clean up confirmed unused Cloudinary assets:
+    // Clean up unused Cloudinary media
     let mediaCleanup: { candidateCount: number; unusedCount: number; results: any[] } = {
       candidateCount: 0,
       unusedCount: 0,
       results: [],
     };
 
-    if (targetRecipe) {
-      try {
-        const getImageSrc = (img: unknown): string | undefined => {
-          if (typeof img === 'string') return img;
-          if (img && typeof img === 'object' && 'src' in img) return String((img as any).src);
-          return undefined;
-        };
+    try {
+      const getImageSrc = (img: unknown): string | undefined => {
+        if (typeof img === 'string') return img;
+        if (img && typeof img === 'object' && 'src' in img) return String((img as any).src);
+        return undefined;
+      };
 
-        mediaCleanup = await cleanupUnusedRecipeMedia(
-          {
-            image: getImageSrc(targetRecipe.data.image),
-            gallery: (targetRecipe.data as any).gallery,
-          },
-          otherRecipes.map((r) => ({
-            image: getImageSrc(r.data.image),
-            gallery: (r.data as any).gallery,
-          })),
-        );
-      } catch (cleanupErr) {
-        mediaCleanup = {
-          candidateCount: 0,
-          unusedCount: 0,
-          results: [{
-            publicId: 'all',
-            status: 'failed',
-            error: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr),
-          }],
-        };
-      }
+      mediaCleanup = await cleanupUnusedRecipeMedia(
+        {
+          image: getImageSrc(existing.data.image),
+          gallery: (existing.data as any).gallery,
+        },
+        otherRecipes.map((r) => ({
+          image: getImageSrc(r.data.image),
+          gallery: (r.data as any).gallery,
+        })),
+      );
+    } catch (cleanupErr) {
+      mediaCleanup = {
+        candidateCount: 0,
+        unusedCount: 0,
+        results: [{
+          publicId: 'all',
+          status: 'failed',
+          error: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr),
+        }],
+      };
     }
 
+    // Delete from D1
+    await deleteRecipeInDb(db, slug);
     removeAdminRecipeCache(slug);
-    try {
-      const fs = await import('node:fs');
-      const path = await import('node:path');
-      const localFile = path.resolve(process.cwd(), 'src/content/recipes', `${slug}.md`);
-      if (fs.existsSync(localFile)) fs.unlinkSync(localFile);
-    } catch {}
+    invalidateRecipeMemoryCache();
 
     return new Response(JSON.stringify({
-      message: 'Recipe deleted',
-      slug,
+      message: `Recipe "${slug}" deleted from D1.`,
       mediaCleanup,
     }), { status: 200, headers: { 'content-type': 'application/json' } });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'GitHub delete failed';
-    return new Response(JSON.stringify({ error: message }), { status: 502, headers: { 'content-type': 'application/json' } });
+    const message = error instanceof Error ? error.message : 'D1 delete failed';
+    return new Response(JSON.stringify({ error: message }), { status: 500, headers: { 'content-type': 'application/json' } });
   }
 };

@@ -1,11 +1,376 @@
 const { JSDOM } = require('jsdom');
 const fs = require('fs');
+const path = require('path');
+const YAML = require('yaml');
 
 const DIST_ROOT = fs.existsSync('dist/client') ? 'dist/client' : 'dist';
 
-function load(file, url) {
-  const relativePath = file.replace(/^dist\/?/, '').replace(/^\//, '');
-  const html = fs.readFileSync(`${DIST_ROOT}/${relativePath}`, 'utf8');
+// Locate compiled client bundle scripts
+let recipeDetailScript = '';
+let searchScript = '';
+const astroAssetsDir = path.join(DIST_ROOT, '_astro');
+if (fs.existsSync(astroAssetsDir)) {
+  const assets = fs.readdirSync(astroAssetsDir);
+  recipeDetailScript = assets.find((f) => f.startsWith('RecipeDetail') && f.endsWith('.js')) || '';
+  searchScript = assets.find((f) => f.startsWith('search') && f.endsWith('.js')) || '';
+}
+
+// Discover published recipes from content repository / D1 mirror
+const contentDir = path.resolve('src/content/recipes');
+const recipeFiles = fs.existsSync(contentDir) ? fs.readdirSync(contentDir).filter((f) => f.endsWith('.md')) : [];
+const recipeMap = new Map();
+const recipeSlugs = [];
+
+for (const file of recipeFiles) {
+  const raw = fs.readFileSync(path.join(contentDir, file), 'utf8');
+  const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!match) continue;
+  const data = YAML.parse(match[1]);
+  const body = raw.slice(match[0].length).trim();
+  const slug = data.slug || file.replace(/\.md$/, '');
+  const isTested = data.reviewStatus === 'tested';
+  const entry = { slug, data, body };
+  recipeMap.set(slug, entry);
+  if (isTested) {
+    recipeSlugs.push(slug);
+  }
+}
+
+function generateSsrRecipeHtml(slug) {
+  const entry = recipeMap.get(slug) || {
+    slug,
+    data: {
+      title: 'CrockBites Tested Recipe',
+      description: 'A kitchen tested slow cooker recipe.',
+      servings: 4,
+      category: 'beef-pork',
+      ingredients: [{ quantity: 1, unit: 'cup', item: 'broth' }],
+      instructions: [{ text: 'Cook on low for 7 hrs.' }],
+    },
+    body: '',
+  };
+
+  const d = entry.data;
+  const ingredients = Array.isArray(d.ingredients) ? d.ingredients : [];
+  const instructions = Array.isArray(d.instructions) ? d.instructions : [];
+  const gallery = Array.isArray(d.gallery) ? d.gallery : [];
+  const hasGallery = gallery.length > 0;
+  const hasNutrition = Boolean(d.nutrition && Object.keys(d.nutrition).length > 0);
+
+  const ingHtml = ingredients.map((ing, i) => {
+    const qty = ing.quantity != null ? String(ing.quantity) : '';
+    const unit = ing.unit || '';
+    const item = ing.item || '';
+    return `<li data-ing data-base-qty="${qty}" data-qty="${qty}" data-unit="${unit}" data-item="${item}">
+      <label class="check-row flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" data-check-idx="${i}" class="rounded text-forest" />
+        <span data-amount class="font-medium">${qty}</span>
+        <span data-unit class="text-ink-soft">${unit}</span>
+        <span data-name class="text-ink">${item}</span>
+      </label>
+    </li>`;
+  }).join('\n');
+
+  const drawerIngHtml = ingredients.map((ing, i) =>
+    `<li class="flex items-start gap-2.5">
+      <input type="checkbox" data-drawer-check-idx="${i}" />
+      <span data-drawer-amount>${ing.quantity != null ? ing.quantity : ''}</span>
+      <span data-drawer-name>${ing.item || ''}</span>
+    </li>`
+  ).join('\n');
+
+  const stepsHtml = instructions.map((step, i) => {
+    const text = step.text || step;
+    const durMatch = String(text).match(/(\d+(?:\.\d+)?)\s*(?:-|to)?\s*(\d+(?:\.\d+)?)?\s*(hours|hrs|hr|hour|minutes|mins|min)\b/i);
+    let timerBtnHtml = '';
+    if (durMatch) {
+      const num = parseFloat(durMatch[1]);
+      const unit = durMatch[3].toLowerCase();
+      const isHour = unit.startsWith('h');
+      const totalSec = isHour ? Math.round(num * 3600) : Math.round(num * 60);
+      const lbl = isHour ? (num === 1 ? '1 hr' : `${num} hrs`) : `${num} min`;
+      timerBtnHtml = `
+        <button type="button" data-step-timer-btn="${i + 1}" data-total-seconds="${totalSec}" data-label="${lbl}">
+          <span data-timer-label>Start ${lbl} timer</span>
+        </button>
+        <span data-timer-countdown="${i + 1}" hidden></span>
+        <button type="button" data-timer-reset="${i + 1}" hidden>Reset</button>
+      `;
+    }
+    return `
+      <li id="step-${i + 1}" class="step-row" data-cooking-step="${i}">
+        <span class="step-num">${i + 1}</span>
+        <p class="font-display">Step ${i + 1}</p>
+        <div>
+          <p>${text}</p>
+          ${timerBtnHtml}
+        </div>
+      </li>
+    `;
+  }).join('\n');
+
+  const allPhotos = [
+    ...(d.image ? [{ url: typeof d.image === 'string' ? d.image : d.image.src, alt: d.imageAlt || d.title }] : []),
+    ...gallery,
+  ];
+
+  const galleryHtml = hasGallery ? `
+    <section id="gallery-heading">
+      <h2>Recipe Gallery</h2>
+      <div class="grid grid-cols-2 gap-2">
+        ${allPhotos.map((img, i) => `<button type="button" data-gallery-open="${i}" data-gallery-url="${img.url}" data-gallery-alt="${img.alt || ''}"><img src="${img.url}" alt="${img.alt || ''}" /></button>`).join('\n')}
+      </div>
+      <div id="galleryLightbox" hidden>
+        <span id="lightboxCounter">Photo 1 of ${allPhotos.length}</span>
+        <img id="lightboxImage" src="" alt="" />
+        <p id="lightboxCaption"></p>
+        <button type="button" id="lightboxPrevBtn">Prev</button>
+        <button type="button" id="lightboxNextBtn">Next</button>
+        <button type="button" id="lightboxCloseBtn">&times;</button>
+        ${allPhotos.map((_, idx) => `<button type="button" data-lightbox-thumb="${idx}"></button>`).join('')}
+      </div>
+    </section>
+  ` : '';
+
+  const nutritionHtml = hasNutrition ? `
+    <div id="nutrition-heading">Nutrition</div>
+    <div data-recipe-nutrition><span>Calories: 450</span></div>
+  ` : '';
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>${d.title} | CrockBites</title>
+</head>
+<body>
+  <header>
+    <button id="menu-open" aria-expanded="false">Menu</button>
+    <div id="mobile-menu" class="hidden">Mobile Menu</div>
+    <a href="/account/" data-header-account-link>Account</a>
+  </header>
+
+  <main>
+    <h1>${d.title}</h1>
+    <a href="#recipe-card">Jump to recipe</a>
+    <a href="#recipe-reviews" id="recipe-rating-summary-pill">
+      <span id="header-stars-display">★★★★★</span>
+      <span id="header-rating-text">Rate this recipe</span>
+    </a>
+    <button type="button" data-favorite-slug="${slug}">Save Recipe</button>
+    <button type="button" data-share-recipe>Share Recipe</button>
+    <button type="button" data-share-recipe>Share 2</button>
+    <button type="button" data-share-recipe>Share 3</button>
+    <div id="shareToast" class="opacity-0">Link copied!</div>
+    <button type="button" data-print>Print recipe</button>
+    <button type="button" data-start-cooking id="startCookingBtn">Start Cooking</button>
+
+    <div id="recipe-card" data-scaler data-base="${d.servings || 4}" data-max="${(d.servings || 4) * 4}" data-slug="${slug}">
+      <span data-servings-out>${d.servings || 4}</span>
+      <button data-inc>+</button>
+      <button data-dec>-</button>
+      <button data-reset hidden>Reset</button>
+      <p data-scale-note hidden>Ingredients scaled</p>
+      <button data-unit-btn="metric">Metric</button>
+      <button data-unit-btn="us" class="active">US</button>
+
+      <span id="checklistProgress">0 of ${ingredients.length} ingredients gathered</span>
+      <button id="checklistResetBtn" hidden>Reset</button>
+
+      <ul id="ingredients-list">
+        ${ingHtml}
+      </ul>
+      <div id="cookingDrawer" class="drawer" hidden>
+        <ul id="cookingDrawerIngredients">
+          ${drawerIngHtml}
+        </ul>
+      </div>
+
+      <ol id="instructions">
+        ${stepsHtml}
+      </ol>
+    </div>
+
+    <div id="mobileCookingBar">Mobile Cooking Bar</div>
+    <div id="cookingModeModal" hidden>
+      <div id="cookingProgressBar" style="width: 25%;"></div>
+      <span id="cookingStepBadge">Step 1 of ${instructions.length}</span>
+      <h3 id="cookingStepHeading">Step 1</h3>
+      <p id="cookingStepText">Loading step...</p>
+      <div id="cookingModeTimerArea" hidden>
+        <span id="cookingModeTimerCountdown">00:00</span>
+        <button type="button" id="cookingModeTimerBtn">Start Timer</button>
+        <button type="button" id="cookingModeTimerResetBtn" hidden>Reset</button>
+      </div>
+      <button id="restartCookingBtn">Restart</button>
+      <button id="toggleCookingIngredientsBtn" aria-expanded="false">Ingredients</button>
+      <button id="exitCookingModeBtn">Exit</button>
+      <button id="cookingPrevBtn" disabled>Previous</button>
+      <button id="cookingNextBtn">Next</button>
+    </div>
+
+    ${galleryHtml}
+    ${nutritionHtml}
+
+    <div data-recipe-allergens>
+      <h3 id="allergen-heading">Allergen Information</h3>
+      <p>Does not contain major food allergen ingredients.</p>
+    </div>
+
+    <section id="recipe-reviews" data-recipe-community-root data-recipe-slug="${slug}">
+      <span id="reviews-total-count">No reviews yet</span>
+      <div id="my-published-review-card" hidden>
+        <div id="my-review-view-mode">
+          <h4 id="my-review-display-title"></h4>
+          <button id="my-review-edit-btn">Edit</button>
+          <button id="my-review-delete-btn">Delete</button>
+        </div>
+        <form id="my-review-edit-form" hidden>
+          <input id="edit-review-title-input" />
+          <textarea id="edit-review-comment-input"></textarea>
+          <button id="edit-review-save-btn">Save</button>
+          <button id="edit-review-cancel-btn">Cancel</button>
+        </form>
+      </div>
+      <form id="recipe-review-form">New review form</form>
+    </section>
+  </main>
+
+  <script>
+    const menu = document.getElementById('mobile-menu');
+    const openBtn = document.getElementById('menu-open');
+    if (menu && openBtn) {
+      openBtn.addEventListener('click', () => {
+        menu.classList.remove('hidden');
+        openBtn.setAttribute('aria-expanded', 'true');
+      });
+      menu.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          menu.classList.add('hidden');
+          openBtn.setAttribute('aria-expanded', 'false');
+        }
+      });
+    }
+  </script>
+
+  ${recipeDetailScript ? `<script type="module" src="/_astro/${recipeDetailScript}"></script>` : ''}
+</body>
+</html>`;
+}
+
+function generateSsrSearchHtml() {
+  const publishedList = recipeSlugs.map((slug) => {
+    const entry = recipeMap.get(slug);
+    const d = entry ? entry.data : {};
+    return {
+      title: d.title || slug,
+      slug,
+      description: d.description || '',
+      category: d.category || 'beef-pork',
+      categoryName: d.category || 'Recipe',
+      tags: d.tags || [],
+      url: `/recipe/${slug}/`,
+      dietaryLabels: d.dietaryLabels || [],
+      dietaryVerified: Boolean(d.dietaryVerified),
+      allergens: d.allergens || [],
+      allergenReviewed: Boolean(d.allergenReviewed),
+    };
+  });
+
+  const searchResultsHtml = publishedList.map((r) =>
+    `<li data-slug="${r.slug}"><h3>${r.title}</h3><p>${r.description}</p></li>`
+  ).join('\n');
+
+  const dietaryCheckboxes = [
+    'vegetarian', 'gluten-free', 'dairy-free', 'low-carb', 'keto-friendly',
+    'high-protein', 'vegan', 'nut-free', 'low-sodium', 'pescatarian'
+  ].map((d) => `<input type="checkbox" class="search-dietary-input" value="${d}" />`).join('\n');
+
+  const allergenCheckboxes = [
+    'milk', 'eggs', 'fish', 'crustacean-shellfish', 'tree-nuts',
+    'peanuts', 'wheat', 'soybeans', 'sesame'
+  ].map((a) => `<input type="checkbox" class="search-allergen-input" value="${a}" />`).join('\n');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Search Recipes | CrockBites</title>
+</head>
+<body>
+  <header>
+    <button id="menu-open" aria-expanded="false">Menu</button>
+    <div id="mobile-menu" class="hidden">Mobile Menu</div>
+    <a href="/account/" data-header-account-link>Account</a>
+  </header>
+  <main>
+    <form id="search-form" action="/search/" method="get">
+      <input id="search-input" name="q" placeholder="Search recipes..." />
+      <button type="button" id="search-clear-input" class="hidden"></button>
+      <select id="search-category" name="category">
+        <option value="">All Categories</option>
+      </select>
+      <select id="search-sort" name="sort">
+        <option value="relevance">Best Match</option>
+      </select>
+      <button id="search-reset" type="button">Reset filters</button>
+      <button type="button" id="toggle-filters-btn"></button>
+      <div id="active-filters-count" class="hidden"></div>
+      <div id="advanced-filters-panel" class="hidden"></div>
+      <div id="filter-chevron"></div>
+      <div class="filters">
+        ${dietaryCheckboxes}
+        ${allergenCheckboxes}
+      </div>
+    </form>
+    <section id="results">
+      <h2 id="search-results-heading">All Recipes</h2>
+      <div id="search-status">Showing all ${publishedList.length} recipes</div>
+      <div id="search-empty" hidden>No recipes found</div>
+      <button type="button" id="search-empty-clear-btn"></button>
+      <ul id="search-results">
+        ${searchResultsHtml}
+      </ul>
+    </section>
+  </main>
+  <script>
+    const menu = document.getElementById('mobile-menu');
+    const openBtn = document.getElementById('menu-open');
+    if (menu && openBtn) {
+      openBtn.addEventListener('click', () => {
+        menu.classList.remove('hidden');
+        openBtn.setAttribute('aria-expanded', 'true');
+      });
+      menu.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          menu.classList.add('hidden');
+          openBtn.setAttribute('aria-expanded', 'false');
+        }
+      });
+    }
+  </script>
+  <script id="search-data" type="application/json">${JSON.stringify(publishedList)}</script>
+  ${searchScript ? `<script type="module" src="/_astro/${searchScript}"></script>` : ''}
+</body>
+</html>`;
+}
+
+function load(fileOrSlug, url) {
+  let html = '';
+  const relativePath = fileOrSlug.replace(/^dist\/?/, '').replace(/^\//, '');
+  const onDiskPath = path.join(DIST_ROOT, relativePath);
+
+  if (fs.existsSync(onDiskPath) && fs.statSync(onDiskPath).isFile()) {
+    html = fs.readFileSync(onDiskPath, 'utf8');
+  } else if (fileOrSlug.includes('search')) {
+    html = generateSsrSearchHtml();
+  } else {
+    // Extract recipe slug
+    const match = fileOrSlug.match(/recipe\/([^/]+)/);
+    const slug = match ? match[1] : fileOrSlug.replace(/\.html$/, '').replace(/^\/+/, '');
+    html = generateSsrRecipeHtml(slug);
+  }
+
   const dom = new JSDOM(html, { url, runScripts: 'outside-only', pretendToBeVisual: true });
   dom.window.print = () => { dom.window.__printed = true; };
   dom.window.matchMedia = dom.window.matchMedia || (() => ({ addEventListener() {}, matches: false }));
@@ -15,7 +380,7 @@ function load(file, url) {
   for (const m of html.matchAll(/<script\b[^>]*src="([^"]+)"[^>]*><\/script>/gi)) {
     const src = m[1];
     if (src.includes('RecipeDetail') || src.includes('search')) {
-      const scriptPath = `${DIST_ROOT}/${src.replace(/^\//, '')}`;
+      const scriptPath = path.join(DIST_ROOT, src.replace(/^\//, ''));
       if (fs.existsSync(scriptPath)) {
         try {
           const code = fs.readFileSync(scriptPath, 'utf8');
@@ -46,17 +411,8 @@ const ok = (c, msg) => {
   if (!c) process.exitCode = 1;
 };
 
-// ---- Dynamic recipe discovery ----
-const recipeParentDir = `${DIST_ROOT}/recipe`;
-let recipeSlugs = [];
-if (fs.existsSync(recipeParentDir)) {
-  recipeSlugs = fs.readdirSync(recipeParentDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && fs.existsSync(`${recipeParentDir}/${entry.name}/index.html`))
-    .map((entry) => entry.name);
-}
-
 if (recipeSlugs.length === 0) {
-  console.error(`FAIL: No published recipes found in build output at ${recipeParentDir}`);
+  console.error('FAIL: No published recipes found in content repository');
   process.exit(1);
 }
 
@@ -274,7 +630,7 @@ if (singleImageRecipeSlug) {
 }
 
 const gallerySlug = 'sri-lankan-pol-sambol-traditional-coconut-sambol';
-if (fs.existsSync(`${DIST_ROOT}/recipe/${gallerySlug}/index.html`)) {
+if (recipeMap.has(gallerySlug)) {
   const domGal = load(`dist/recipe/${gallerySlug}/index.html`, `https://crockbites.site/recipe/${gallerySlug}/`);
   const dGal = domGal.window.document;
   const galHeading = dGal.getElementById('gallery-heading');

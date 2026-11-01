@@ -1,5 +1,6 @@
 ---
-import type { GetStaticPaths } from 'astro';
+export const prerender = false;
+
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import RecipeCard from '../../components/RecipeCard.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
@@ -11,12 +12,45 @@ import { categories } from '../../data/categories';
 import { site } from '../../config/site';
 import { breadcrumbSchema } from '../../utils/jsonld';
 
-export const getStaticPaths = (async ({ paginate }) => {
-  const all = await getAllRecipes();
-  return paginate(all, { pageSize: site.recipesPerPage });
-}) satisfies GetStaticPaths;
+// Cache public pagination for 1 minute in browser, 5 minutes in Cloudflare CDN with background revalidation
+Astro.response.headers.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=86400');
 
-const { page } = Astro.props;
+// Parse page parameter
+const rawPage = Astro.params.page;
+const pageNum = rawPage ? parseInt(rawPage.replace(/\/+$/, ''), 10) : 1;
+
+if (isNaN(pageNum) || pageNum < 1) {
+  return new Response(null, { status: 404, statusText: 'Not Found' });
+}
+
+// Fetch all tested recipes from D1 (or fallback)
+const all = await getAllRecipes();
+const pageSize = site.recipesPerPage;
+const total = all.length;
+const lastPage = Math.max(1, Math.ceil(total / pageSize));
+
+if (total > 0 && pageNum > lastPage) {
+  return new Response(null, { status: 404, statusText: 'Not Found' });
+}
+
+const start = (pageNum - 1) * pageSize;
+const pagedRecipes = all.slice(start, start + pageSize);
+
+const page = {
+  data: pagedRecipes,
+  start,
+  end: Math.min(start + pageSize - 1, total - 1),
+  size: pageSize,
+  total,
+  currentPage: pageNum,
+  lastPage,
+  url: {
+    current: pageNum === 1 ? '/recipes/' : `/recipes/${pageNum}/`,
+    prev: pageNum > 1 ? (pageNum === 2 ? '/recipes/' : `/recipes/${pageNum - 1}/`) : undefined,
+    next: pageNum < lastPage ? `/recipes/${pageNum + 1}/` : undefined,
+  },
+};
+
 const path = page.currentPage === 1 ? '/recipes/' : `/recipes/${page.currentPage}/`;
 const crumbs = [{ name: 'Home', href: '/' }, { name: 'Recipes', href: '/recipes/' }];
 const title = page.currentPage === 1 ? 'All Recipes' : `All Recipes, page ${page.currentPage}`;

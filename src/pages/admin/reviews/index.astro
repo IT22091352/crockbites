@@ -1,7 +1,7 @@
 ---
 export const prerender = false;
 
-import { getCollection } from 'astro:content';
+import { getAllRecipes } from '../../../utils/recipes';
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import { getDb, getD1BindingStatus } from '../../../lib/db';
 import { listAdminReviews } from '../../../lib/community';
@@ -22,7 +22,7 @@ const ratingFilter = Astro.url.searchParams.get('rating') ?? '';
 const queryFilter = Astro.url.searchParams.get('q') ?? '';
 const pageParam = Math.max(1, Number(Astro.url.searchParams.get('page') ?? '1') || 1);
 
-const recipes = await getCollection('recipes');
+const recipes = await getAllRecipes(true);
 const recipeTitleBySlug = new Map<string, string>();
 for (const r of recipes) {
   const slug = r.id.replace(/\.md$/, '');

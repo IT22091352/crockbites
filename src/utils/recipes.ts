@@ -1,24 +1,47 @@
-import { getCollection, type CollectionEntry } from 'astro:content';
-import { site } from '../config/site';
-import { categories, categoryById, hubs, type Hub } from '../data/categories';
+import type { CollectionEntry } from 'astro:content';
+import { site } from '../config/site.ts';
+import { categories, categoryById, hubs, type Hub } from '../data/categories.ts';
+import { getDb } from '../lib/db.ts';
+import { getAllRecipesFromDb, type FullRecipe } from '../lib/recipes-db.ts';
 
-export type Recipe = CollectionEntry<'recipes'>;
+export type Recipe = FullRecipe | CollectionEntry<'recipes'>;
 
-export const recipeSlug = (r: Recipe) => r.data.slug ?? r.id;
+export const recipeSlug = (r: Recipe) => (r.data.slug ?? (r as any).slug ?? r.id).replace(/\.md$/, '');
 export const recipeUrl = (r: Recipe | string) => `/recipe/${typeof r === 'string' ? r : recipeSlug(r)}/`;
 export const categoryUrl = (slug: string) => `/category/${slug}/`;
 export const absoluteUrl = (path: string) => new URL(path, site.url).href;
 
 export async function getAllRecipes(includeDrafts = false): Promise<Recipe[]> {
-  const all = await getCollection('recipes');
-  const slugs = new Set<string>();
-  for (const recipe of all) {
-    const slug = recipeSlug(recipe);
-    if (slugs.has(slug)) throw new Error(`Duplicate recipe slug "${slug}". Rename the slug or Markdown file.`);
-    slugs.add(slug);
+  // 1. Primary: Cloudflare D1
+  try {
+    const db = await getDb();
+    if (db) {
+      const dbRecipes = await getAllRecipesFromDb(db, { includeDrafts });
+      if (dbRecipes && dbRecipes.length > 0) {
+        return (dbRecipes as Recipe[]).sort(
+          (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf() || a.data.title.localeCompare(b.data.title)
+        );
+      }
+    }
+  } catch (err) {
+    console.warn('[CrockBites Recipe] Failed to load recipes from D1, falling back to static collection:', err);
   }
-  const filtered = includeDrafts ? all : all.filter((r) => r.data.reviewStatus === 'tested');
-  return filtered.sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf() || a.data.title.localeCompare(b.data.title));
+
+  // 2. Fallback: Astro content collection
+  try {
+    const { getCollection } = await import('astro:content');
+    const all = await getCollection('recipes');
+    const slugs = new Set<string>();
+    for (const recipe of all) {
+      const slug = recipeSlug(recipe);
+      if (slugs.has(slug)) throw new Error(`Duplicate recipe slug "${slug}". Rename the slug or Markdown file.`);
+      slugs.add(slug);
+    }
+    const filtered = includeDrafts ? all : all.filter((r) => r.data.reviewStatus === 'tested');
+    return (filtered as Recipe[]).sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf() || a.data.title.localeCompare(b.data.title));
+  } catch {
+    return [];
+  }
 }
 
 export const totalMinutes = (r: Recipe) => r.data.totalMinutes ?? r.data.prepMinutes + r.data.cookMinutes;
@@ -29,7 +52,7 @@ export const isIndexable = (r: Recipe) => r.data.reviewStatus === 'tested' || si
 export function recipesForHub(all: Recipe[], hub: Hub): Recipe[] {
   return all.filter((r) =>
     (hub.tag && r.data.tags.map((t) => t.toLowerCase()).includes(hub.tag)) ||
-    (hub.categories && hub.categories.includes(r.data.category)));
+    (hub.categories && hub.categories.includes(r.data.category as any)));
 }
 
 export const recipesForCategory = (all: Recipe[], id: string) => all.filter((r) => r.data.category === id);

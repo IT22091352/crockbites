@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { getCollection } from 'astro:content';
+import { getAllRecipes } from '../../../../utils/recipes';
 import {
   ADMIN_COOKIE_NAME,
   getAdminSessionSecret,
@@ -40,7 +40,7 @@ export const GET: APIRoute = async ({ cookies }) => {
   }
 
   try {
-    const recipes = await getCollection('recipes');
+    const recipes = await getAllRecipes(true);
     const mediaMap = new Map<string, MediaItem>();
 
     for (const recipe of recipes) {

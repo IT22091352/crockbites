@@ -1,7 +1,7 @@
 ---
 export const prerender = false;
 
-import { getCollection } from 'astro:content';
+import { getAllRecipes } from '../../../utils/recipes';
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import {
   extractCloudinaryPublicId,
@@ -34,7 +34,7 @@ interface MediaAsset {
   usages: MediaUsage[];
 }
 
-const recipes = await getCollection('recipes');
+const recipes = await getAllRecipes(true);
 const mediaMap = new Map<string, MediaAsset>();
 
 for (const recipe of recipes) {

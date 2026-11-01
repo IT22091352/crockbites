@@ -1,21 +1,31 @@
 ---
-import type { GetStaticPaths } from 'astro';
-import { render } from 'astro:content';
+export const prerender = false;
+
 import { getImage } from 'astro:assets';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import RecipeDetail from '../../components/RecipeDetail.astro';
 import { getAllRecipes, relatedRecipes, categoryById, isIndexable, recipeSlug, recipeUrl } from '../../utils/recipes';
 import { recipeSchema, breadcrumbSchema } from '../../utils/jsonld';
+import { getDb } from '../../lib/db';
+import { getRecipeBySlugFromDb } from '../../lib/recipes-db';
 
-export const getStaticPaths = (async () => {
-  const all = await getAllRecipes();
-  return all.map((recipe) => ({ params: { slug: recipeSlug(recipe) }, props: { recipe, related: relatedRecipes(all, recipe, 3) } }));
-}) satisfies GetStaticPaths;
+const slug = String(Astro.params.slug ?? '').trim();
+if (!slug) {
+  return Astro.redirect('/recipes/');
+}
 
-const { recipe, related } = Astro.props;
-const { Content } = await render(recipe);
+const db = await getDb(Astro.locals);
+const recipe = db ? await getRecipeBySlugFromDb(db, slug) : null;
+
+// Return 404 if recipe not found or if it is an unpublished draft
+if (!recipe || recipe.data.reviewStatus !== 'tested') {
+  return new Response(null, { status: 404, statusText: 'Not Found' });
+}
+
+const all = await getAllRecipes(false);
+const related = relatedRecipes(all, recipe, 3);
 const d = recipe.data;
-const cat = categoryById(d.category)!;
+const cat = categoryById(d.category) ?? { id: d.category || 'easy-dinners', name: d.category || 'Recipes', short: 'Recipes', description: '', icon: 'utensils' as const };
 
 const rawBody = (recipe.body ?? '').trim();
 const hasCustomIntro = Boolean(rawBody && rawBody !== (d.description ?? '').trim());
@@ -31,13 +41,16 @@ if (typeof d.image === 'string' && (d.image.startsWith('http://') || d.image.sta
 
 const path = recipeUrl(recipe);
 const jsonLd = [
-  recipeSchema(recipe, new URL(ogSrc, Astro.site).href, cat.name),
+  recipeSchema(recipe as any, new URL(ogSrc, Astro.site).href, cat.name),
   breadcrumbSchema([{ name: 'Home', url: '/' }, { name: 'Recipes', url: '/recipes/' }, { name: cat.name, url: `/category/${cat.id}/` }, { name: d.title, url: path }]),
 ];
+
+// Set CDN caching headers for fast public response
+Astro.response.headers.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=86400');
 ---
 <BaseLayout title={d.title} description={d.description} path={path} image={ogSrc} imageAlt={d.imageAlt} type="article"
-  noindex={!isIndexable(recipe)} publishedTime={d.pubDate.toISOString()} modifiedTime={(d.updatedDate ?? d.pubDate).toISOString()} jsonLd={jsonLd}>
-  <RecipeDetail recipe={recipe} related={related}>
-    {hasCustomIntro && <Content slot="intro" />}
+  noindex={!isIndexable(recipe as any)} publishedTime={d.pubDate.toISOString()} modifiedTime={(d.updatedDate ?? d.pubDate).toISOString()} jsonLd={jsonLd}>
+  <RecipeDetail recipe={recipe as any} related={related as any}>
+    {hasCustomIntro && <div slot="intro" class="prose-crock whitespace-pre-line">{rawBody}</div>}
   </RecipeDetail>
 </BaseLayout>

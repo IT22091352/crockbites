@@ -59,7 +59,7 @@ const foodSafety = Array.isArray(d.foodSafety) ? d.foodSafety : [];
 const servingSuggestions = Array.isArray(d.servingSuggestions) ? d.servingSuggestions : [];
 const tips = Array.isArray(d.tips) ? d.tips : [];
 const substitutions = Array.isArray(d.substitutions) ? d.substitutions : [];
-const storage = (d.storage && typeof d.storage === 'object') ? d.storage : {};
+const storage = (d?.storage && typeof d.storage === 'object' && d.storage !== null) ? d.storage : {};
 
 // Attach stable zero-based indices and group ingredients under optional headings
 type IndexedIngredient = (typeof d.ingredients)[number] & { __idx: number };
@@ -619,13 +619,13 @@ const allergenNames: Record<string, string> = {
           ))}</dl>
         </section>
       )}
-      {(storage.fridge || storage.freezer || storage.reheating) && (
+      {Boolean(storage?.fridge || storage?.freezer || storage?.reheating) && (
         <section aria-labelledby="storage-heading">
           <h2 id="storage-heading" class="text-[1.6rem]">Storage and reheating</h2>
           <dl class="mt-4 space-y-4">
-            {storage.fridge && <div><dt class="font-semibold text-forest">Refrigerator</dt><dd class="text-ink-soft">{storage.fridge}</dd></div>}
-            {storage.freezer && <div><dt class="font-semibold text-forest">Freezer</dt><dd class="text-ink-soft">{storage.freezer}</dd></div>}
-            {storage.reheating && <div><dt class="font-semibold text-forest">Reheating</dt><dd class="text-ink-soft">{storage.reheating}</dd></div>}
+            {storage?.fridge && <div><dt class="font-semibold text-forest">Refrigerator</dt><dd class="text-ink-soft">{storage.fridge}</dd></div>}
+            {storage?.freezer && <div><dt class="font-semibold text-forest">Freezer</dt><dd class="text-ink-soft">{storage.freezer}</dd></div>}
+            {storage?.reheating && <div><dt class="font-semibold text-forest">Reheating</dt><dd class="text-ink-soft">{storage.reheating}</dd></div>}
           </dl>
         </section>
       )}

@@ -9,25 +9,15 @@ import {
   getAdminSessionSecret,
   parseAdminSessionCookie,
   verifySessionCookie,
+  verifyAdminSession,
 } from '../../../../lib/admin.ts';
-import { getRepoFile, repoRecipePath, writeRepoFile } from '../../../../lib/github.ts';
+import { getDb } from '../../../../lib/db.ts';
+import { setRecipeStatusInDb, invalidateRecipeMemoryCache } from '../../../../lib/recipes-db.ts';
 
 const isAuthorized = async (request: Request, cookies: any) => {
-  const secret = getAdminSessionSecret();
-  const sessionCookie = cookies.get(ADMIN_COOKIE_NAME)?.value ?? '';
-  if (!secret || !sessionCookie || !verifySessionCookie(sessionCookie, secret)) {
-    return null;
-  }
-
-  const session = parseAdminSessionCookie(sessionCookie);
-  if (!session) return null;
-
-  const csrfCookie = cookies.get(CSRF_COOKIE_NAME)?.value ?? '';
-  if (!(await ensureCsrfToken(request, csrfCookie, secret, session.id))) {
-    return null;
-  }
-
-  return session;
+  // Safe HTTP methods (RFC 9110) do not mutate state and do not require CSRF token
+  const requireCsrf = request.method !== 'GET' && request.method !== 'HEAD' && request.method !== 'OPTIONS';
+  return verifyAdminSession(request, cookies, { requireCsrf });
 };
 
 export function updateRecipeStatusInMarkdown(content: string, newStatus: 'draft' | 'tested'): string {
@@ -45,7 +35,7 @@ export function updateRecipeStatusInMarkdown(content: string, newStatus: 'draft'
   return `---\n${YAML.stringify(parsed, { lineWidth: 0 })}---${rest}\n`;
 }
 
-export const POST: APIRoute = async ({ request, cookies }) => {
+export const POST: APIRoute = async ({ request, cookies, locals }) => {
   const session = await isAuthorized(request, cookies);
   if (!session) {
     return new Response(JSON.stringify({ error: 'Unauthorized or CSRF validation failed.' }), {
@@ -81,24 +71,25 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     });
   }
 
+  const db = await getDb(locals);
+  if (!db) {
+    return new Response(JSON.stringify({ error: 'Database is not available.' }), {
+      status: 503,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
+
   const updated: string[] = [];
   const failed: Array<{ slug: string; error: string }> = [];
 
   for (const slug of slugs) {
-    const recipePath = repoRecipePath(slug);
     try {
-      const file = await getRepoFile(recipePath, 'main');
-      if (!file.content) {
-        throw new Error('Recipe file content is empty');
+      const ok = await setRecipeStatusInDb(db, slug, status as 'draft' | 'tested');
+      if (ok) {
+        updated.push(slug);
+      } else {
+        failed.push({ slug, error: `Recipe "${slug}" not found in D1.` });
       }
-      const updatedMarkdown = updateRecipeStatusInMarkdown(file.content, status as 'draft' | 'tested');
-      await writeRepoFile(
-        recipePath,
-        updatedMarkdown,
-        `Bulk update status: ${slug} -> ${status}`,
-        file.sha,
-      );
-      updated.push(slug);
     } catch (err) {
       failed.push({
         slug,
@@ -106,6 +97,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       });
     }
   }
+
+  invalidateRecipeMemoryCache();
 
   return new Response(
     JSON.stringify({

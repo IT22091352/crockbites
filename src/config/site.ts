@@ -3,7 +3,7 @@
  * (AdSense, analytics, Search Console, newsletter provider) is read from
  * environment variables and is empty by default, so nothing fake ships.
  */
-const env = import.meta.env;
+const env = ((typeof import.meta !== 'undefined' ? (import.meta as any).env : undefined) ?? {}) as Record<string, string | undefined>;
 
 export const site = {
   name: 'CrockBites',

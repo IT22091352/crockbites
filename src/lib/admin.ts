@@ -1,4 +1,5 @@
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { loadRuntimeEnv } from './runtime-env.ts';
 
 export const ADMIN_COOKIE_NAME = 'crockbites_admin';
 export const CSRF_COOKIE_NAME = 'crockbites_admin_csrf';
@@ -204,6 +205,57 @@ export async function ensureCsrfToken(
 
   const expected = createCsrfToken(secret, sessionId);
   return Boolean(csrfCookieValue && token && csrfCookieValue === token && token === expected);
+}
+
+export async function verifyAdminSession(
+  request: Request,
+  cookies: any,
+  options: { requireCsrf?: boolean } = {}
+) {
+  await loadRuntimeEnv();
+  const secret = getAdminSessionSecret();
+  if (!secret) return null;
+
+  let sessionCookie = cookies?.get?.(ADMIN_COOKIE_NAME)?.value ?? '';
+  if (!sessionCookie) {
+    const cookieHeader = request.headers.get('cookie') ?? '';
+    const match = cookieHeader.split(';').map((c) => c.trim()).find((c) => c.startsWith(`${ADMIN_COOKIE_NAME}=`));
+    if (match) {
+      try {
+        sessionCookie = decodeURIComponent(match.slice(ADMIN_COOKIE_NAME.length + 1));
+      } catch {
+        sessionCookie = match.slice(ADMIN_COOKIE_NAME.length + 1);
+      }
+    }
+  }
+
+  if (!sessionCookie || !verifySessionCookie(sessionCookie, secret)) {
+    return null;
+  }
+
+  const session = parseAdminSessionCookie(sessionCookie);
+  if (!session) return null;
+
+  const requiresCsrf = options.requireCsrf ?? (request.method !== 'GET' && request.method !== 'HEAD' && request.method !== 'OPTIONS');
+  if (requiresCsrf) {
+    let csrfCookie = cookies?.get?.(CSRF_COOKIE_NAME)?.value ?? '';
+    if (!csrfCookie) {
+      const cookieHeader = request.headers.get('cookie') ?? '';
+      const match = cookieHeader.split(';').map((c) => c.trim()).find((c) => c.startsWith(`${CSRF_COOKIE_NAME}=`));
+      if (match) {
+        try {
+          csrfCookie = decodeURIComponent(match.slice(CSRF_COOKIE_NAME.length + 1));
+        } catch {
+          csrfCookie = match.slice(CSRF_COOKIE_NAME.length + 1);
+        }
+      }
+    }
+    if (!(await ensureCsrfToken(request, csrfCookie, secret, session.id))) {
+      return null;
+    }
+  }
+
+  return session;
 }
 
 export function slugify(input: string) {
