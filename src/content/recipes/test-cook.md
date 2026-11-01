@@ -22,5 +22,6 @@ ingredients:
 instructions:
   - text: Place all ingredients into the slow cooker and cook on low.
 featured: false
+notifyNewsletter: false
 reviewStatus: draft
 ---
