@@ -86,8 +86,8 @@ if (!isNotFound) {
   </BaseLayout>
 ) : (
   <BaseLayout
-    title={d!.title}
-    description={d!.description}
+    title={d!.seoTitle || d!.title}
+    description={d!.seoDescription || d!.description}
     path={path}
     image={ogSrc}
     imageAlt={d!.imageAlt}
@@ -96,6 +96,7 @@ if (!isNotFound) {
     publishedTime={d!.pubDate.toISOString()}
     modifiedTime={(d!.updatedDate ?? d!.pubDate).toISOString()}
     jsonLd={jsonLd}
+    preloadImage={ogSrc}
   >
     <RecipeDetail recipe={recipe as any} related={related as any}>
       {hasCustomIntro && <div slot="intro" class="prose-crock whitespace-pre-line">{rawBody}</div>}

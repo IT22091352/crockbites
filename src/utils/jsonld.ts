@@ -61,10 +61,18 @@ function getEditoriallySupportedCuisine(slug: string, tags: string[] = []): stri
   if (normalizedSlug.includes('sri-lankan') || lowerTags.includes('sri lankan')) {
     return 'Sri Lankan';
   }
+  if (normalizedSlug.includes('tuscan') || normalizedSlug.includes('minestrone') || lowerTags.includes('italian')) {
+    return 'Italian';
+  }
   if (
     normalizedSlug === 'slow-cooker-beef-chili' ||
     normalizedSlug === 'bbq-slow-cook-ribs-recipe-for-the-crock-pot' ||
-    normalizedSlug === 'brown-sugar-crockpot-ham'
+    normalizedSlug === 'brown-sugar-crockpot-ham' ||
+    normalizedSlug.includes('chicken') ||
+    normalizedSlug.includes('pork') ||
+    normalizedSlug.includes('beef-stew') ||
+    normalizedSlug.includes('turkey') ||
+    lowerTags.includes('american')
   ) {
     return 'American';
   }
