@@ -2,7 +2,7 @@ import type { CollectionEntry } from 'astro:content';
 import { site } from '../config/site.ts';
 import { categories, categoryById, hubs, type Hub } from '../data/categories.ts';
 import { getDb } from '../lib/db.ts';
-import { getAllRecipesFromDb, type FullRecipe } from '../lib/recipes-db.ts';
+import { getAllRecipesFromDb, getRecipeBySlugFromDb, type FullRecipe } from '../lib/recipes-db.ts';
 
 export type Recipe = FullRecipe | CollectionEntry<'recipes'>;
 
@@ -40,8 +40,67 @@ export async function getAllRecipes(includeDrafts = false): Promise<Recipe[]> {
     const filtered = includeDrafts ? all : all.filter((r) => r.data.reviewStatus === 'tested');
     return (filtered as Recipe[]).sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf() || a.data.title.localeCompare(b.data.title));
   } catch {
+    // 3. Fallback: Local filesystem (for Node environments outside Vite)
+    try {
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+      const dir = path.resolve(process.cwd(), 'src/content/recipes');
+      if (fs.existsSync(dir)) {
+        const { parseRecipeMarkdownToFull } = await import('../lib/admin-recipes.ts');
+        const files = fs.readdirSync(dir).filter((f) => f.endsWith('.md'));
+        const recipes: Recipe[] = [];
+        for (const file of files) {
+          const content = fs.readFileSync(path.join(dir, file), 'utf8');
+          const slug = file.replace(/\.md$/, '');
+          const parsed = parseRecipeMarkdownToFull(slug, content);
+          if (parsed) {
+            if (includeDrafts || parsed.data.reviewStatus === 'tested') {
+              recipes.push(parsed as Recipe);
+            }
+          }
+        }
+        return recipes.sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf() || a.data.title.localeCompare(b.data.title));
+      }
+    } catch {}
     return [];
   }
+}
+
+export async function getRecipeBySlug(slug: string, db?: any): Promise<Recipe | null> {
+  const normalized = slug.trim().toLowerCase();
+  // 1. Primary: Cloudflare D1
+  try {
+    const actualDb = db ?? (await getDb());
+    if (actualDb) {
+      const dbRecipe = await getRecipeBySlugFromDb(actualDb, normalized);
+      if (dbRecipe) return dbRecipe as Recipe;
+    }
+  } catch (err) {
+    console.warn(`[CrockBites Recipe] Failed to load recipe "${slug}" from D1:`, err);
+  }
+
+  // 2. Fallback: Astro content collection
+  try {
+    const { getCollection } = await import('astro:content');
+    const all = await getCollection('recipes');
+    const match = all.find((r) => recipeSlug(r).toLowerCase() === normalized);
+    if (match) return match as Recipe;
+  } catch {
+    // 3. Fallback: Local filesystem (for Node environments outside Vite)
+    try {
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+      const localPath = path.resolve(process.cwd(), 'src/content/recipes', `${normalized}.md`);
+      if (fs.existsSync(localPath)) {
+        const { parseRecipeMarkdownToFull } = await import('../lib/admin-recipes.ts');
+        const content = fs.readFileSync(localPath, 'utf8');
+        const parsed = parseRecipeMarkdownToFull(normalized, content);
+        if (parsed) return parsed as Recipe;
+      }
+    } catch {}
+  }
+
+  return null;
 }
 
 export const totalMinutes = (r: Recipe) => r.data.totalMinutes ?? r.data.prepMinutes + r.data.cookMinutes;

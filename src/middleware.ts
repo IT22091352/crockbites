@@ -1,6 +1,6 @@
 import { defineMiddleware } from 'astro:middleware';
-import { loadRuntimeEnv } from './lib/runtime-env';
-import { ensureCsrfToken, createCsrfToken, ADMIN_COOKIE_NAME, CSRF_COOKIE_NAME, checkRateLimit, getAdminSessionSecret, parseAdminSessionCookie, verifySessionCookie } from './lib/admin';
+import { loadRuntimeEnv } from './lib/runtime-env.ts';
+import { ensureCsrfToken, createCsrfToken, ADMIN_COOKIE_NAME, CSRF_COOKIE_NAME, checkRateLimit, getAdminSessionSecret, parseAdminSessionCookie, verifySessionCookie } from './lib/admin.ts';
 
 /** Authenticated admin API calls (recipe saves, image uploads). Login attempts keep their own, stricter limit. */
 const ADMIN_API_MAX_REQUESTS = 240;
@@ -8,6 +8,14 @@ const ADMIN_API_MAX_REQUESTS = 240;
 export const onRequest = defineMiddleware(async (context, next) => {
   await loadRuntimeEnv();
   const url = new URL(context.request.url);
+
+  // 301 Redirect www.crockbites.site to canonical apex crockbites.site
+  if (url.hostname === 'www.crockbites.site') {
+    url.hostname = 'crockbites.site';
+    url.protocol = 'https:';
+    return context.redirect(url.toString(), 301);
+  }
+
   const path = url.pathname;
   const normalizedPath = path.replace(/\/+$/, '') || '/';
   const isLoginRoute = normalizedPath === '/admin/login';

@@ -2,8 +2,8 @@ import type { APIRoute } from 'astro';
 
 export const prerender = false;
 
-import { site } from '../config/site';
-import { getAllRecipes, isIndexable, listingPages, recipeUrl } from '../utils/recipes';
+import { site } from '../config/site.ts';
+import { getAllRecipes, isIndexable, listingPages, recipeUrl } from '../utils/recipes.ts';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
 

@@ -112,8 +112,8 @@ for (const file of mdFiles) {
     throw new Error(`Tags length mismatch on ${slug}: ${dbTags.length} vs ${mdTags.length}`);
   }
 
-  // Validate body Markdown
-  if (row.body.trim() !== body.trim()) {
+  // Validate body Markdown (normalized for cross-platform newline consistency)
+  if (row.body.replace(/\r\n/g, '\n').trim() !== body.replace(/\r\n/g, '\n').trim()) {
     throw new Error(`Body markdown mismatch on ${slug}`);
   }
 

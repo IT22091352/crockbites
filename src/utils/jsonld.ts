@@ -1,7 +1,7 @@
-import { site } from '../config/site';
-import { absoluteUrl, type Recipe, recipeUrl, totalMinutes } from './recipes';
-import { ingredientToString } from './quantity';
-import { isoDuration } from './time';
+import { site } from '../config/site.ts';
+import { absoluteUrl, type Recipe, recipeUrl, totalMinutes } from './recipes.ts';
+import { ingredientToString } from './quantity.ts';
+import { isoDuration } from './time.ts';
 
 /** Serialise safely for embedding inside <script type="application/ld+json">. */
 export const toJsonLd = (data: unknown) => JSON.stringify(data).replace(/</g, '\\u003c');
@@ -48,8 +48,39 @@ export function breadcrumbSchema(items: { name: string; url: string }[]) {
   };
 }
 
-export function recipeSchema(recipe: Recipe, imageUrl: string, categoryName: string) {
+export interface RecipeReviewStatsInput {
+  ratingValue: number;
+  reviewCount: number;
+}
+
+/** Determines editorially supported cuisine without guessing or fabricating data. */
+function getEditoriallySupportedCuisine(slug: string, tags: string[] = []): string | undefined {
+  const normalizedSlug = slug.toLowerCase();
+  const lowerTags = tags.map((t) => t.toLowerCase());
+
+  if (normalizedSlug.includes('sri-lankan') || lowerTags.includes('sri lankan')) {
+    return 'Sri Lankan';
+  }
+  if (
+    normalizedSlug === 'slow-cooker-beef-chili' ||
+    normalizedSlug === 'bbq-slow-cook-ribs-recipe-for-the-crock-pot' ||
+    normalizedSlug === 'brown-sugar-crockpot-ham'
+  ) {
+    return 'American';
+  }
+
+  return undefined;
+}
+
+export function recipeSchema(
+  recipe: Recipe,
+  imageUrl: string,
+  categoryName: string,
+  reviews?: RecipeReviewStatsInput | null,
+  cuisineOverride?: string
+) {
   const d = recipe.data;
+  const slug = (d.slug ?? (recipe as any).slug ?? recipe.id ?? '').replace(/\.md$/, '');
   const pubDate = d.pubDate instanceof Date ? d.pubDate : new Date(d.pubDate || Date.now());
   const updatedDate = d.updatedDate ? (d.updatedDate instanceof Date ? d.updatedDate : new Date(d.updatedDate)) : undefined;
   const safePubDate = isNaN(pubDate.getTime()) ? new Date() : pubDate;
@@ -74,6 +105,27 @@ export function recipeSchema(recipe: Recipe, imageUrl: string, categoryName: str
         },
       }
     : {};
+
+  // AggregateRating: Strictly omit unless genuine published reviews exist (reviewCount > 0)
+  const aggregateRating = reviews && reviews.reviewCount > 0 && reviews.ratingValue > 0
+    ? {
+        aggregateRating: {
+          '@type': 'AggregateRating',
+          ratingValue: Number(reviews.ratingValue.toFixed(1)),
+          reviewCount: reviews.reviewCount,
+          bestRating: 5,
+          worstRating: 1,
+        },
+      }
+    : {};
+
+  // RecipeCuisine: Include only when editorially supported
+  const cuisine = cuisineOverride || (d as any).recipeCuisine || (d as any).cuisine || getEditoriallySupportedCuisine(slug, d.tags);
+  const cuisineProp = cuisine ? { recipeCuisine: cuisine } : {};
+
+  // CookTime: Only emit when recipe actually requires cooking (omit for raw dishes like Pol Sambol)
+  const cookTimeProp = d.cookMinutes > 0 ? { cookTime: isoDuration(d.cookMinutes) } : {};
+
   return {
     '@context': 'https://schema.org',
     '@type': 'Recipe',
@@ -85,19 +137,26 @@ export function recipeSchema(recipe: Recipe, imageUrl: string, categoryName: str
     datePublished: safePubDate.toISOString().slice(0, 10),
     ...(safeUpdatedDate ? { dateModified: safeUpdatedDate.toISOString().slice(0, 10) } : {}),
     prepTime: isoDuration(d.prepMinutes),
-    cookTime: isoDuration(d.cookMinutes),
+    ...cookTimeProp,
     totalTime: isoDuration(totalMinutes(recipe)),
     recipeYield: [String(d.servings), `${d.servings} ${d.servingsLabel}`],
     recipeCategory: categoryName,
+    ...cuisineProp,
     keywords: Array.isArray(d.tags) ? d.tags.join(', ') : '',
     recipeIngredient: Array.isArray(d.ingredients) ? d.ingredients.map(ingredientToString) : [],
-    recipeInstructions: Array.isArray(d.instructions) ? d.instructions.map((s, i) => ({
-      '@type': 'HowToStep',
-      ...(s.title ? { name: s.title } : {}),
-      text: s.text,
-      url: `${absoluteUrl(recipeUrl(recipe))}#step-${i + 1}`,
-    })) : [],
+    recipeInstructions: Array.isArray(d.instructions) ? d.instructions.map((s, i) => {
+      const step: Record<string, unknown> = {
+        '@type': 'HowToStep',
+        ...(s.title ? { name: s.title } : {}),
+        text: s.text,
+        url: `${absoluteUrl(recipeUrl(recipe))}#step-${i + 1}`,
+      };
+      if ((s as any).image) {
+        step.image = (s as any).image;
+      }
+      return step;
+    }) : [],
     ...nutrition,
-    // Intentionally no aggregateRating or review: CrockBites has no genuine ratings.
+    ...aggregateRating,
   };
 }

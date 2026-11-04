@@ -4,53 +4,101 @@ export const prerender = false;
 import { getImage } from 'astro:assets';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import RecipeDetail from '../../components/RecipeDetail.astro';
-import { getAllRecipes, relatedRecipes, categoryById, isIndexable, recipeSlug, recipeUrl } from '../../utils/recipes';
+import { getAllRecipes, relatedRecipes, categoryById, isIndexable, recipeUrl, getRecipeBySlug } from '../../utils/recipes';
 import { recipeSchema, breadcrumbSchema } from '../../utils/jsonld';
 import { getDb } from '../../lib/db';
-import { getRecipeBySlugFromDb } from '../../lib/recipes-db';
+import { getPublicRecipeReviews } from '../../lib/community';
 
-const slug = String(Astro.params.slug ?? '').trim();
-if (!slug) {
+const rawSlug = String(Astro.params.slug ?? '').trim();
+if (!rawSlug) {
   return Astro.redirect('/recipes/');
 }
 
 const db = await getDb(Astro.locals);
-const recipe = db ? await getRecipeBySlugFromDb(db, slug) : null;
+const recipe = await getRecipeBySlug(rawSlug, db);
 
-// Return 404 if recipe not found or if it is an unpublished draft
-if (!recipe || recipe.data.reviewStatus !== 'tested') {
-  return new Response(null, { status: 404, statusText: 'Not Found' });
+// Return standard 404 status and an appropriate not-found experience for missing or unpublished recipes
+const isNotFound = !recipe || recipe.data.reviewStatus !== 'tested';
+
+if (isNotFound) {
+  Astro.response.status = 404;
+  Astro.response.headers.set('Cache-Control', 'public, max-age=0, must-revalidate');
 }
 
-const all = await getAllRecipes(false);
-const related = relatedRecipes(all, recipe, 3);
-const d = recipe.data;
-const cat = categoryById(d.category) ?? { id: d.category || 'easy-dinners', name: d.category || 'Recipes', short: 'Recipes', description: '', icon: 'utensils' as const };
+const all = isNotFound ? [] : await getAllRecipes(false);
+const related = isNotFound ? [] : relatedRecipes(all, recipe!, 3);
+const d = isNotFound ? null : recipe!.data;
+const cat = isNotFound
+  ? { id: 'easy-dinners', name: 'Recipes', short: 'Recipes', description: '', icon: 'utensils' as const }
+  : categoryById(d!.category) ?? { id: d!.category || 'easy-dinners', name: d!.category || 'Recipes', short: 'Recipes', description: '', icon: 'utensils' as const };
 
-const rawBody = (recipe.body ?? '').trim();
-const hasCustomIntro = Boolean(rawBody && rawBody !== (d.description ?? '').trim());
+const rawBody = isNotFound ? '' : (recipe!.body ?? '').trim();
+const hasCustomIntro = Boolean(rawBody && rawBody !== (d?.description ?? '').trim());
 
 // Social/structured-data image: a 1200px-wide, absolute URL.
-let ogSrc: string;
-if (typeof d.image === 'string' && (d.image.startsWith('http://') || d.image.startsWith('https://'))) {
-  ogSrc = d.image;
-} else {
-  const og = await getImage({ src: d.image as any, width: 1200 });
-  ogSrc = og.src;
+let ogSrc = '';
+if (!isNotFound && d) {
+  if (typeof d.image === 'string' && (d.image.startsWith('http://') || d.image.startsWith('https://'))) {
+    ogSrc = d.image;
+  } else {
+    const og = await getImage({ src: d.image as any, width: 1200 });
+    ogSrc = og.src;
+  }
 }
 
-const path = recipeUrl(recipe);
-const jsonLd = [
-  recipeSchema(recipe as any, new URL(ogSrc, Astro.site).href, cat.name),
-  breadcrumbSchema([{ name: 'Home', url: '/' }, { name: 'Recipes', url: '/recipes/' }, { name: cat.name, url: `/category/${cat.id}/` }, { name: d.title, url: path }]),
-];
+// Fetch genuine approved reviews for structured data (never fabricate fake ratings)
+const reviewStats = !isNotFound && db ? await getPublicRecipeReviews(db, rawSlug) : null;
+const structuredDataReviews = reviewStats && reviewStats.totalApproved > 0
+  ? { ratingValue: reviewStats.averageRating, reviewCount: reviewStats.totalApproved }
+  : null;
 
-// Set CDN caching headers for fast public response
-Astro.response.headers.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=86400');
+const path = isNotFound ? `/recipe/${encodeURIComponent(rawSlug)}/` : recipeUrl(recipe!);
+const jsonLd = isNotFound
+  ? []
+  : [
+      recipeSchema(recipe as any, new URL(ogSrc, Astro.site).href, cat.name, structuredDataReviews),
+      breadcrumbSchema([
+        { name: 'Home', url: '/' },
+        { name: 'Recipes', url: '/recipes/' },
+        { name: cat.name, url: `/category/${cat.id}/` },
+        { name: d!.title, url: path },
+      ]),
+    ];
+
+if (!isNotFound) {
+  Astro.response.headers.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=86400');
+}
 ---
-<BaseLayout title={d.title} description={d.description} path={path} image={ogSrc} imageAlt={d.imageAlt} type="article"
-  noindex={!isIndexable(recipe as any)} publishedTime={d.pubDate.toISOString()} modifiedTime={(d.updatedDate ?? d.pubDate).toISOString()} jsonLd={jsonLd}>
-  <RecipeDetail recipe={recipe as any} related={related as any}>
-    {hasCustomIntro && <div slot="intro" class="prose-crock whitespace-pre-line">{rawBody}</div>}
-  </RecipeDetail>
-</BaseLayout>
+{isNotFound ? (
+  <BaseLayout title="Recipe Not Found" path="/404/" description="The requested recipe could not be found." noindex>
+    <div class="container-narrow py-20 text-center">
+      <p class="font-display text-6xl font-semibold text-terracotta-deep">404</p>
+      <h1 class="mt-4">Recipe not found</h1>
+      <p class="mt-4 text-lg text-ink-soft">
+        We couldn’t find the recipe you’re looking for. It may have been moved, renamed, or is currently in our test kitchen.
+      </p>
+      <div class="mt-8 flex flex-wrap justify-center gap-3">
+        <a class="btn" href="/search/">Search recipes</a>
+        <a class="btn btn-outline" href="/recipes/">All recipes</a>
+        <a class="btn btn-outline" href="/">Home</a>
+      </div>
+    </div>
+  </BaseLayout>
+) : (
+  <BaseLayout
+    title={d!.title}
+    description={d!.description}
+    path={path}
+    image={ogSrc}
+    imageAlt={d!.imageAlt}
+    type="article"
+    noindex={!isIndexable(recipe as any)}
+    publishedTime={d!.pubDate.toISOString()}
+    modifiedTime={(d!.updatedDate ?? d!.pubDate).toISOString()}
+    jsonLd={jsonLd}
+  >
+    <RecipeDetail recipe={recipe as any} related={related as any}>
+      {hasCustomIntro && <div slot="intro" class="prose-crock whitespace-pre-line">{rawBody}</div>}
+    </RecipeDetail>
+  </BaseLayout>
+)}

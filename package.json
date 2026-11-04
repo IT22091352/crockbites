@@ -29,7 +29,9 @@
     "test:seed-sql": "node tests/verify-seed-sql.mjs",
     "test:d1": "node --experimental-strip-types tests/d1-recipe-cms-migration.test.mjs && node tests/verify-seed-sql.mjs",
     "test:drafts": "node --experimental-strip-types tests/d1-recipe-cms-migration.test.mjs && node --experimental-strip-types tests/admin-draft-refresh.test.mjs && node --experimental-strip-types tests/admin-publish-scenarios.test.mjs",
-    "test": "npm run test:auth && npm run test:recipe && npm run test:units && npm run test:dietary && npm run test:community && npm run test:email && npm run test:campaign && npm run test:workflow && npm run test:drafts && npm run test:seed-sql && npm run test:dom"
+    "test:seo": "node --experimental-strip-types tests/recipe-seo-readiness.test.mjs",
+    "test:preflight": "node --experimental-strip-types tests/pre-deployment-verification.test.mjs",
+    "test": "npm run test:auth && npm run test:recipe && npm run test:units && npm run test:dietary && npm run test:community && npm run test:email && npm run test:campaign && npm run test:workflow && npm run test:drafts && npm run test:seed-sql && npm run test:dom && npm run test:seo && npm run test:preflight"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.4.2",
