@@ -3,20 +3,30 @@ import type { APIRoute } from 'astro';
 export const prerender = false;
 
 import { site } from '../config/site.ts';
+import { getDb } from '../lib/db.ts';
 import { getAllRecipes, isIndexable, listingPages, recipeUrl } from '../utils/recipes.ts';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
 
-export const GET: APIRoute = async () => {
-  const all = await getAllRecipes();
+export const GET: APIRoute = async (context) => {
+  const db = await getDb(context?.locals);
+  const all = await getAllRecipes(false, db);
   const urls: { loc: string; lastmod?: string; changefreq?: string; priority?: string }[] = [];
-  const add = (path: string, lastmod?: Date, changefreq?: string, priority?: string) =>
+  const add = (path: string, lastmod?: Date | string, changefreq?: string, priority?: string) => {
+    let lastmodStr: string | undefined = undefined;
+    if (lastmod) {
+      const d = lastmod instanceof Date ? lastmod : new Date(lastmod);
+      if (!isNaN(d.getTime())) {
+        lastmodStr = d.toISOString().slice(0, 10);
+      }
+    }
     urls.push({
       loc: new URL(path, site.url).href,
-      lastmod: lastmod?.toISOString().slice(0, 10),
+      lastmod: lastmodStr,
       changefreq,
       priority,
     });
+  };
 
   const newest = all[0]?.data.updatedDate ?? all[0]?.data.pubDate;
   add('/', newest, 'daily', '1.0');

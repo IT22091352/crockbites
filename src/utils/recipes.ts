@@ -11,10 +11,10 @@ export const recipeUrl = (r: Recipe | string) => `/recipe/${typeof r === 'string
 export const categoryUrl = (slug: string) => `/category/${slug}/`;
 export const absoluteUrl = (path: string) => new URL(path, site.url).href;
 
-export async function getAllRecipes(includeDrafts = false): Promise<Recipe[]> {
+export async function getAllRecipes(includeDrafts = false, customDb?: any): Promise<Recipe[]> {
   // 1. Primary: Cloudflare D1
   try {
-    const db = await getDb();
+    const db = customDb !== undefined ? customDb : (await getDb());
     if (db) {
       const dbRecipes = await getAllRecipesFromDb(db, { includeDrafts });
       if (dbRecipes && dbRecipes.length > 0) {
