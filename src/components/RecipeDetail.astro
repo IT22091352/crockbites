@@ -74,21 +74,18 @@ for (const ing of indexedIngredients) {
 const maxServings = Math.max(d.servings * 4, 24);
 const n = d.nutrition;
 const hasAllergens = Boolean(d.allergens && d.allergens.length > 0);
-const hasAllergenNotes = Boolean(d.allergenNotes && d.allergenNotes.trim());
+const rawAllergenNotes = (d.allergenNotes || '').trim();
+// Filter out incomplete/placeholder notes (such as the legacy ham note "if you use to cook fish")
+const isPlaceholderNote = rawAllergenNotes.toLowerCase().includes('if you use to cook fish');
+const cleanAllergenNotes = isPlaceholderNote ? '' : rawAllergenNotes;
+const hasAllergenNotes = Boolean(cleanAllergenNotes);
 const hasAllergenInfo = hasAllergens || hasAllergenNotes;
 
 const hasNutrition = Boolean(
   n && (
-    n.calories != null ||
-    n.proteinGrams != null ||
-    n.carbsGrams != null ||
-    n.fatGrams != null ||
-    n.saturatedFatGrams != null ||
-    n.unsaturatedFatGrams != null ||
-    n.fiberGrams != null ||
-    n.sugarGrams != null ||
-    n.sodiumMilligrams != null ||
-    n.cholesterolMilligrams != null
+    (n.calories != null && Number(n.calories) > 0) ||
+    (n.proteinGrams != null && Number(n.proteinGrams) > 0) ||
+    (n.carbsGrams != null && Number(n.carbsGrams) > 0)
   )
 );
 
@@ -579,9 +576,9 @@ const allergenNames: Record<string, string> = {
                   <strong class="text-terracotta-deep">Contains:</strong> {d.allergens.map((a: string) => allergenNames[a] || a).join(', ')}
                 </p>
               )}
-              {d.allergenNotes && (
+              {cleanAllergenNotes && (
                 <p class="text-ink-soft">
-                  <strong class="text-forest">Notes:</strong> {d.allergenNotes}
+                  <strong class="text-forest">Notes:</strong> {cleanAllergenNotes}
                 </p>
               )}
               {!d.allergenReviewed && (
@@ -648,8 +645,8 @@ const allergenNames: Record<string, string> = {
               <MessageSquare size={26} class="text-terracotta-deep" aria-hidden="true" />
               Community Ratings &amp; Reviews
             </h2>
-            <p class="mt-1 text-sm text-ink-soft">
-              Real feedback from home cooks who tested this recipe in their own slow cookers.
+            <p id="reviews-subheading" class="mt-1 text-sm text-ink-soft">
+              Be the first to share your experience with this recipe.
             </p>
           </div>
         </div>
@@ -2297,7 +2294,9 @@ const allergenNames: Record<string, string> = {
         const avg = Number(data.averageRating || 0);
         const totalPages = Math.max(1, Number(data.totalPages || 1));
 
+        const subheadingEl = document.getElementById('reviews-subheading');
         if (total > 0) {
+          if (subheadingEl) subheadingEl.textContent = 'Community feedback and ratings from home cooks who tested this recipe.';
           if (headerStarsEl) headerStarsEl.textContent = starsString(avg);
           if (headerRatingTextEl) {
             headerRatingTextEl.textContent = `${avg.toFixed(1)} (${total} ${total === 1 ? 'review' : 'reviews'})`;
@@ -2306,6 +2305,7 @@ const allergenNames: Record<string, string> = {
           if (avgStarsEl) avgStarsEl.textContent = starsString(avg);
           if (totalCountEl) totalCountEl.textContent = `Based on ${total} ${total === 1 ? 'review' : 'reviews'}`;
         } else {
+          if (subheadingEl) subheadingEl.textContent = 'Be the first to share your experience with this recipe.';
           if (headerStarsEl) headerStarsEl.textContent = '☆☆☆☆☆';
           if (headerRatingTextEl) headerRatingTextEl.textContent = 'Be the first to review';
           if (avgNumEl) avgNumEl.textContent = '—';

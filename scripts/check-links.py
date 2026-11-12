@@ -12,6 +12,11 @@ SSR_ROUTE_PREFIXES = (
     '/account/',
     '/admin/',
     '/api/',
+    '/recipes/',
+    '/recipe/',
+    '/category/',
+    '/search/',
+    '/sitemap.xml',
 )
 
 pages = []
@@ -31,7 +36,7 @@ def parse_srcset_urls(srcset_val):
 
 def exists(path):
     clean = unquote(path)
-    if clean in ('/login', '/register', '/logout', '/account', '/admin') or clean.startswith(SSR_ROUTE_PREFIXES):
+    if clean in ('/', '/sitemap.xml', '/login', '/register', '/logout', '/account', '/admin', '/recipes', '/search') or clean.startswith(SSR_ROUTE_PREFIXES):
         return True
     p = os.path.join(ROOT, clean.lstrip('/'))
     return os.path.isfile(p) or os.path.isfile(os.path.join(p, 'index.html'))

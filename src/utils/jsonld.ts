@@ -95,12 +95,19 @@ export function recipeSchema(
   const safeUpdatedDate = updatedDate && !isNaN(updatedDate.getTime()) ? updatedDate : undefined;
 
   const n = d.nutrition;
-  const nutrition = n && (n.calories || n.proteinGrams || n.carbsGrams || n.fatGrams)
+  const hasValidNutrition = Boolean(
+    n && (
+      (n.calories != null && Number(n.calories) > 0) ||
+      (n.proteinGrams != null && Number(n.proteinGrams) > 0) ||
+      (n.carbsGrams != null && Number(n.carbsGrams) > 0)
+    )
+  );
+  const nutrition = (n && hasValidNutrition)
     ? {
         nutrition: {
           '@type': 'NutritionInformation',
           servingSize: '1 serving',
-          ...(n.calories != null ? { calories: `${n.calories} calories` } : {}),
+          ...(n.calories != null && Number(n.calories) > 0 ? { calories: `${n.calories} calories` } : {}),
           ...(n.proteinGrams != null ? { proteinContent: `${n.proteinGrams} g` } : {}),
           ...(n.carbsGrams != null ? { carbohydrateContent: `${n.carbsGrams} g` } : {}),
           ...(n.fatGrams != null ? { fatContent: `${n.fatGrams} g` } : {}),
