@@ -24,7 +24,6 @@ const fullTitle = !title ? site.homeTitle : rawTitle ? title : `${title} | ${sit
 const canonical = new URL(path, site.url).href;
 const imageUrl = new URL(image, site.url).href;
 const { gaMeasurementId, gscVerification } = site.analytics;
-const adsOn = site.ads.enabled && site.ads.client;
 ---
 <title>{fullTitle}</title>
 <meta name="description" content={description} />
@@ -68,4 +67,4 @@ const adsOn = site.ads.enabled && site.ads.client;
   gtag('js', new Date());
   gtag('config', gaMeasurementId);
 </script>}
-{adsOn && <script is:inline async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${site.ads.client}`} crossorigin="anonymous"></script>}
+{site.ads.client && <script is:inline async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${site.ads.client}`} crossorigin="anonymous"></script>}

@@ -117,4 +117,30 @@ test('CrockBites Pre-Deployment Verification Suite', async (t) => {
       assert.ok(loc.startsWith('https://crockbites.site/'), `Sitemap URL "${loc}" must use canonical https://crockbites.site origin`);
     }
   });
+
+  // --- 4. AdSense Verification & Loader Script Integrity ---
+  await t.test('4. AdSense verification meta tag and loader script in Seo.astro', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const seoContent = fs.readFileSync(path.resolve(process.cwd(), 'src/components/Seo.astro'), 'utf-8');
+
+    // Verification meta tag
+    assert.ok(
+      seoContent.includes('{site.ads.client && <meta name="google-adsense-account" content={site.ads.client} />}'),
+      'Must render google-adsense-account meta tag conditioned on site.ads.client'
+    );
+
+    // Official loader script
+    assert.ok(
+      seoContent.includes('{site.ads.client && <script is:inline async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${site.ads.client}`} crossorigin="anonymous"></script>}'),
+      'Must render official pagead2 loader script conditioned on site.ads.client'
+    );
+
+    // No duplicate tags
+    const metaOccurrences = (seoContent.match(/google-adsense-account/g) || []).length;
+    assert.equal(metaOccurrences, 1, 'Must not duplicate google-adsense-account meta tag');
+
+    const scriptOccurrences = (seoContent.match(/pagead2\.googlesyndication\.com/g) || []).length;
+    assert.equal(scriptOccurrences, 1, 'Must not duplicate pagead2 script loader');
+  });
 });
