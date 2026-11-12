@@ -32,6 +32,7 @@ const adsOn = site.ads.enabled && site.ads.client;
 {noindex && <meta name="robots" content="noindex, follow" />}
 {!noindex && <meta name="robots" content="index, follow, max-image-preview:large" />}
 {gscVerification && <meta name="google-site-verification" content={gscVerification} />}
+{site.ads.client && <meta name="google-adsense-account" content={site.ads.client} />}
 
 <meta property="og:site_name" content={site.name} />
 <meta property="og:locale" content={site.locale} />
